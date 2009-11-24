@@ -259,10 +259,16 @@ class mingo_db {
    */
   function count($table,$where_map = array()){
   
+    $ret_int = 0;
     $table = $this->getTable($table);
     list($where_map) = $this->getCriteria($where_map);
-    $result = $table->find($where_map);
-    return empty($result) ? 0 : $result->count();
+    if(empty($where_map)){
+      $ret_int = $table->count();
+    }else{
+      $cursor = $table->find($where_map);
+      $ret_int = $cursor->count();
+    }//if/else
+    return $ret_int;
   
   }//method
   
@@ -297,21 +303,19 @@ class mingo_db {
     list($limit,$offset) = $this->getLimit($limit);
     
     $cursor = $table->find($where_map);
-    if(!empty($cursor)){
     
-      // @todo  right here you can call $cursor->count() to get how many rows were found
-    
-      // do the sort stuff...
-      if(!empty($sort_map)){ $cursor->sort($sort_map); }//if
-    
-      // do the limit stuff...
-      if(!empty($limit)){ $cursor->limit($limit); }//if
-      if(!empty($offset)){ $cursor->skip($offset); }//if
-    
-      while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
+    // @todo  right here you can call $cursor->count() to get how many rows were found
   
-    }//if
-
+    // do the sort stuff...
+    if(!empty($sort_map)){ $cursor->sort($sort_map); }//if
+  
+    // do the limit stuff...
+    if(!empty($limit)){ $cursor->limit($limit); }//if
+    if(!empty($offset)){ $cursor->skip($offset); }//if
+  
+    // @note  a MongoCursorException can be thrown if skip is larger than the results that can be returned... 
+    while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
+      
     return $ret_list;
 
   }//method
@@ -486,12 +490,35 @@ class mingo_db {
   }//method
   
   /**
+   *  adds an index to $table
+   *  
+   *  @link http://www.mongodb.org/display/DOCS/Indexes
+   *      
+   *  @param  string  $table  the table to add the index to
+   *  @param  array $map  usually something like array('field_name' => 1)
+   *  @return boolean
+   */
+  function setIndex($table,$map){
+    
+    // canary...
+    if(empty($map)){ throw new mingo_exception('no $map given'); }//if
+    
+    $table = $this->getTable($table);
+    return $table->ensureIndex($map);
+  
+  }//method
+  
+  
+  /**
    *  deletes a table
    *  
    *  @param  string  $table  the table to delete from the db
    *  @return boolean
    */
-  function drop($table){
+  function deleteTable($table){
+    
+    // canary...
+    if(!$this->hasTable($table)){ return true; }//if
     
     $ret_bool = false;
     $table = $this->getTable($table);
@@ -511,6 +538,48 @@ class mingo_db {
     
     return $ret_bool;
   
+  }//method
+  
+  /**
+   *  adds a table to the db
+   *  
+   *  @param  string  $table  the table to add to the db
+   *  @return boolean
+   */
+  function setTable($table){
+  
+    // canary...
+    if(empty($table)){ throw new mingo_exception('no $table given'); }//if
+  
+    // get all the tables currently in the db...
+    $table_list = $this->getTables();
+    
+    if(!$this->hasTable($table)){
+    
+      $this->con_db->createCollection($table);
+    
+    }//if
+    
+    return true;
+  
+  }//method
+  
+  /**
+   *  check to see if a table is in the db
+   *  
+   *  @param  string  $table  the table to check
+   *  @return boolean
+   */
+  function hasTable($table){
+  
+    // canary...
+    if(empty($table)){ throw new mingo_exception('no $table given'); }//if
+    if($table instanceof MongoCollection){ $table = $table->getName(); }//if
+  
+    // get all the tables currently in the db...
+    $table_list = $this->getTables();
+    return in_array($table,$table_list,true);
+    
   }//method
   
   /**

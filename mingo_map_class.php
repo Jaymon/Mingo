@@ -11,7 +11,7 @@
  *  @since 11-14-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_map implements ArrayAccess,Iterator {
+class mingo_map implements ArrayAccess,Iterator,Countable {
 
   /**
    *  holds the table that this class will access in the db
@@ -53,18 +53,29 @@ class mingo_map implements ArrayAccess,Iterator {
    *  @var  integer   
    */
   protected $offset = 0;
+  
+  /**
+   *  hold the schema object for this instance
+   *  
+   *  usually, the schema will be populated/defined in the child class's __construct()
+   *  
+   *  @var  mingo_schema            
+   */
+  protected $schema = null;
 
   /**
    *  default constructor
    *  
    *  YOU MUST CALL THIS IN ANY CHILD CLASS THAT EXTENDS THIS CLASS (eg, parent::__construct() in
-   *  the child's __construct() method)
+   *  the child's __construct() method) BEFORE DOING ANYTHING ELSE IN __construct()
    */
   function __construct(){
   
-    $this->table = get_class($this);
+    $this->table = mb_strtolower(get_class($this));
   
     $this->setDb(mingo_db::getInstance());
+    
+    $this->setSchema(new mingo_schema($this->table));
   
   }//method
   
@@ -79,6 +90,18 @@ class mingo_map implements ArrayAccess,Iterator {
   function getCount(){ return $this->count; }//method
   function hasCount(){ return !empty($this->count); }//method
   function isCount($count){ return ($this->count == $count); }//method
+  /**
+   *  Required definition for Countable, allows count($this) to work
+   *  @link http://www.php.net/manual/en/class.countable.php
+   */
+  function count(){ return $this->getCount(); }//method
+  
+  /**
+   *  returns true if this instance is representing 1 or more rows
+   *  
+   *  @return boolean      
+   */
+  function has(){ return $this->hasCount(); }//method
   
   function setLimit($val){ $this->limit = $val; }//method
   function getLimit(){ return $this->limit; }//method
@@ -89,6 +112,7 @@ class mingo_map implements ArrayAccess,Iterator {
   function hasOffset(){ return !empty($this->offset); }//method
   
   function setDb($db){ $this->db = $db; }//method
+  function setSchema($schema){ $this->schema = $schema; }//method
   
   function getTable(){ return $this->table; }//method
   
@@ -237,7 +261,9 @@ class mingo_map implements ArrayAccess,Iterator {
         throw new mingo_exception('no $where_map passed in and one could not be inferred because count > 1');
       }//if
       
-      $where_map = $this->list[0]['map'];
+      if(!empty($this->list[0]['map'])){
+        $where_map = $this->list[0]['map'];
+      }//if
     
     }//if
     
@@ -324,6 +350,50 @@ class mingo_map implements ArrayAccess,Iterator {
     }//if/else
   
     return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  the install method for the class
+   *  
+   *  using the {@link $schema} instance, this method will go through and create
+   *  the table and add indexes, etc.
+   *  
+   *  @param  boolean $drop_table true if you want to drop the table if it exists               
+   *  @return boolean
+   */
+  function install($drop_table = false){
+  
+    if($drop_table){ $this->db->deleteTable($this->getTable()); }//if
+  
+    // create the table...
+    if($this->db->setTable($this->getTable())){
+    
+      // create an auto increment key if defined...
+      if($this->schema->hasInc()){
+      
+        $this->db->setInc($this->getTable(),$this->schema->getIncField(),$this->schema->getIncStart());
+        
+      }//if
+    
+      // add all the indexes for this table...
+      if($this->schema->hasIndex()){
+      
+        foreach($this->schema->getIndex() as $index_map){
+        
+          $this->db->setIndex($this->getTable(),$index_map);
+        
+        }//foreach
+      
+      }//if
+    
+    }else{
+    
+      throw new mingo_exception(sprintf('failed in table %s creation',$this->getTable()));
+    
+    }//if/else
+    
+    return true;
   
   }//method
 
@@ -620,7 +690,17 @@ class mingo_map implements ArrayAccess,Iterator {
   /**
    *  Set a value given it's key e.g. $A['title'] = 'foo';
    */
-  function offsetSet($key,$val){ $this->__call(sprintf('set%s',$key),array($val)); }//method
+  function offsetSet($key,$val){
+    
+    if($key === null){
+      // they are trying to do a $obj[] = $val so let's append the $val
+      // via: http://www.php.net/manual/en/class.arrayobject.php#93100
+      $this->append($val);
+    }else{
+      // they specified the key, so this will work on the internal objects...
+      $this->__call(sprintf('set%s',$key),array($val));
+    }//if/else
+  }//method
   /**
    *  Return a value given it's key e.g. echo $A['title'];
    */

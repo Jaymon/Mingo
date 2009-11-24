@@ -22,11 +22,27 @@ class mingo_criteria {
   
   protected $map_criteria = array();
   protected $map_sort = array();
+  protected $method_map = array();
 
   function __construct(){
   
     $command_symbol = ini_get('mongo.cmd');
     if(!empty($command_symbol)){ $this->command_symbol = $command_symbol; }//if
+    
+    $this->method_map = array(
+      'in' => array('set' => 'handleList', 'sql' => 'handleListSql', 'symbol' => 'IN'),
+      'nin' => array('set' => 'handleList', 'sql' => 'handleListSql', 'symbol' => 'NOT IN'),
+      'is' => array('set' => 'handleIs', 'sql' => 'handleValSql', 'symbol' => '='), // =
+      'ne' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '!='), // !=
+      'gt' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '>'), // >
+      'gte' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '>='), // >=
+      'lt' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '<'), // <
+      'lte' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '<='), // <=
+      'sort' => array('set' => 'handleSort', 'sql' => 'handleSortSql'), 
+      'between' => array('set' => 'handleBetween', 'sql' => 'handleBetweenSql'),
+      'inc' => array('set' => 'handleAtomic', 'sql' => ''),
+      'set' => array('set' => 'handleAtomic', 'sql' => '')
+    );
     
   }//method
 
@@ -47,21 +63,7 @@ class mingo_criteria {
   
     list($command,$name) = $this->splitMethod($method);
     
-    $method_map = array(
-      'in' => 'handleList',
-      'nin' => 'handleList',
-      'is' => 'handleIs',
-      'gt' => 'handleVal',
-      'gte' => 'handleVal',
-      'lt' => 'handleVal',
-      'lte' => 'handleVal',
-      'sort' => 'handleSort',
-      'between' => 'handleBetween',
-      'inc' => 'handleAtomic',
-      'set' => 'handleAtomic'
-    );
-    
-    if(isset($method_map[$command])){
+    if(isset($this->method_map[$command])){
     
       if(empty($name)){
       
@@ -78,7 +80,7 @@ class mingo_criteria {
         $name = mb_strtolower($name);
       }//if/else
     
-      $callback = $method_map[$command];
+      $callback = $this->method_map[$command]['set'];
       $this->{$callback}($command,$name,$args);
     
     }else{
@@ -109,6 +111,133 @@ class mingo_criteria {
    *  @return array array($criteria,$sort_criteria);            
    */
   function get(){ return array($this->map_criteria,$this->map_sort); }//method
+  
+  function getSql(){
+  
+    $ret_map = array();
+    $ret_map['where_str'] = '';
+    $ret_map['where_val'] = array();
+  
+    $ret_where = $ret_sort = '';
+  
+    list($criteria_where,$criteria_sort) = $this->get();
+  
+    out::e($criteria_where,$criteria_sort);
+  
+  
+    foreach($criteria_where as $name => $map){
+    
+      $total_i = count($map);
+      ///if($total_i
+    
+    
+      foreach($map as $command => $val){
+    
+        if($command[0] == $this->command_symbol){
+        
+          $command_bare = mb_substr($command,1);
+          $sql = $val = '';
+        
+          if(count($map) < 2){
+        
+            if(isset($this->method_map[$command_bare])){
+            
+              if(!empty($this->method_map[$command_bare]['sql'])){
+              
+                $callback = $this->method_map[$command_bare]['sql'];
+                list($sql,$val) = $this->{$callback}(
+                  $this->method_map[$command_bare]['symbol'],
+                  $name,
+                  $map[$command]
+                );
+                
+              }//if
+            
+            }//if
+            
+          }else{
+          
+            if($command_bare == 'gte'){
+            
+              list($sql,$val) = $this->handleBetweenSql($name,array_values($map));
+            
+            }//if
+          
+          
+          }//if/else
+          
+          if(!empty($sql)){
+                  
+            $separator = '';
+            if(!empty($ret_map['where_str'])){ $separator = ' AND'; }//if
+          
+            $ret_map['where_str'] = sprintf('%s%s%s',$ret_map['where_str'],$separator,$sql);
+            
+            if(is_array($val)){
+              $ret_map['where_val'] = array_merge($ret_map['where_val'],$val);
+            }else{
+              $ret_map['where_val'][] = $val;
+            }//if/else
+          
+          }//if
+      
+        }//if
+        
+      }//foreach
+    
+    }//foreach
+  
+    if(!empty($ret_map['where_val'])){
+      $ret_map['where_str'] = sprintf('WHERE%s',$ret_map['where_str']);
+    }//if
+  
+    out::e($ret_map);
+  
+  }//method
+  
+  /**
+   *  handle sql'ing a between mapping: (NAME >= ? AND NAME <= ?)
+   *  
+   *  @param  string  $name the name of the field      
+   *  @param  array $args a list of values that $name will be in         
+   *  @return array array($sql,$val_list);
+   */
+  protected function handleBetweenSql($name,$args){
+  
+    $ret_str = sprintf(' (%s >= ? AND %s <= ?)',$name,$name);
+    return array($ret_str,$args);
+  
+  }//method
+  
+  /**
+   *  handle sql'ing a generic list: NAME SYMBOL (...)
+   *  
+   *  @param  string  $symbol the symbol to use in the sQL string
+   *  @param  string  $name the name of the field      
+   *  @param  array $args a list of values that $name will be in         
+   *  @return array array($sql,$val_list);
+   */
+  protected function handleListSql($symbol,$name,$args){
+  
+    $ret_str = sprintf(' %s %s (%s)',$name,$symbol,join(',',array_fill(0,count($args),'?')));
+    return array($ret_str,$args);
+  
+  }//method
+  
+  /**
+   *  handle sql'ing a generic val: NAME SYMBOL ?
+   *  
+   *  @param  string  $symbol the symbol to use in the sQL string
+   *  @param  string  $name the name of the field      
+   *  @param  array $arg  the argument         
+   *  @return array array($sql,$val);
+   */
+  protected function handleValSql($symbol,$name,$arg){
+  
+    $ret_str = sprintf(' %s %s ?',$name,$symbol);
+    return array($ret_str,$arg);
+  
+  }//method
   
   /**
    *  handle atomic operations
