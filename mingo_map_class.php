@@ -6,6 +6,10 @@
  *  
  *  all mingo ORMs should extend this class
  *
+ *  @todo
+ *    1 - move limit and offset (change offset to page) to the schema object, but have this
+ *        class do the limit+1 and set ->hasMore() or ->canLoadMore() if there are more db results  
+ *  
  *  @version 0.1
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
@@ -173,7 +177,7 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
       // only try and save if it has changes...
       if(!empty($this->list[$key]['modified'])){
       
-        // added created and last touched fields...
+        // add created and last touched fields...
         if(empty($this->list[$key]['map']['created'])){ 
           $this->list[$key]['map']['created'] = $now;
         }//if
@@ -181,7 +185,9 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
       
         $this->list[$key]['map'] = $this->db->update(
           $this->getTable(),
-          $this->list[$key]['map']
+          $this->list[$key]['map'],
+          null,
+          $this->schema
         );
         $this->list[$key]['modified'] = false; // reset
       
@@ -249,25 +255,25 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
    *    load something using $where_map
    *      $instance->load(array('_id' => '4affd9e8da7f000000003645'));
    *
-   *  @param  array $where_map  criteria for loading db rows into this object
+   *  @param  mingo_criteria  $where_criteria  criteria for loading db rows into this object
    *  @return integer how many rows were loaded
    */
-  function load($where_map = array()){
+  function load(mingo_criteria $where_criteria = null){
   
     // canary...
-    if(empty($where_map)){
+    if(empty($where_criteria)){
     
       if($this->count > 1){
-        throw new mingo_exception('no $where_map passed in and one could not be inferred because count > 1');
+        throw new mingo_exception('no $where_criteria passed in and one could not be inferred because count > 1');
       }//if
       
       if(!empty($this->list[0]['map'])){
-        $where_map = $this->list[0]['map'];
+        $where_criteria = new mingo_criteria($this->list[0]['map']);
       }//if
     
     }//if
     
-    $list = $this->db->get($this->getTable(),$where_map,array($this->getLimit(),$this->getOffset()));
+    $list = $this->db->get($this->getTable(),$where_criteria,array($this->getLimit(),$this->getOffset()));
     
     $this->reset();
     
@@ -364,30 +370,10 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
    */
   function install($drop_table = false){
   
-    if($drop_table){ $this->db->deleteTable($this->getTable()); }//if
+    if($drop_table){ $this->db->killTable($this->getTable()); }//if
   
     // create the table...
-    if($this->db->setTable($this->getTable())){
-    
-      // create an auto increment key if defined...
-      if($this->schema->hasInc()){
-      
-        $this->db->setInc($this->getTable(),$this->schema->getIncField(),$this->schema->getIncStart());
-        
-      }//if
-    
-      // add all the indexes for this table...
-      if($this->schema->hasIndex()){
-      
-        foreach($this->schema->getIndex() as $index_map){
-        
-          $this->db->setIndex($this->getTable(),$index_map);
-        
-        }//foreach
-      
-      }//if
-    
-    }else{
+    if(!$this->db->setTable($this->getTable(),$this->schema)){
     
       throw new mingo_exception(sprintf('failed in table %s creation',$this->getTable()));
     

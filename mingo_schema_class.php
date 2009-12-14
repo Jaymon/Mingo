@@ -75,13 +75,13 @@ class mingo_schema {
   function hasIndex(){ return !empty($this->index_map); }//method
   
   /**
-   *  pass in true if this table should have an auto_increment field
+   *  pass in true if this table should have an auto_increment field, if called, then
+   *  a row_id will be added to every row. To index it you would have to use setIndex('row_id');   
    *  
-   *  @param  string  $field  the field name that should hold the auto_increment count
    *  @param  integer $start_count  if you want to start the field at something other than 0   
    */
-  function setInc($field,$start_count = 0){
-    $this->inc_map['field'] = $field;
+  function setInc($start_count = 0){
+    $this->inc_map['field'] = 'row_id';
     $this->inc_map['start'] = $start_count;
   }//method
   function hasInc(){ return !empty($this->inc_map); }//method

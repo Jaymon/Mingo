@@ -24,7 +24,7 @@ class mingo_criteria {
   protected $map_sort = array();
   protected $method_map = array();
 
-  function __construct(){
+  function __construct($map_criteria = array()){
   
     $command_symbol = ini_get('mongo.cmd');
     if(!empty($command_symbol)){ $this->command_symbol = $command_symbol; }//if
@@ -38,11 +38,15 @@ class mingo_criteria {
       'gte' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '>='), // >=
       'lt' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '<'), // <
       'lte' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '<='), // <=
-      'sort' => array('set' => 'handleSort', 'sql' => 'handleSortSql'), 
+      'sort' => array('set' => 'handleSort', 'sql' => 'handleSortSql'),
+      'asc' => array('set' => 'handleSortAsc', 'sql' => 'handleSortSql'),
+      'desc' => array('set' => 'handleSortDesc', 'sql' => 'handleSortSql'), 
       'between' => array('set' => 'handleBetween', 'sql' => 'handleBetweenSql'),
       'inc' => array('set' => 'handleAtomic', 'sql' => ''),
       'set' => array('set' => 'handleAtomic', 'sql' => '')
     );
+    
+    $this->set($map_criteria);
     
   }//method
 
@@ -112,6 +116,29 @@ class mingo_criteria {
    */
   function get(){ return array($this->map_criteria,$this->map_sort); }//method
   
+  /**
+   *  convert an array criteria into an instance of this
+   *
+   *  @param  array $map_criteria the criteria that should be handled internally
+   */
+  function set($map_criteria){
+    
+    // canary...
+    if(empty($map_criteria)){ $map_criteria = array(); }//if
+    if(!is_array($map_criteria)){ throw new mingo_exception('$map_criteria isn\'t an array'); }//if
+  
+    $this->map_criteria = $map_criteria;
+    
+  }//method
+  
+  /**
+   *  convert the internal criteria into SQL
+   *  
+   *  the sql is suitable to be used in PDO, and so the string has ? where each value
+   *  should go, the value array will correspond to each of the ?      
+   *      
+   *  @return array an array map with 'where_str' and 'where_val' keys set      
+   */
   function getSql(){
   
     $ret_map = array();
@@ -122,14 +149,16 @@ class mingo_criteria {
   
     list($criteria_where,$criteria_sort) = $this->get();
   
-    out::e($criteria_where,$criteria_sort);
-  
+    out::e($criteria_where);
   
     foreach($criteria_where as $name => $map){
     
-      $total_i = count($map);
-      ///if($total_i
-    
+      // hanlde is values...
+      if(!is_array($map)){
+        $temp_map = $map;
+        $map = array();
+        $map = $this->getMap('is',$temp_map);
+      }//if
     
       foreach($map as $command => $val){
     
@@ -163,7 +192,6 @@ class mingo_criteria {
             
             }//if
           
-          
           }//if/else
           
           if(!empty($sql)){
@@ -190,8 +218,8 @@ class mingo_criteria {
     if(!empty($ret_map['where_val'])){
       $ret_map['where_str'] = sprintf('WHERE%s',$ret_map['where_str']);
     }//if
-  
-    out::e($ret_map);
+
+    return $ret_map;
   
   }//method
   
@@ -298,12 +326,32 @@ class mingo_criteria {
     // canary...
     if(empty($args)){
       throw new mingo_exception(
-        sprintf('%s must have either %sDESC or %s::ASC passed in',$command,__CLASS__,__CLASS__)
+        sprintf('%s must have either %s::DESC or %s::ASC passed in',$command,__CLASS__,__CLASS__)
       );
     }//if
     
     $this->map_sort[$name] = ($args[0] > 0) ? self::ASC : self::DESC;
   
+  }//method
+  
+  /**
+   *  makes sort a little easier by allowing $this->ascFIELD_NAME instead of
+   *  $this->sortFIELD_NAME(self::ASC)
+   *  
+   *  @see  handleSort()
+   */
+  protected function handleSortAsc($command,$name,$args){
+    return $this->handleSort($command,$name,array(self::ASC));
+  }//method
+  
+  /**
+   *  makes sort a little easier by allowing $this->descFIELD_NAME instead of
+   *  $this->sortFIELD_NAME(self::DESC)
+   *  
+   *  @see  handleSort()
+   */
+  protected function handleSortDesc($command,$name,$args){
+    return $this->handleSort($command,$name,array(self::DESC));
   }//method
   
   /**
