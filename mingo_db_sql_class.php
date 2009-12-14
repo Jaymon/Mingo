@@ -167,6 +167,8 @@ class mingo_db_sql {
     
     $ret_list = array();
     $id_list = array();
+    $order_map = array();
+    $sort_query = '';
     
     if($where_criteria instanceof mingo_criteria){
       
@@ -175,27 +177,53 @@ class mingo_db_sql {
 
       if(!empty($where_map)){
         
-        // get the table...
-        $index_table = sprintf('%s_%s',$table,md5(join(',',array_keys($where_map))));
+        list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
         
-        // build the query...
-        $query = 'SELECT _id FROM %s %s';
-        $printf_vars = array();
-        list($where_query,$val_list) = $where_criteria->getSql();
+        // we only select on an index if it isn't an _id only, @todo you could select on row_id also 
+        if((count($where_map) > 1) || !isset($where_map['_id'])){
         
-        $printf_vars[] = $table;
-        $printf_vars[] = $where_query;
+          // get the table...
+          $index_table = sprintf('%s_%s',$table,md5(join(',',array_keys($where_map))));
+          
+          // build the query...
+          $query = 'SELECT _id FROM %s %s';
+          $printf_vars = array();
+          
+          $printf_vars[] = $index_table;
+          $printf_vars[] = $where_query;
+          
+          // add sort...
+          if(!empty($sort_query)){
+            $query .= ' '.$sort_query;
+          }//if
+          $sort_query = ''; // clear sort query so the next query doesn't use it
+          
+          if(!empty($limit[0])){
+            $query .= ' LIMIT %d OFFSET %d';
+            $printf_vars[] = $limit[0];
+            $printf_vars[] = $limit[1];
+          }//if
+          
+          $query = vsprintf($query,$printf_vars);
+          $row_list = $this->getQuery($query,$val_list);
+          
+          // build the id list...
+          foreach($row_list as $key => $row){
+            if(isset($row['_id'])){
+              $order_map[$row['_id']] = $key;
+              $id_list[] = $row['_id'];
+            }//if
+          }//foreach
+          
+        }else{
         
-        if(!empty($limit[0])){
-          $query .= ' LIMIT %d OFFSET %d';
-          $printf_vars[] = $limit[0];
-          $printf_vars[] = $limit[1];
-        }//if
+          // it is a _id query, so the only sort can be row_id...
+          $id_list = $val_list;
+          if(!empty($sort_map) && !isset($sort_map['row_id'])){
+            $sort_query = '';
+          }//if
         
-        $query = vsprintf($query,$printf_vars);
-        
-        $id_list = $this->getQuery($query,$val_list);
-        out::e($id_list);
+        }//if/else
         
       }//if
       
@@ -212,6 +240,11 @@ class mingo_db_sql {
     
     }//if
     
+    // add sort...
+    if(!empty($sort_query)){
+      $query .= ' '.$sort_query;
+    }//if
+    
     if(!empty($limit[0])){
       $query .= ' LIMIT %d OFFSET %d';
       $printf_vars[] = $limit[0];
@@ -223,14 +256,28 @@ class mingo_db_sql {
     $list = $this->getQuery($query,$id_list);
     foreach($list as $map){
     
-      $ret_map = json_decode(gzuncompress($map['body']));
+      $ret_map = (array)json_decode(gzuncompress($map['body']));
       $ret_map['_id'] = $map['_id'];
       $ret_map['row_id'] = $map['row_id'];
-      $ret_list[] = $ret_map;
+      
+      // put the ret_map in the right place...
+      if(isset($order_map[$map['_id']])){
+      
+        $ret_list[$order_map[$map['_id']]] = $ret_map;
+      
+      }else{
+      
+        $ret_list[] = $ret_map;
+      
+      }
     
     }//foreach
     
-    out::e($ret_list);
+    // sort the list if an order map was set...
+    if(!empty($order_map)){
+      ksort($ret_list);
+    }//if
+
     return $ret_list;
 
   }//method
@@ -587,7 +634,7 @@ class mingo_db_sql {
     
       $query = sprintf('CREATE TABLE %s (
           row_id INTEGER NOT NULL PRIMARY KEY ASC,
-          _id TEXT COLLATE NOCASE NOT NULL,
+          _id VARCHAR(24) COLLATE NOCASE NOT NULL,
           body BLOB
       )',$table);
     
@@ -618,7 +665,7 @@ class mingo_db_sql {
           
           foreach($field_list as $field){
           
-            $query .= '%s varchar(100) NOT NULL,';
+            $query .= '%s VARCHAR(100) NOT NULL,';
             $printf_vars[] = $field;
           
           }//foreach

@@ -6,6 +6,14 @@
  *  
  *  all mingo ORMs should extend this class
  *
+ *  this class reserves some keywords as special: 
+ *    - row_id = the auto increment key, always set on SQL db, can be turned on with mongo 
+ *               using $this->schema->setInc() in the child class's __construct() method
+ *    - _id = the unique id of the row, always set for both mongo and sql
+ *    - updated = holds a unix timestamp of the last time the row was saved into the db, alwasy set
+ *    - created = holds a unix timestamp of when the row was created, always set
+ *
+ *   
  *  @todo
  *    1 - move limit and offset (change offset to page) to the schema object, but have this
  *        class do the limit+1 and set ->hasMore() or ->canLoadMore() if there are more db results  

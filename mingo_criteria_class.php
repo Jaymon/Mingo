@@ -1,14 +1,15 @@
 <?php
 
 /**
- *  creates criteria for querying a mingo db 
+ *  creates criteria for querying a mingo db, also maps those to sql when using 
+ *  a relational backend 
  *
  *  allow an easy way to define most of the advanced queries defined here:
  *  http://www.mongodb.org/display/DOCS/Advanced+Queries#AdvancedQueries-{{group()}}
  *  http://www.mongodb.org/display/DOCS/Atomic+Operations
  *  http://www.mongodb.org/display/DOCS/Sorting   
  *  
- *  @version 0.1
+ *  @version 0.2
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-17-09
  *  @package mingo 
@@ -41,7 +42,7 @@ class mingo_criteria {
       'sort' => array('set' => 'handleSort', 'sql' => 'handleSortSql'),
       'asc' => array('set' => 'handleSortAsc', 'sql' => 'handleSortSql'),
       'desc' => array('set' => 'handleSortDesc', 'sql' => 'handleSortSql'), 
-      'between' => array('set' => 'handleBetween', 'sql' => 'handleBetweenSql'),
+      'between' => array('set' => 'handleBetween', 'sql' => ''), // between is handled by >= and <= sql handlers
       'inc' => array('set' => 'handleAtomic', 'sql' => ''),
       'set' => array('set' => 'handleAtomic', 'sql' => '')
     );
@@ -137,103 +138,115 @@ class mingo_criteria {
    *  the sql is suitable to be used in PDO, and so the string has ? where each value
    *  should go, the value array will correspond to each of the ?      
    *      
-   *  @return array an array map with 'where_str' and 'where_val' keys set      
+   *  @return array an array map with 'where_str', 'where_val', and 'sort_str' keys set      
    */
   function getSql(){
   
     $ret_map = array();
-    $ret_map['where_str'] = '';
-    $ret_map['where_val'] = array();
+    $ret_map['where_str'] = ''; $ret_map[0] = &$ret_map['where_str'];
+    $ret_map['where_val'] = array(); $ret_map[1] = &$ret_map['where_val'];
+    $ret_map['sort_str'] = array(); $ret_map[2] = &$ret_map['sort_str'];
   
     $ret_where = $ret_sort = '';
   
     list($criteria_where,$criteria_sort) = $this->get();
   
-    out::e($criteria_where);
-  
     foreach($criteria_where as $name => $map){
     
-      // hanlde is values...
-      if(!is_array($map)){
-        $temp_map = $map;
-        $map = array();
-        $map = $this->getMap('is',$temp_map);
-      }//if
+      // we only deal with non-command names right now for sql...
+      if($name[0] != $this->command_symbol){
+      
+        $where_sql = '';
+        $where_val = array();
+      
+        if(is_array($map)){
+        
+          $total_map = count($map);
+        
+          // go through each map val and append it to the sql string...
+          foreach($map as $command => $val){
     
-      foreach($map as $command => $val){
-    
-        if($command[0] == $this->command_symbol){
-        
-          $command_bare = mb_substr($command,1);
-          $sql = $val = '';
-        
-          if(count($map) < 2){
-        
-            if(isset($this->method_map[$command_bare])){
+            if($command[0] == $this->command_symbol){
             
-              if(!empty($this->method_map[$command_bare]['sql'])){
+              $command_bare = mb_substr($command,1);
+              $command_sql = '';
+              $command_val = array();
+            
+              // build the sql...
+              if(isset($this->method_map[$command_bare])){
               
-                $callback = $this->method_map[$command_bare]['sql'];
-                list($sql,$val) = $this->{$callback}(
-                  $this->method_map[$command_bare]['symbol'],
-                  $name,
-                  $map[$command]
-                );
+                if(!empty($this->method_map[$command_bare]['sql'])){
                 
+                  $callback = $this->method_map[$command_bare]['sql'];
+                  list($command_sql,$command_val) = $this->{$callback}(
+                    $this->method_map[$command_bare]['symbol'],
+                    $name,
+                    $map[$command]
+                  );
+                  
+                  list($where_sql,$where_val) = $this->appendSql(
+                    'AND',
+                    $command_sql,
+                    $command_val,
+                    $where_sql,
+                    $where_val
+                  );
+                  
+                }//if
+              
               }//if
             
-            }//if
-            
-          }else{
-          
-            if($command_bare == 'gte'){
-            
-              list($sql,$val) = $this->handleBetweenSql($name,array_values($map));
-            
-            }//if
-          
-          }//if/else
-          
-          if(!empty($sql)){
-                  
-            $separator = '';
-            if(!empty($ret_map['where_str'])){ $separator = ' AND'; }//if
-          
-            $ret_map['where_str'] = sprintf('%s%s%s',$ret_map['where_str'],$separator,$sql);
-            
-            if(is_array($val)){
-              $ret_map['where_val'] = array_merge($ret_map['where_val'],$val);
             }else{
-              $ret_map['where_val'][] = $val;
+            
+              // @todo  throw an error, there shouldn't ever be an array value outside a command
+              throw new mingo_exception(
+                'there is an error in your criteria, this happens when you pass in an array to '
+                .'the constructor, maybe try generating your criteria using the object\'s methods '
+                .'and not passing in an array.'
+              );
+            
             }//if/else
+            
+          }//foreach
           
-          }//if
-      
-        }//if
+          if($total_map > 1){ $where_sql = sprintf(' (%s)',$where_sql); }//if
         
-      }//foreach
+        }else{
+        
+          // we have a NAME=VAL (an is* method call)...
+          list($where_sql,$where_val) = $this->handleValSql('=',$name,$map);
+        
+        }//if/else
+        
+        list($ret_map['where_str'],$ret_map['where_val']) = $this->appendSql(
+          'AND',
+          $where_sql,
+          $where_val,
+          $ret_map['where_str'],
+          $ret_map['where_val']
+        );
+      
+      }//if
     
     }//foreach
   
     if(!empty($ret_map['where_val'])){
       $ret_map['where_str'] = sprintf('WHERE%s',$ret_map['where_str']);
     }//if
+    
+    // build the sort sql...
+    foreach($criteria_sort as $name => $direction){
+    
+      $dir_sql = ($direction > 0) ? 'ASC' : 'DESC';
+      if(empty($ret_map['sort_sql'])){
+        $ret_map['sort_str'] = sprintf('ORDER BY %s %s',$name,$dir_sql);
+      }else{
+        $ret_map['sort_str'] = sprintf('%s,%s %s',$ret_map['sort_sql'],$name,$dir_sql);
+      }//if/else
+    
+    }//foreach
 
     return $ret_map;
-  
-  }//method
-  
-  /**
-   *  handle sql'ing a between mapping: (NAME >= ? AND NAME <= ?)
-   *  
-   *  @param  string  $name the name of the field      
-   *  @param  array $args a list of values that $name will be in         
-   *  @return array array($sql,$val_list);
-   */
-  protected function handleBetweenSql($name,$args){
-  
-    $ret_str = sprintf(' (%s >= ? AND %s <= ?)',$name,$name);
-    return array($ret_str,$args);
   
   }//method
   
@@ -426,6 +439,17 @@ class mingo_criteria {
     return sprintf('%s%s',$this->command_symbol,$command);
   }//method
   
+  /**
+   *  splits the $method by the first capital letter
+   *  
+   *  the reason why we split on the first capital is because if we just did find
+   *  first substring that matches in __call(), then gt and gte would match the same
+   *  method, so we enforce camel casing (eg, gteEdward and gtEdward) so that all method
+   *  names can be matched
+   *  
+   *  @param  string  $method the method name that was called
+   *  @return array array($prefix,$name)
+   */
   private function splitMethod($method){
   
     $ret_prefix = $ret_name = '';
@@ -448,6 +472,40 @@ class mingo_criteria {
     }//for
     
     return array($ret_prefix,$ret_name);
+  
+  }//method
+  
+  /**
+   *  handle appending to a sql string
+   *  
+   *  @param  string  $separator  something like 'AND' or 'OR'
+   *  @param  string  $new_sql  the sql that will be appended to $old_sql
+   *  @param  array $new_val  if $new_sql has any ?'s then their values need to be in $new_val
+   *  @param  string  $old_sql  the original sql that will have $new_sql appended to it using $separator
+   *  @param  array $old_val  all the old values that will be merged with $new_val
+   *  @return array array($sql,$val)
+   */
+  private function appendSql($separator,$new_sql,$new_val,$old_sql,$old_val){
+  
+    // sanity...
+    if(empty($new_sql)){ return array($old_sql,$old_val); }//if
+  
+    // build the separator...
+    if(empty($old_sql)){
+      $separator = '';
+    }else{
+      $separator = ' '.trim($separator);
+    }//if
+          
+    $old_sql = sprintf('%s%s%s',$old_sql,$separator,$new_sql);
+    
+    if(is_array($new_val)){
+      $old_val = array_merge($old_val,$new_val);
+    }else{
+      $old_val[] = $new_val;
+    }//if/else
+  
+    return array($old_sql,$old_val);
   
   }//method
 
