@@ -38,27 +38,20 @@ class mingo_schema {
   /**
    *  set an index on the table this schema represents
    *
-   *  @param  string  $name the name of the index
    *  @param  string  $field,...  one or more field names to be indexed
    */
-  function setIndex(/* $name, $field[,...] */){
+  function setIndex(){
   
     $args = func_get_args();
     
     // canary...
-    if(empty($args)){ throw new mingo_exception('no name or fields specified for the index'); }//if
-    
-    $name = $args[0];
-    $fields = array_slice($args,1);
-    
-    // canary...
-    if(empty($fields)){ throw new mingo_exception('no fields specified for the index'); }//if
+    if(empty($args)){ throw new mingo_exception('no fields specified for the index'); }//if
     
     // save the index...
-    $index_name = sprintf('%s_%s',$this->table,$name);
+    $index_name = sprintf('i%s',join(',',$args));
     $this->index_map[$index_name] = array();
     
-    foreach($fields as $field){
+    foreach($args as $field){
       $this->index_map[$index_name][$field] = 1;
     }//foreach
     

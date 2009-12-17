@@ -1,12 +1,9 @@
 <?php
 
 /**
- *  handle mongo db connections 
- *  
- *
- *  @note mongo db inserts and updates always return true, so you have to check the last
- *        error to see if they were successful, I found this out through this link:
- *        http://markmail.org/message/ghapbonzag2uim2p     
+ *  handle mingo db connections transparently between the different interfaces, this
+ *  class is used to establish the singleton, and then allow the map to interact
+ *  with the db layer.
  *
  *  @version 0.1
  *  @author Jay Marcyes {@link http://marcyes.com}
@@ -33,13 +30,13 @@ class mingo_db {
   private $con_db = null;
   
   /**
-   *  used by {@link getInstance()} to keep a singleton object, the {@link getINstance()} 
+   *  used by {@link getInstance()} to keep a singleton object, the {@link getInstance()} 
    *  method should be the only place this object is ever messed with so if you want to touch it, DON'T!  
    *  @var mingo_db
    */
   private static $instance = null;
   
-  function __construct($type = self::TYPE_MONGO,$db = '',$host = '',$username = '',$password = ''){
+  function __construct($type = 0,$db = '',$host = '',$username = '',$password = ''){
   
     $this->setType($type);
     $this->setDb($db);
@@ -62,7 +59,7 @@ class mingo_db {
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($type = self::TYPE_MONGO,$db = '',$host = '',$username = '',$password = ''){
+  function connect($type = 0,$db = '',$host = '',$username = '',$password = ''){
   
     // set all the connection variables...
     if(empty($type)){
@@ -72,7 +69,7 @@ class mingo_db {
         throw new mingo_exception('no $type specified');
       }//if/else
     }else{
-      $this->setDb($type);
+      $this->setType($type);
     }//if/else
     
     if(empty($db)){
@@ -137,6 +134,9 @@ class mingo_db {
       $password
     );
     
+    // reset the debug level for the con_db just in case...
+    $this->setDebug($this->getDebug());
+    
     return $this->con_map['connected'];
   
   }//method
@@ -154,10 +154,7 @@ class mingo_db {
     if(self::$instance === null){ self::$instance = new self; }//if
     return self::$instance;
   }//method
-  
-  function setOption($val){ $this->option = $val; }//method
-  function hasOption($val){ return $val && $this->option; }//method
-  
+
   function setType($val){ $this->con_map['type'] = $val; }//method
   function getType(){ return $this->hasType() ? $this->con_map['type'] : 0; }//method
   function hasType(){ return !empty($this->con_map['type']); }//method
@@ -179,99 +176,84 @@ class mingo_db {
   function getPassword(){ return $this->hasPassword() ? $this->con_map['password'] : ''; }//method
   function hasPassword(){ return !empty($this->con_map['password']); }//method
   
+  function setDebug($val){
+    $this->con_map['debug'] = $val;
+    if($this->isConnected()){ $this->con_db->setDebug($val); }//if
+  }//method
+  function getDebug(){ return $this->hasDebug(); }//method
+  function hasDebug(){ return !empty($this->con_map['debug']); }//method
+  
   function isConnected(){ return !empty($this->con_map['connected']); }//method
   
   /**
-   *  tell how many records match $where_map in $table
+   *  tell how many records match $where_criteria in $table
    *  
    *  @param  string  $table
-   *  @param  array $where_map
+   *  @param  mingo_criteria $where_criteria
    *  @return integer the count   
    */
-  function count($table,$where_map = array()){
+  function getCount($table,mingo_criteria $where_criteria = null){
   
-    $ret_int = 0;
-    $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
-    if(empty($where_map)){
-      $ret_int = $table->count();
-    }else{
-      $cursor = $table->find($where_map);
-      $ret_int = $cursor->count();
-    }//if/else
-    return $ret_int;
+    // canary...
+    if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    return $this->con_db->getCount($table,$where_criteria);
   
   }//method
   
   /**
-   *  delete the records that match $where_map in $table
+   *  delete the records that match $where_criteria in $table
    *  
    *  @param  string  $table
-   *  @param  array $where_map
+   *  @param  mingo_criteria $where_criteria
    *  @return boolean
    */
-  function delete($table,$where_map = array()){
+  function kill($table,mingo_criteria $where_criteria){
   
-    $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
-    return $table->remove($where_map);
+    // canary...
+    if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if(empty($where_criteria)){
+      throw new mingo_exception('no $where_criteria specified');
+    }else{
+      if(!$where_criteria->has()){
+        throw new mingo_exception('aborting delete because $where_criteria was empty');
+      }//if
+    }//if/else
+  
+    return $this->con_db->kill($table,$where_criteria);
   
   }//method
   
   /**
-   *  get a list of rows matching $where_map
+   *  get a list of rows matching $where_criteria
    *  
    *  @param  string  $table
-   *  @param  mingo_criteria  $where_criteria if you want sorting power, use mingo_criteria
+   *  @param  mingo_criteria  $where_criteria
    *  @param  integer|array $limit  either something like 10, or array($limit,$page)   
    *  @return array
    */
   function get($table,mingo_criteria $where_criteria = null,$limit = 0){
     
-    $ret_list = array();
+    // canary...
+    if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    
     list($limit,$offset) = $this->getLimit($limit);
     return $this->con_db->get($table,$where_criteria,array($limit,$offset));
 
   }//method
   
   /**
-   *  get the first found row in $table according to $where_map find criteria
+   *  get the first found row in $table according to $where_criteria
    *  
    *  @param  string  $table
-   *  @param  array|mingo_criteria  $where_map
+   *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  function getOne($table,$where_map = array()){
+  function getOne($table,mingo_criteria $where_criteria = null){
     
-    $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
-    $ret_map = $table->findOne($where_map);
-    return empty($ret_map) ? array() : $ret_map;
-
-  }//method
-  
-  /**
-   *  increment $field in $table by $count according to $where_map search criteria
-   *  
-   *  @param  string  $table
-   *  @param  string  $field  the field to increment
-   *  @param  array $where_map  the find criteria
-   *  @param  integer $count  how many you want to increment $field by
-   *  @return boolean
-   */
-  function bump($table,$field,$where_map,$count = 1){
-  
     // canary...
-    if(empty($field)){ throw new mingo_exception('no $field specified'); }//if
-    if(empty($count)){ return true; }//if
-  
-    $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
+    if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     
-    $c = new mingo_criteria();
-    $c->inc($field,$count);
-    
-    return $this->update($table,$c,$where_map);
+    return $this->con_db->getOne($table,$where_map);
     
   }//method
   
@@ -279,75 +261,36 @@ class mingo_db {
    *  insert $map into $table
    *  
    *  @param  string  $table  the table name
-   *  @param  array|mingo_criteria  $map  the key/value map that will be added to $table
-   *  @return array the $map that was just saved
-   *  @param  mingo_schema  $schema the table schema, not really needed for Mongo, but important
-   *                                for sql   
+   *  @param  array $map  the key/value map that will be added to $table
+   *  @param  mingo_schema  $schema the table schema  
+   *  @return array the $map that was just saved with _id set
+   *     
    *  @throws mingo_exception on any failure               
    */
-  function insert($table,$map,mingo_schema $schema){
+  function set($table,$map,mingo_schema $schema){
   
+    // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
-    if(empty($map)){ throw new mingo_exception('no point in inserting an empty $map'); }//if
+    if(empty($map)){ throw new mingo_exception('no point in setting an empty $map'); }//if
     if(empty($schema)){ throw new mingo_exception('no $schema specified'); }//if
   
-    return $this->con_db->insert($table,$map,$schema);
-    
-  }//method
-  
-  /**
-   *  update $map from $table using $where_map as criteria
-   *  
-   *  @param  string  $table  the table name
-   *  @param  array $map  the key/value map that will be added to $table
-   *  @param  mingo_criteria  $where_map  if empty, $map is checked for '_id'
-   *  @param  mingo_schema  $schema the table schema, not really needed for Mongo, but important
-   *                                for sql         
-   *  @return array the $map that was just saved
-   *  @throws mingo_exception on any failure
-   */
-  function update($table,$map,$where_map = array(),mingo_schema $schema){
-    
-    // canary...
-    if(empty($schema)){ throw new mingo_exception('no $schema specified'); }//if
-    if(empty($where_map)){
-      if(empty($map['_id'])){
-        // since there isn't a where map, and no unique id, insert it instead...
-        return $this->insert($table,$map,$schema);
-      }else{
-        $where_map = array('_id' => $map['_id']);
-      }//if
-    }//if
-    
-    // clean up before updating...
-    if(isset($map['_id'])){
-      $ret_id = $map['_id'];
+    if(empty($map['_id'])){
+      // since there isn't an _id, insert...
+      $map = $this->con_db->insert($table,$map,$schema);
+    }else{
+      $id = $map['_id'];
       unset($map['_id']);
+      $map = $this->con_db->update($table,$id,$map,$schema);
     }//if
     
-    return $this->con_db->update($table,$map,$where_map);
+    // make sure _id was set...
+    if(empty($map['_id'])){
+      throw new mingo_exception('$map returned from either insert or update without _id being set');
+    }//if
+  
+    return $map;
   
   }//method
-  
-  /**
-   *  adds an index to $table
-   *  
-   *  @link http://www.mongodb.org/display/DOCS/Indexes
-   *      
-   *  @param  string  $table  the table to add the index to
-   *  @param  array $map  usually something like array('field_name' => 1)
-   *  @return boolean
-   */
-  function setIndex($table,$map){
-    
-    // canary...
-    if(empty($map)){ throw new mingo_exception('no $map given'); }//if
-    
-    $table = $this->getTable($table);
-    return $table->ensureIndex($map);
-  
-  }//method
-  
   
   /**
    *  deletes a table
@@ -358,7 +301,7 @@ class mingo_db {
   function killTable($table){
     
     // canary...
-    if(empty($table)){ throw new mingo_exception('you are killing an empty $table'); }//if
+    if(empty($table)){ throw new mingo_exception('no $table given'); }//if
     return $this->con_db->killTable($table);
   
   }//method
@@ -386,7 +329,7 @@ class mingo_db {
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
-    if(empty($schema)){ throw new mingo_exception('if using a sql db, $schema must be present'); }//if
+    if(empty($schema)){ throw new mingo_exception('$schema must be present'); }//if
     if($this->hasTable($table)){ return true; }//if
     
     return $this->con_db->setTable($table,$schema);
@@ -405,58 +348,6 @@ class mingo_db {
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
     return $this->con_db->hasTable($table);
   
-  }//method
-  
-  /**
-   *  assures a $where_map contains the right information to make a call against a table
-   *  
-   *  @param  array|mingo_criteria  $where_map      
-   *  @return array array($where_map,$sort_map), the $where_map and $sort_map with values assured
-   */
-  protected function getCriteria($where_map){
-  
-    // canary...
-    if(empty($where_map)){ return array(array(),array()); }//if
-    if(!is_array($where_map) && !is_object($where_map)){
-      throw new mingo_exception('$where_map is not an associative array or mingo_criteria instance');
-    }//if
-  
-    $sort_map = array();
-    
-    if($where_map instanceof mingo_criteria){
-      list($where_map,$sort_map) = $where_map->get();
-    }//if
-  
-    // assure the _id field is the right type...
-    if(isset($where_map['_id'])){
-      if(!($where_map['_id'] instanceof MongoId)){
-      
-        if(is_array($where_map['_id'])){
-        
-          // make sure the whole list contains the right id type...
-          foreach($where_map['_id'] as $key => $id){
-            if(!($id instanceof MongoId)){
-              $where_map['_id'][$key] = new MongoId($id);
-            }//if
-          }//foreach
-          
-          // build an in query for all the _ids...
-          $c = new mingo_criteria();
-          $c->in_id($where_map['_id']);
-          list($new_where_map) = $c->get();
-          $where_map['_id'] = $new_where_map['_id'];
-          
-        }else{
-      
-          $where_map['_id'] = new MongoId($where_map['_id']);  
-        
-        }//if/else
-      
-      }//if
-    }//if
-    
-    return array($where_map,$sort_map);
-      
   }//method
   
   /**
@@ -484,6 +375,20 @@ class mingo_db {
   
     return array($ret_limit,$ret_offset);
   
+  }//method
+  
+  /**
+   *  close the db connection so we don't run afoul of anything when serializing this
+   *  class   
+   *  
+   *  http://www.php.net/manual/en/language.oop5.magic.php#language.oop5.magic.sleep
+   *  
+   *  @return the names of all the variables that should be serialized      
+   */
+  function __sleep(){
+    $this->con_db = null;
+    $this->con_map['connected'] = false;
+    return array_keys(get_object_vars($this));
   }//method
   
 }//class     

@@ -133,6 +133,13 @@ class mingo_criteria {
   }//method
   
   /**
+   *  true if this criteria instance isn't empty
+   *
+   *  @return boolean
+   */
+  function has(){ return !empty($this->map_criteria) || !empty($this->map_sort); }//method
+  
+  /**
    *  convert the internal criteria into SQL
    *  
    *  the sql is suitable to be used in PDO, and so the string has ? where each value
@@ -432,6 +439,7 @@ class mingo_criteria {
   
   
   private function getMap($command,$val){
+    if(is_bool($val)){ $val = empty($val) ? 0 : 1; }//if
     return array($this->getCommand($command) => $val);
   }//method
   

@@ -12,21 +12,8 @@
  *  @since 12-09-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_db_mongo {
+class mingo_db_mongo extends mingo_db_interface {
 
-  /**
-   *  holds all the connection information this class used
-   *  
-   *  @var  array associative array
-   */
-  private $con_map = array();
-  
-  /**
-   *  holds the actual db connection, established by calling {@link connect()}
-   *  @var  MongoDb
-   */
-  private $con_db = null;
-  
   /**
    *  holds auto increment information
    *  
@@ -88,71 +75,6 @@ class mingo_db_mongo {
   }//method
   
   /**
-   *  set up an auto increment field for a table
-   *  
-   *  since mongo doesn't natively support auto_increment fields, we do kind of a
-   *  hack by creating a distributing table that will distribute the next value
-   *  for the increment field on an insert. The one row in the table gets loaded 
-   *  on every {@link connnect()} call, so you only really need to call this method
-   *  when you are installing, or updating
-   *  
-   *  @link http://groups.google.com/group/mongodb-user/browse_thread/thread/c2c263c3e9a56a17
-   *    I got the idea to use a version field from this link
-   *  
-   *  @link http://groups.google.com/group/mongodb-user/browse_thread/thread/c2c263c3e9a56a17/4946f83c8f31e9a0?lnk=gst&q=%24inc#4946f83c8f31e9a0         
-   *      
-   *  @param  string  $table  the table you want to add the auto_increment field to
-   *  @param  string  $name the name of the field that will be auto_incremented from now on
-   *  @param  integer $start_count  what the start value should be   
-   *  @return boolean
-   */
-  function setInc($table,$name = 'id',$start_count = 0){
-  
-    // canary...
-    if(empty($table)){ return false; }//if
-    if($table instanceof MongoCollection){ $table = $table->getName(); }//if
-    if(empty($name)){ $name = 'id'; }//if
-    
-    $inc_table = $this->getTable($this->inc_map['table']);
-    $inc_map = $inc_table->findOne();
-    $new_table = false;
-    if(empty($inc_map)){
-    
-      $inc_map['inc_version'] = microtime(true);
-      $inc_map[$table] = $start_count;
-      $inc_map[sprintf('%s_field',$table)] = $name;
-      $inc_table->insert($inc_map);
-      $new_table = true;
-      
-    }else{
-    
-      if(!isset($inc_map[$table])){
-        
-        $inc_map[$table] = $start_count;
-        $inc_map[sprintf('%s_field',$table)] = $name;
-        $this->update($inc_table,$inc_map);
-        $new_table = true;
-        
-      }//if
-    
-    }//if/else
-    
-    // add an index on the increment field if first time we've seen the table...
-    if($new_table){
-    
-      $db_table = $this->getTable($table);
-      $db_table->ensureIndex(array($name => 1));
-    
-    }//if
-    
-    //update the inc map table...
-    $this->inc_map['map'] = $inc_map;
-    
-    return true;
-  
-  }//method
-  
-  /**
    *  get all the tables (collections) of the currently connected db
    *  
    *  @link http://us2.php.net/manual/en/mongodb.listcollections.php
@@ -173,20 +95,18 @@ class mingo_db_mongo {
   
   }//method
   
-  function isConnected(){ return !empty($this->con_map['connected']); }//method
-  
   /**
-   *  tell how many records match $where_map in $table
+   *  tell how many records match $where_criteria in $table
    *  
    *  @param  string  $table
-   *  @param  array $where_map
-   *  @return integer the count   
+   *  @param  mingo_criteria  $where_criteria
+   *  @return integer the count
    */
-  function count($table,$where_map = array()){
+  function getCount($table,mingo_criteria $where_criteria = null){
   
     $ret_int = 0;
     $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
+    list($where_map) = $this->getCriteria($where_criteria);
     if(empty($where_map)){
       $ret_int = $table->count();
     }else{
@@ -198,16 +118,19 @@ class mingo_db_mongo {
   }//method
   
   /**
-   *  delete the records that match $where_map in $table
+   *  delete the records that match $where_criteria in $table
+   *  
+   *  this method will not delete an entire table's contents, you will have to do
+   *  that manually.         
    *  
    *  @param  string  $table
-   *  @param  array $where_map
+   *  @param  mingo_criteria  $where_criteria
    *  @return boolean
    */
-  function delete($table,$where_map = array()){
+  function kill($table,mingo_criteria $where_criteria){
   
     $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
+    list($where_map) = $this->getCriteria($where_criteria);
     return $table->remove($where_map);
   
   }//method
@@ -216,16 +139,15 @@ class mingo_db_mongo {
    *  get a list of rows matching $where_map
    *  
    *  @param  string  $table
-   *  @param  array|mingo_criteria  $where_map  if you want sorting power, use mingo_criteria
-   *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
-   *  @return array            
+   *  @param  mingo_criteria  $where_map
+   *  @param  array $limit  array($limit,$offset)   
+   *  @return array   
    */
-  function get($table,$where_map = array(),$limit = 0){
+  function get($table,mingo_criteria $where_criteria = null,$limit = array()){
     
     $ret_list = array();
     $table = $this->getTable($table);
-    list($where_map,$sort_map) = $this->getCriteria($where_map);
-    list($limit,$offset) = $this->getLimit($limit);
+    list($where_map,$sort_map) = $this->getCriteria($where_criteria);
     
     $cursor = $table->find($where_map);
     
@@ -235,8 +157,8 @@ class mingo_db_mongo {
     if(!empty($sort_map)){ $cursor->sort($sort_map); }//if
   
     // do the limit stuff...
-    if(!empty($limit)){ $cursor->limit($limit); }//if
-    if(!empty($offset)){ $cursor->skip($offset); }//if
+    if(!empty($limit[0])){ $cursor->limit($limit[0]); }//if
+    if(!empty($limit[1])){ $cursor->skip($limit[1]); }//if
   
     // @note  a MongoCursorException can be thrown if skip is larger than the results that can be returned... 
     while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
@@ -249,41 +171,16 @@ class mingo_db_mongo {
    *  get the first found row in $table according to $where_map find criteria
    *  
    *  @param  string  $table
-   *  @param  array|mingo_criteria  $where_map
+   *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  function getOne($table,$where_map = array()){
+  function getOne($table,mingo_criteria $where_criteria = null){
     
     $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
+    list($where_map) = $this->getCriteria($where_criteria);
     $ret_map = $table->findOne($where_map);
     return empty($ret_map) ? array() : $ret_map;
 
-  }//method
-  
-  /**
-   *  increment $field in $table by $count according to $where_map search criteria
-   *  
-   *  @param  string  $table
-   *  @param  string  $field  the field to increment
-   *  @param  array $where_map  the find criteria
-   *  @param  integer $count  how many you want to increment $field by
-   *  @return boolean
-   */
-  function bump($table,$field,$where_map,$count = 1){
-  
-    // canary...
-    if(empty($field)){ throw new mingo_exception('no $field specified'); }//if
-    if(empty($count)){ return true; }//if
-  
-    $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_map);
-    
-    $c = new mingo_criteria();
-    $c->inc($field,$count);
-    
-    return $this->update($table,$c,$where_map);
-    
   }//method
   
   /**
@@ -292,9 +189,10 @@ class mingo_db_mongo {
    *  @param  string  $table  the table name
    *  @param  array|mingo_criteria  $map  the key/value map that will be added to $table
    *  @return array the $map that was just saved
+   *  @param  mingo_schema  $schema the table schema   
    *  @throws mingo_exception on any failure               
    */
-  function insert($table,$map){
+  function insert($table,$map,mingo_schema $schema){
     
     $db_table = $this->getTable($table);
     list($map) = $this->getCriteria($map);
@@ -354,20 +252,22 @@ class mingo_db_mongo {
   }//method
   
   /**
-   *  update $map from $table using $where_map as criteria
+   *  update $map from $table using $_id
    *  
    *  @param  string  $table  the table name
-   *  @param  array|mingo_criteria  $map  the key/value map that will be added to $table
-   *  @param  array|mingo_criteria  $where_map  if empty, $map is checked for '_id'   
-   *  @return array the $map that was just saved
+   *  @param  string  $_id the _id attribute from $map   
+   *  @param  array $map  the key/value map that will be added to $table
+   *  @param  mingo_schema  $schema the table schema      
+   *  @return array the $map that was just saved with _id set
+   *     
    *  @throws mingo_exception on any failure
    */
-  function update($table,$map,$where_map = array()){
+  function update($table,$_id,$map,mingo_schema $schema){
     
     $ret_id = null;
     $table = $this->getTable($table);
     list($map) = $this->getCriteria($map);
-    list($where_map) = $this->getCriteria($where_map);
+    list($where_map) = $this->getCriteria(array('_id' => $_id));
     
     // always returns true, annoying...
     $table->update($where_map,$map);
@@ -568,26 +468,67 @@ class mingo_db_mongo {
   }//method
   
   /**
-   *  set the limit/offset
+   *  set up an auto increment field for a table
    *  
-   *  @param  integer|offset  $limit  can be either int (eg, limit=10) or array (eg, array($limit,$offset)
-   *  @return array array($limit,$offset)
+   *  since mongo doesn't natively support auto_increment fields, we do kind of a
+   *  hack by creating a distributing table that will distribute the next value
+   *  for the increment field on an insert. The one row in the table gets loaded 
+   *  on every {@link connnect()} call, so you only really need to call this method
+   *  when you are installing, or updating
+   *  
+   *  @link http://groups.google.com/group/mongodb-user/browse_thread/thread/c2c263c3e9a56a17
+   *    I got the idea to use a version field from this link
+   *  
+   *  @link http://groups.google.com/group/mongodb-user/browse_thread/thread/c2c263c3e9a56a17/4946f83c8f31e9a0?lnk=gst&q=%24inc#4946f83c8f31e9a0         
+   *      
+   *  @param  string  $table  the table you want to add the auto_increment field to
+   *  @param  string  $name the name of the field that will be auto_incremented from now on
+   *  @param  integer $start_count  what the start value should be   
+   *  @return boolean
    */
-  protected function getLimit($limit){
+  private function setInc($table,$name = 'id',$start_count = 0){
   
     // canary...
-    if(empty($limit)){ return array(0,0); }//if
-  
-    $ret_limit = $ret_offset = 0;
-  
-    if(is_array($limit)){
-      $ret_limit = $limit[0];
-      if(isset($limit[1])){ $ret_offset = $limit[1]; }//if
+    if(empty($table)){ return false; }//if
+    if($table instanceof MongoCollection){ $table = $table->getName(); }//if
+    if(empty($name)){ $name = 'id'; }//if
+    
+    $inc_table = $this->getTable($this->inc_map['table']);
+    $inc_map = $inc_table->findOne();
+    $new_table = false;
+    if(empty($inc_map)){
+    
+      $inc_map['inc_version'] = microtime(true);
+      $inc_map[$table] = $start_count;
+      $inc_map[sprintf('%s_field',$table)] = $name;
+      $inc_table->insert($inc_map);
+      $new_table = true;
+      
     }else{
-      $ret_limit = $limit;
+    
+      if(!isset($inc_map[$table])){
+        
+        $inc_map[$table] = $start_count;
+        $inc_map[sprintf('%s_field',$table)] = $name;
+        $this->update($inc_table,$inc_map);
+        $new_table = true;
+        
+      }//if
+    
     }//if/else
-  
-    return array($ret_limit,$ret_offset);
+    
+    // add an index on the increment field if first time we've seen the table...
+    if($new_table){
+    
+      $db_table = $this->getTable($table);
+      $db_table->ensureIndex(array($name => 1));
+    
+    }//if
+    
+    //update the inc map table...
+    $this->inc_map['map'] = $inc_map;
+    
+    return true;
   
   }//method
   

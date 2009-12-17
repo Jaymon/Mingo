@@ -15,8 +15,8 @@
  *
  *   
  *  @todo
- *    1 - move limit and offset (change offset to page) to the schema object, but have this
- *        class do the limit+1 and set ->hasMore() or ->canLoadMore() if there are more db results  
+ *    1 - move limit and offset (change offset to page) to the schema object? I'm not sure that
+ *        would really work   
  *  
  *  @version 0.1
  *  @author Jay Marcyes {@link http://marcyes.com}
@@ -56,15 +56,27 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
   protected $list = array();
   
   /**
-   *  how many rows calling {@link load()} will actually load
+   *  how many rows calling {@link load()} will actually load from the db
    *  @var  integer   
    */
   protected $limit = 0;
   /**
-   *  where {@link load()} will start loading
+   *  where {@link load()} will start loading results from the db
    *  @var  integer   
    */
-  protected $offset = 0;
+  protected $page = 0;
+  /**
+   *  if {@link load()} could have loaded more results, this will be set to true
+   *  @var  boolean   
+   */
+  protected $more = false;
+  /**
+   *  if {@link load()} has $set_load_count=true then get the total results that could
+   *  be returned if no limit was specified
+   *        
+   *  @var  integer
+   */
+  protected $total = 0;
   
   /**
    *  hold the schema object for this instance
@@ -119,9 +131,17 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
   function getLimit(){ return $this->limit; }//method
   function hasLimit(){ return !empty($this->limit); }//method
   
-  function setOffset($val){ $this->offset = $val; }//method
-  function getOffset(){ return $this->offset; }//method
-  function hasOffset(){ return !empty($this->offset); }//method
+  function setPage($val){ $this->page = $val; }//method
+  function getPage(){ return $this->page; }//method
+  function hasPage(){ return !empty($this->page); }//method
+  
+  protected function setMore($val){ $this->more = $val; }//method
+  protected function getMore(){ return $this->more; }//method
+  function hasMore(){ return !empty($this->more); }//method
+  
+  protected function setTotal($val){ $this->total = $val; }//method
+  function getTotal(){ return $this->total; }//method
+  function hasTotal(){ return !empty($this->total); }//method
   
   function setDb($db){ $this->db = $db; }//method
   function setSchema($schema){ $this->schema = $schema; }//method
@@ -191,10 +211,9 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
         }//if
         $this->list[$key]['map']['updated'] = $now;
       
-        $this->list[$key]['map'] = $this->db->update(
+        $this->list[$key]['map'] = $this->db->set(
           $this->getTable(),
           $this->list[$key]['map'],
-          null,
           $this->schema
         );
         $this->list[$key]['modified'] = false; // reset
@@ -260,13 +279,18 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
    *      $instance->set_id('4affd9e8da7f000000003645');
    *      $instance->load()                     
    *
-   *    load something using $where_map
-   *      $instance->load(array('_id' => '4affd9e8da7f000000003645'));
+   *    load something using $where_criteria:
+   *      $mc = new mingo_criteria();
+   *      $mc->in_id('4affd9e8da7f000000003645');
+   *      $instance->load($mc);
    *
    *  @param  mingo_criteria  $where_criteria  criteria for loading db rows into this object
+   *  @param  boolean $set_load_count if true, then {@link getTotal()} will return how many results
+   *                                  are possible (eg, if you have a limit of 10 but there are 100
+   *                                  results matching $where_criteria, getTotal() will return 100      
    *  @return integer how many rows were loaded
    */
-  function load(mingo_criteria $where_criteria = null){
+  function load(mingo_criteria $where_criteria = null,$set_load_count = false){
   
     // canary...
     if(empty($where_criteria)){
@@ -276,14 +300,50 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
       }//if
       
       if(!empty($this->list[0]['map'])){
-        $where_criteria = new mingo_criteria($this->list[0]['map']);
+      
+        $where_criteria = new mingo_criteria();
+      
+        if(isset($this->list[0]['map']['_id'])){
+          // only use the id if it is present...
+          $where_criteria->is_id($this->list[0]['map']['_id']);
+        }else{
+          // use the whole map as a criteria since no _id was found...
+          $where_criteria->set($this->list[0]['map']);
+        }//if/else
+        
       }//if
     
     }//if
     
-    $list = $this->db->get($this->getTable(),$where_criteria,array($this->getLimit(),$this->getOffset()));
+    // get rows + 1 to test if there are more results in the db for pagination...
+    $limit_paginate = $this->getLimit();
+    if($limit_paginate > 0){
+      $limit_paginate++;
+    }//if
     
+    $list = $this->db->get($this->getTable(),$where_criteria,array($limit_paginate,$this->getPage()));
     $this->reset();
+    
+    // set whether more results are available or not...
+    $total_list = count($list);
+    if(!empty($limit_paginate) && ($total_list == $limit_paginate)){
+      
+      // cut off the final row since it wasn't part of the original requested rows...
+      $list = array_slice($list,0,-1);
+      $this->setMore(true);
+      
+      if($set_load_count){
+        $this->setTotal($this->db->getCount($this->getTable(),$where_criteria));
+      }else{
+        $this->setTotal($total_list);
+      }//if/else
+      
+    }else{
+    
+      $this->setMore(false);
+      $this->setTotal($total_list);
+      
+    }//if/else
     
     foreach($list as $map){
       $this->append($map);
@@ -305,8 +365,9 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
     if($this->has_id()){
     
       // get all the ids...
-      $where_map = array('_id' => $this->get_id());
-      if($this->db->delete($this->getTable(),$where_map)){
+      $where_criteria = new mingo_criteria();
+      $where_criteria->in_id($this->get_id());
+      if($this->db->kill($this->getTable(),$where_criteria)){
         $this->reset();
         $ret_bool = true;
       }//if
@@ -317,22 +378,22 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
     
       for($i = 0; $i < $this->count ;$i++){
     
-        $where_map = array();
+        $where_criteria = new mingo_criteria();
     
         if(isset($this->list[$i]['map']['_id'])){
+        
+          $where_criteria->is_id($this->list[$i]['map']['_id']);
       
-          $where_map = array('_id' => $this->list[$i]['map']['_id']);
-          
         }else{
         
-          $where_map = $this->list[$i]['map'];
+          $where_criteria->set($this->list[$i]['map']);
         
         }//if/else
         
         // we don't want to accidently delete everything by passing in an empty where...
-        if(!empty($where_map)){
+        if($where_criteria->has()){
         
-          if($this->db->delete($this->getTable(),$where_map)){
+          if($this->db->kill($this->getTable(),$where_criteria)){
           
             unset($this->list[$i]);
             $this->count--;
@@ -503,6 +564,9 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
     if(!isset($args[0])){ return null; }//if
     
     for($i = 0; $i < $this->count ;$i++){
+    
+      // booleans aren't really supported, so map them to integers...
+      if(is_bool($args[0])){ $args[0] = empty($args[0]) ? 0 : 1; }//if
     
       $this->list[$i]['modified'] = true;
       $this->list[$i]['map'][$name] = $args[0];

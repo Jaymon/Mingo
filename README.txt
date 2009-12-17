@@ -1,26 +1,65 @@
-to start using this, make sure you have Mongo installed and running on your system, and the Mongo php extensions installed.
+==== WHAT MINGO IS ====
+
+Mingo is an easy to use database abstraction layer that uses the db as a dumb key/value storage engine similar to what is described here:
+
+http://bret.appspot.com/entry/how-friendfeed-uses-mysql
+
+Currently, it can use either Mysql/sqlite, or Mongo Db as its backend, but other databases can easily be added by extending mingo_db_interface_class and implementing all the required methods (see mingo_db_sql_class or mingo_db_mongo_class for how to do that).
+
+==== USING MINGO ====
 
 using it is as easy as creating a new class that extends mingo_map. For our example we'll create a user class:
 
-class user extends mingo_map {}//class
+class user extends mingo_map {
 
-that's really everything you need to do for a basic example, so now, in your code, you can just create a new user instance:
+  function __construct(){
+  
+    parent::__construct();
+    
+    // set up the schema...
+    $this->schema->setIndex('username');
+    $this->schema->setIndex('username','password');
+  
+  }//method
 
+
+
+}//class
+
+that's all the setup you really need to do, pretty much everything else is handled by mingo.
+
+Let's see our new user object in action, first we need to connect to our db:
+
+// sqlite...
+$type = mingo_db::TYPE_SQLITE;
+$db_name = 'model.sqlite';
+$host = '';
+// mysql...
+$type = mingo_db::TYPE_MYSQL;
+$db_name = 'model';
+$host = 'localhost';
+$username = '';
+$password = '';
+// mongo...
+$type = mingo_db::TYPE_MONGO;
 $db_name = 'model';
 $host = 'localhost:27017';
+$username = '';
+$password = '';
+
+Now, let's do the actual connecting:
+
 // activate singleton...
 $db = mingo_db::getInstance();
-$db->connect($db_name,$host);
+// let's turn debugging on, just in case...
+$db->setDebug(true);
+$db->connect($type,$db_name,$host,$username,$password);
+
+SO now we're connected, so let's create a user and save it into the db:
 
 $user = new user();
-
-mingo_map will automatically create the table (user, named after the class that extends mingo_map) and get an instance of the mingo_db singleton, so you don't have to worry about it. Now, let's work with our new user instance:
-
 $user->setUsername('tester');
 $user->setPassword('1234');
-
-and, let's go ahead and save our new user into mongo:
-
 $user->set();
 
 and that's that, the user is now saved. To make sure, let's load him up into a new user instance:
@@ -33,18 +72,18 @@ foreach($user_load as $u){
 
 this is just a basic example, but it shows you the initial power of mingo. each class extended from mingo_map has many built in functions to make doing things easy, you see the set* and get* functions, but you also have has* functions to make sure a field exists and is none empty (eg, $user->hasPassword() to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, $user->bumpViews($count) where $count=1). And is* functions to see if a field contains a value (eg, $user->isUsername('tester')).
 
-On top of that, the load() function takes a mingo_criteria to make loading from the mongo db painless. For example, to load all users with certain usernames, you could:
+On top of that, the load() function takes a mingo_criteria instance to make loading from the db painless. For example, to load all users with certain usernames, you could:
 
 $c = new mingo_criteria
 $c->inUsername('tester','john','paul','homer','bart');
 $loaded = $user->load($c);
-echo 'loaded: ',$loaded,'<br />';
+echo 'loaded this many users: ',$loaded,'<br />';
 
 and, if you wanted to sort them in alphabetical order, you would just add this line to the criteria before calling load():
 
 $c->sortUsername(mingo_criteria::ASC);
 
-Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads, and then they have another class that is the actual ORM for the db's table. I decided to combine the two and just have the one class, this will take some getting used to at first, but it is actually pretty cool when you start using it. And if you wanted to create a Peer class you could:
+Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads, and then they have another class that is the actual ORM for the db's table. I decided to combine the two and just have the one class, this will take some getting used to at first, but it is actually pretty cool when you start using it. And if you wanted to create a Peer class, you could:
 
 class user_peer {
   static function getByUsername($list){
@@ -64,5 +103,10 @@ that will produce the traditional array list of user instances instead of having
 
 the code is pretty well documented, so if you want to see what other magic functions mingo_map and mingo_criteria have, just check the docblocks and code for the __call() methods.
 
-plans for the future:
-1 - I still need to create the mingo_schema object that will allow you to create tables that are a set size, see: http://www.mongodb.org/display/DOCS/Capped+Collections and also set indexes and easily set the auto-increment field that mingo_db has built-in.
+==== INSTALLING MINGO ====
+
+Whenever you add an object to your project (like the user object above) you will need to run the install function (eg, $user->install()). This will create the indexes that were defined in the object's schema. 
+
+Table creation was automatic with Mongo but sadly, isn't with SQL. Either way, you still had to run install() to set the indexes regardless of what backend you used.
+
+I'm racking my brain in order to figure out a better way to do this, since you have to run install() everytime you change the indexes, etc. but I haven't come up with one yet.
