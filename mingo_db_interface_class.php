@@ -9,7 +9,7 @@
  *  
  *  @note when implementing the interface, you don't really have to worry about error checking
  *        because mingo_db will do all the error checking before calling the function from this
- *        class      
+ *        class
  *  
  *  @link http://www.php.net/manual/en/language.oop5.abstract.php
  *  
@@ -76,15 +76,6 @@ abstract class mingo_db_interface {
   abstract public function connect($db,$host,$username,$password);
   
   /**
-   *  tell how many records match $where_criteria in $table
-   *  
-   *  @param  string  $table
-   *  @param  mingo_criteria  $where_criteria
-   *  @return integer the count
-   */
-  abstract public function getCount($table,mingo_criteria $where_criteria = null);
-  
-  /**
    *  delete the records that match $where_criteria in $table
    *  
    *  this method will not delete an entire table's contents, you will have to do
@@ -100,20 +91,32 @@ abstract class mingo_db_interface {
    *  get a list of rows matching $where_map
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema
    *  @param  mingo_criteria  $where_map
    *  @param  array $limit  array($limit,$offset)   
    *  @return array   
    */
-  abstract public function get($table,mingo_criteria $where_criteria = null,$limit = array());
+  abstract public function get($table,mingo_schema $schema,mingo_criteria $where_criteria,$limit);
   
   /**
    *  get the first found row in $table according to $where_map find criteria
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema  
    *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  abstract public function getOne($table,mingo_criteria $where_criteria = null);
+  abstract public function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria);
+  
+  /**
+   *  tell how many records match $where_criteria in $table
+   *  
+   *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema    
+   *  @param  mingo_criteria  $where_criteria
+   *  @return integer the count
+   */
+  abstract public function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria);
   
   /**
    *  insert $map into $table
@@ -167,6 +170,11 @@ abstract class mingo_db_interface {
   
   /**
    *  adds a table to the db
+   *  
+   *  this should check to see if the table exists before adding it, checking if the
+   *  table existed was done in mingo_db::setTable() but had to be removed so that agile
+   *  development could be achieved (adding tables and indexes without calling ->setTable()
+   *  explicitely.    
    *      
    *  @param  string  $table  the table to add to the db
    *  @param  mingo_schema  $schema the table schema    

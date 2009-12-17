@@ -9,7 +9,7 @@
  *  @since 11-18-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_schema {
+class mingo_schema extends mingo_base {
 
   /**
    *  hold the table name this schema represents
@@ -48,7 +48,7 @@ class mingo_schema {
     if(empty($args)){ throw new mingo_exception('no fields specified for the index'); }//if
     
     // save the index...
-    $index_name = sprintf('i%s',join(',',$args));
+    $index_name = sprintf('i%s',md5(join(',',$args)));
     $this->index_map[$index_name] = array();
     
     foreach($args as $field){

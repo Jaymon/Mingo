@@ -186,21 +186,6 @@ class mingo_db {
   function isConnected(){ return !empty($this->con_map['connected']); }//method
   
   /**
-   *  tell how many records match $where_criteria in $table
-   *  
-   *  @param  string  $table
-   *  @param  mingo_criteria $where_criteria
-   *  @return integer the count   
-   */
-  function getCount($table,mingo_criteria $where_criteria = null){
-  
-    // canary...
-    if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
-    return $this->con_db->getCount($table,$where_criteria);
-  
-  }//method
-  
-  /**
    *  delete the records that match $where_criteria in $table
    *  
    *  @param  string  $table
@@ -227,17 +212,20 @@ class mingo_db {
    *  get a list of rows matching $where_criteria
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
    *  @param  integer|array $limit  either something like 10, or array($limit,$page)   
    *  @return array
    */
-  function get($table,mingo_criteria $where_criteria = null,$limit = 0){
+  function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = 0){
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
+    
     
     list($limit,$offset) = $this->getLimit($limit);
-    return $this->con_db->get($table,$where_criteria,array($limit,$offset));
+    return $this->con_db->get($table,$schema,$where_criteria,array($limit,$offset));
 
   }//method
   
@@ -245,16 +233,36 @@ class mingo_db {
    *  get the first found row in $table according to $where_criteria
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  function getOne($table,mingo_criteria $where_criteria = null){
+  function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     return $this->con_db->getOne($table,$where_map);
     
+  }//method
+  
+  /**
+   *  tell how many records match $where_criteria in $table
+   *  
+   *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema    
+   *  @param  mingo_criteria $where_criteria
+   *  @return integer the count   
+   */
+  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+  
+    // canary...
+    if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
+    
+    return $this->con_db->getCount($table,$schema,$where_criteria);
+  
   }//method
   
   /**
@@ -273,6 +281,7 @@ class mingo_db {
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if(empty($map)){ throw new mingo_exception('no point in setting an empty $map'); }//if
     if(empty($schema)){ throw new mingo_exception('no $schema specified'); }//if
+    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
   
     if(empty($map['_id'])){
       // since there isn't an _id, insert...
@@ -330,7 +339,6 @@ class mingo_db {
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
     if(empty($schema)){ throw new mingo_exception('$schema must be present'); }//if
-    if($this->hasTable($table)){ return true; }//if
     
     return $this->con_db->setTable($table,$schema);
     

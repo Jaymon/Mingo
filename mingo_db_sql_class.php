@@ -105,13 +105,44 @@ class mingo_db_sql extends mingo_db_interface {
   function isMysql(){ return $this->isType(mingo_db::TYPE_MYSQL); }//method
   
   /**
-   *  tell how many records match $where_criteria in $table
+   *  delete the records that match $where_criteria in $table
+   *  
+   *  this method will not delete an entire table's contents, you will have to do
+   *  that manually.         
    *  
    *  @param  string  $table
    *  @param  mingo_criteria  $where_criteria
+   *  @return boolean
+   */
+  function kill($table,mingo_criteria $where_criteria){
+  
+    $ret_bool = false;
+    list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+  
+    if(empty($where_query)){
+    
+      throw new mingo_exception('aborting delete because $where_criteria was empty');
+    
+    }else{
+    
+      $query = sprintf('DELETE FROM %s %s',$table,$where_query);
+      $ret_bool = $this->getQuery($query,$val_list);
+    
+    }//if
+  
+    return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  tell how many records match $where_criteria in $table
+   *  
+   *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema    
+   *  @param  mingo_criteria  $where_criteria
    *  @return integer the count
    */
-  function getCount($table,mingo_criteria $where_criteria = null){
+  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
   
     $ret_int = 0;
     $result = array();
@@ -129,7 +160,7 @@ class mingo_db_sql extends mingo_db_interface {
         if((count($where_map) > 1) || !isset($where_map['_id'])){
         
           // get the table...
-          $index_table = sprintf('%s_%s',$table,md5(join(',',array_keys($where_map))));
+          $index_table = $this->getIndexTable($table,$where_criteria,$schema);
           
           // build the query...
           $query = 'SELECT count(*) FROM %s %s';
@@ -170,44 +201,15 @@ class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
-   *  delete the records that match $where_criteria in $table
-   *  
-   *  this method will not delete an entire table's contents, you will have to do
-   *  that manually.         
-   *  
-   *  @param  string  $table
-   *  @param  mingo_criteria  $where_criteria
-   *  @return boolean
-   */
-  function kill($table,mingo_criteria $where_criteria){
-  
-    $ret_bool = false;
-    list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
-  
-    if(empty($where_query)){
-    
-      throw new mingo_exception('aborting delete because $where_criteria was empty');
-    
-    }else{
-    
-      $query = sprintf('DELETE FROM %s %s',$table,$where_query);
-      $ret_bool = $this->getQuery($query,$val_list);
-    
-    }//if
-  
-    return $ret_bool;
-  
-  }//method
-  
-  /**
    *  get a list of rows matching $where_map
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_map
    *  @param  array $limit  array($limit,$offset)   
    *  @return array   
    */
-  function get($table,mingo_criteria $where_criteria = null,$limit = array()){
+  function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
     
     $ret_list = array();
     $id_list = array();
@@ -227,7 +229,7 @@ class mingo_db_sql extends mingo_db_interface {
         if((count($where_map) > 1) || !isset($where_map['_id'])){
         
           // get the table...
-          $index_table = sprintf('%s_%s',$table,md5(join(',',array_keys($where_map))));
+          $index_table = $this->getIndexTable($table,$where_criteria,$schema);
           
           // build the query...
           $query = 'SELECT _id FROM %s %s';
@@ -330,12 +332,13 @@ class mingo_db_sql extends mingo_db_interface {
    *  get the first found row in $table according to $where_map find criteria
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  function getOne($table,mingo_criteria $where_criteria = null){
+  function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
     
-    $ret_list = $this->get($table,$where_criteria,array(1,0));
+    $ret_list = $this->get($table,$schema,$where_criteria,array(1,0));
     return empty($ret_list) ? array() : $ret_list[0];
 
   }//method
@@ -617,38 +620,42 @@ class mingo_db_sql extends mingo_db_interface {
    */
   function setTable($table,mingo_schema $schema){
 
-    $ret_bool = false;
+    $ret_bool = $this->hasTable($table);
     $query = '';
     
-    if($this->isMysql()){
-      
-      $query = sprintf('CREATE TABLE %s (
-          row_id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-          _id VARCHAR(24) NOT NULL,
-          body LONGBLOB,
-          UNIQUE KEY (id),
-          KEY (_id)
-      ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
-      
-      $ret_bool = $this->getQuery($query);
-      
-    }else if($this->isSqlite()){
+    if(!$ret_bool){
     
-      $query = sprintf('CREATE TABLE %s (
-          row_id INTEGER NOT NULL PRIMARY KEY ASC,
-          _id VARCHAR(24) COLLATE NOCASE NOT NULL,
-          body BLOB
-      )',$table);
-    
-      $ret_bool = $this->getQuery($query);
-      if($ret_bool){
+      if($this->isMysql()){
+        
+        $query = sprintf('CREATE TABLE %s (
+            row_id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            _id VARCHAR(24) NOT NULL,
+            body LONGBLOB,
+            UNIQUE KEY (id),
+            KEY (_id)
+        ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
+        
+        $ret_bool = $this->getQuery($query);
+        
+      }else if($this->isSqlite()){
       
-        // add the index for _id to the table...
-        $this->setIndex($table,array('_id' => 1));
+        $query = sprintf('CREATE TABLE %s (
+            row_id INTEGER NOT NULL PRIMARY KEY ASC,
+            _id VARCHAR(24) COLLATE NOCASE NOT NULL,
+            body BLOB
+        )',$table);
       
-      }//if
-    
-    }//if/else if
+        $ret_bool = $this->getQuery($query);
+        if($ret_bool){
+        
+          // add the index for _id to the table...
+          $this->setIndex($table,array('_id' => 1));
+        
+        }//if
+      
+      }//if/else if
+      
+    }//if
     
     if($ret_bool){
       
@@ -690,6 +697,11 @@ class mingo_db_sql extends mingo_db_interface {
             if($this->getQuery($query)){
             
               $this->setIndex($index_table,array('_id' => 1));
+              
+              // if debugging is on it means we're in dev so go ahead and populate the index...
+              if($this->hasDebug()){
+                $this->populateIndex($table,$index_map,$schema);
+              }//if
             
             }//if
             
@@ -850,25 +862,7 @@ class mingo_db_sql extends mingo_db_interface {
     
     foreach($schema->getIndex() as $index_map){
     
-      $field_list = array_keys($index_map);
-      $field_name_str = join(',',$field_list);
-      $index_table = sprintf('%s_%s',$table,md5($field_name_str));
-      $field_name_str .= ',_id';
-      $field_val_str = join(',',array_fill(0,count($field_list) + 1,'?'));
-      $val_list = array();
-    
-      $query = 'INSERT INTO %s (%S) VALUES (%s)';
-      $query = sprintf('INSERT INTO %s (%s) VALUES (%s)',$index_table,$field_name_str,$field_val_str);
-      
-      foreach($index_map as $field => $order){
-      
-        $val_list[] = empty($map[$field]) ? '' : $map[$field];
-      
-      }//foreach
-      
-      $val_list[] = $_id;
-      
-      $ret_bool = $this->getQuery($query,$val_list);
+      $ret_bool = $this->insertIndex($table,$_id,$map,$index_map);
       
     }//foreach
     
@@ -917,9 +911,114 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  array $field_list a list of the field names the index encompasses
    *  @return string  the index table name
    */
-  /* private function getIndexTable($table,$field_list){
+  private function getIndexTable($table,mingo_criteria $where_criteria,mingo_schema $schema){
+  
+    $ret_str = '';
+  
+    // we're interested in the where part of the criteria...
+    list($where_map,$sort_map) = $where_criteria->get();
+    
+    $field_list = array_keys($where_map);
+  
+    // now go through the index and see if it matches...
+    foreach($schema->getIndex() as $index_map){
+    
+      $field_i = 0;
+    
+      foreach($index_map as $field => $order){
+      
+        if(isset($field_list[$field_i])){
+        
+          if($field === $field_list[$field_i]){
+            $field_i++;
+          }else{
+            break;
+          }//if/else
+        
+        }else{
+        
+          // we're done, we found a match...
+          $ret_str = sprintf('%s_%s',$table,md5(join(',',array_keys($index_map))));
+          break 2;
+          
+        }//if/else
+      
+      }//foreach
+      
+    }//foreach
+    
+    return $ret_str;
+    
+  }//method
+  
+  /**
+   *  goes through the master $table and adds the contents to the index table      
+   *
+   *  @param  string  $table  the main table (not the index table)
+   *  @param  array $index_map  an index map, usually retrieved from the table schema
+   *  @param  mingo_schema  $schema just here so get() will work as expected    
+   */
+  private function populateIndex($table,$index_map,mingo_schema $schema){
+  
+    $ret_bool = false;
+    $limit = 100;
+    $offset = 0;
+  
+    // get results from the table and add them to the index...
+    while($map_list = $this->get($table,$schema,null,array($limit,$offset))){
+    
+      foreach($map_list as $map){
+      
+        $ret_bool = $this->insertIndex($table,$map['_id'],$map,$index_map);
+      
+      }//foreach
+    
+      $offset += $limit;
+      
+    }//while
+    
+    return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  insert into an index table
+   *  
+   *  @param  string  $table  the master table, not the index table
+   *  @param  string  $_id the _id of the $table where $map is found
+   *  @param  array $map  the key/value pairs found in $table's body field
+   *  @param  array $index_map  the map that represents the index
+   *  @return boolean
+   */
+  private function insertIndex($table,$_id,$map,$index_map){
+    
+    $field_list = array_keys($index_map);
     $field_name_str = join(',',$field_list);
-    return sprintf('%s_%s',$table,md5($field_name_str));
-  }//method */
+    $index_table = sprintf('%s_%s',$table,md5($field_name_str));
+    $field_name_str .= ',_id';
+    $field_val_str = join(',',array_fill(0,count($field_list) + 1,'?'));
+    $val_list = array();
+  
+    $query = 'INSERT INTO %s (%s) VALUES (%s)';
+    $query = sprintf('INSERT INTO %s (%s) VALUES (%s)',$index_table,$field_name_str,$field_val_str);
+    
+    foreach($index_map as $field => $order){
+    
+      $val = $map[$field];
+      if(empty($map[$field])){
+        if(!is_numeric($map[$field])){
+          $val = '';
+        }//if
+      }//if
+    
+      $val_list[] = $val;
+    
+    }//foreach
+    
+    $val_list[] = $_id;
+    
+    return $this->getQuery($query,$val_list);
+  
+  }//method
   
 }//class     

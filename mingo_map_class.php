@@ -23,7 +23,7 @@
  *  @since 11-14-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_map implements ArrayAccess,Iterator,Countable {
+class mingo_map extends mingo_base implements ArrayAccess,Iterator,Countable {
 
   /**
    *  holds the table that this class will access in the db
@@ -321,7 +321,12 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
       $limit_paginate++;
     }//if
     
-    $list = $this->db->get($this->getTable(),$where_criteria,array($limit_paginate,$this->getPage()));
+    $list = $this->db->get(
+      $this->getTable(),
+      $this->schema,
+      $where_criteria,
+      array($limit_paginate,$this->getPage())
+    );
     $this->reset();
     
     // set whether more results are available or not...
@@ -333,7 +338,7 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
       $this->setMore(true);
       
       if($set_load_count){
-        $this->setTotal($this->db->getCount($this->getTable(),$where_criteria));
+        $this->setTotal($this->db->getCount($this->getTable(),$this->schema,$where_criteria));
       }else{
         $this->setTotal($total_list);
       }//if/else
@@ -491,8 +496,6 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
   
     // canary...
     if(empty($this->list)){ $this->append(array()); }//if
-  
-    $method = mb_strtolower($method);
     
     $method_map = array(
       'set' => 'handleSet',
@@ -504,50 +507,50 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
       'bump' => 'handleBump'
     );
     
-    foreach($method_map as $key => $callback){
+    list($command,$name) = $this->splitMethod($method);
     
-      if(mb_strpos($method,$key) === 0){
-      
-        $name = mb_substr($method,mb_strlen($key));
-        
-        /* currently this can't be supported because set(), and get() are actual
-        functions...
-        if(empty($name)){
-        
-          // since there was no name, the first argument is the name...
-          if(empty($args[0])){
-            throw new mingo_exception('no name found, and none given in argument 1');
-          }//if
-          
-          $name = mb_strtolower($args[0]);
-          $args = array_slice($args,1);
-        
-        }//if */
-      
-        if(array_key_exists($name,get_object_vars($this))){
-        
-          throw new mingo_exception(sprintf('a field cannot have this name: %s',$name));
-        
-        }else{
-      
-          $ret_mix = $this->{$callback}($name,$args);
-          
-          if(is_array($ret_mix)){
-          
-            // we only have one index, so return that...
-            if(!isset($ret_mix[1])){ $ret_mix = $ret_mix[0]; }//if
-          
-          }//if
-          
-          return $ret_mix;
-          
-        }//if/else
-      
-      }//if
+    if(empty($method_map[$command])){
     
-    }//foreach
-  
-    throw new mingo_exception(sprintf('could not find a match for $method %s',$method));
+      throw new mingo_exception(sprintf('could not find a match for $method %s with command: %s',$method,$command));
+    
+    }else{
+    
+      $name = $this->normalizeField($name);
+      
+      /* currently this can't be supported because set(), and get() are actual
+      functions...
+      if(empty($name)){
+      
+        // since there was no name, the first argument is the name...
+        if(empty($args[0])){
+          throw new mingo_exception('no name found, and none given in argument 1');
+        }//if
+        
+        $name = mb_strtolower($args[0]);
+        $args = array_slice($args,1);
+      
+      }//if */
+    
+      if(array_key_exists($name,get_object_vars($this))){
+      
+        throw new mingo_exception(sprintf('a field cannot have this name: %s',$name));
+      
+      }else{
+    
+        $ret_mix = $this->{$callback}($name,$args);
+        
+        if(is_array($ret_mix)){
+        
+          // we only have one index, so return that...
+          if(!isset($ret_mix[1])){ $ret_mix = $ret_mix[0]; }//if
+        
+        }//if
+        
+        return $ret_mix;
+        
+      }//if/else
+    
+    }//if
   
   }//method
   
@@ -564,9 +567,8 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
     if(!isset($args[0])){ return null; }//if
     
     for($i = 0; $i < $this->count ;$i++){
-    
-      // booleans aren't really supported, so map them to integers...
-      if(is_bool($args[0])){ $args[0] = empty($args[0]) ? 0 : 1; }//if
+      
+      $args[0] = $this->normalizeVal($args[0]);
     
       $this->list[$i]['modified'] = true;
       $this->list[$i]['map'][$name] = $args[0];
@@ -756,21 +758,21 @@ class mingo_map implements ArrayAccess,Iterator,Countable {
       $this->append($val);
     }else{
       // they specified the key, so this will work on the internal objects...
-      $this->__call(sprintf('set%s',$key),array($val));
+      $this->__call(sprintf('set%s',ucfirst($key)),array($val));
     }//if/else
   }//method
   /**
    *  Return a value given it's key e.g. echo $A['title'];
    */
-  function offsetGet($key){ return $this->__call(sprintf('get%s',$key),array()); }//method
+  function offsetGet($key){ return $this->__call(sprintf('get%s',ucfirst($key)),array()); }//method
   /**
    *  Unset a value by it's key e.g. unset($A['title']);
    */
-  function offsetUnset($key){ return $this->__call(sprintf('kill%s',$key)); }//method
+  function offsetUnset($key){ return $this->__call(sprintf('kill%s',ucfirst($key))); }//method
   /**
    *  Check value exists, given it's key e.g. isset($A['title'])
    */
-  function offsetExists($key){  return $this->__call(sprintf('exists%s',$key)); }//method
+  function offsetExists($key){  return $this->__call(sprintf('exists%s',ucfirst($key)); }//method
   /**#@-*/
   
   /**

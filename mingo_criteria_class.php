@@ -14,7 +14,7 @@
  *  @since 11-17-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_criteria {
+class mingo_criteria extends mingo_base {
 
   const ASC = 1;
   const DESC = -1;
@@ -77,12 +77,12 @@ class mingo_criteria {
           throw new mingo_exception('no name found, and none given in argument 1');
         }//if
         
-        $name = $args[0];
+        $name = $this->normalizeField($args[0]);
         $args = array_slice($args,1);
       
       }else{
         // now lowercase the name...
-        $name = mb_strtolower($name);
+        $name = $this->normalizeField($name);
       }//if/else
     
       $callback = $this->method_map[$command]['set'];
@@ -439,48 +439,12 @@ class mingo_criteria {
   
   
   private function getMap($command,$val){
-    if(is_bool($val)){ $val = empty($val) ? 0 : 1; }//if
+    $val = $this->normalizeVal($val);
     return array($this->getCommand($command) => $val);
   }//method
   
   private function getCommand($command){
     return sprintf('%s%s',$this->command_symbol,$command);
-  }//method
-  
-  /**
-   *  splits the $method by the first capital letter
-   *  
-   *  the reason why we split on the first capital is because if we just did find
-   *  first substring that matches in __call(), then gt and gte would match the same
-   *  method, so we enforce camel casing (eg, gteEdward and gtEdward) so that all method
-   *  names can be matched
-   *  
-   *  @param  string  $method the method name that was called
-   *  @return array array($prefix,$name)
-   */
-  private function splitMethod($method){
-  
-    $ret_prefix = $ret_name = '';
-  
-    // get everything lowercase form start...
-    for($i = 0,$max = mb_strlen($method); $i < $max ;$i++){
-    
-      $ascii = ord($method[$i]);
-      if(($ascii < 97) || ($ascii > 122)){
-      
-        $ret_name = mb_substr($method,$i);
-        break;
-      
-      }else{
-      
-        $ret_prefix .= $method[$i];
-      
-      }//if/else
-    
-    }//for
-    
-    return array($ret_prefix,$ret_name);
-  
   }//method
   
   /**

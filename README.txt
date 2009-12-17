@@ -16,13 +16,10 @@ class user extends mingo_map {
   
     parent::__construct();
     
-    // set up the schema...
-    $this->schema->setIndex('username');
+    // set up the this object's table schema...
     $this->schema->setIndex('username','password');
   
   }//method
-
-
 
 }//class
 
@@ -55,7 +52,7 @@ $db = mingo_db::getInstance();
 $db->setDebug(true);
 $db->connect($type,$db_name,$host,$username,$password);
 
-SO now we're connected, so let's create a user and save it into the db:
+Now that we're connected let's create a user and save it into the db:
 
 $user = new user();
 $user->setUsername('tester');
