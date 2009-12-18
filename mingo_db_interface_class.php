@@ -7,9 +7,19 @@
  *  this class and implement all the functions below. A type and row in the mingo_db::connect()
  *  will also have to be added.
  *  
- *  @note when implementing the interface, you don't really have to worry about error checking
- *        because mingo_db will do all the error checking before calling the function from this
- *        class
+ *  @notes
+ *    - when implementing the interface, you don't really have to worry about error checking
+ *      because mingo_db will do all the error checking before calling the function from this
+ *      class
+ *    - there are certain reserved rows any implementation will have to deal with:
+ *      - _id = the unique id assigned to a newly inserted row, this is a 24 character
+ *              randomly created string, if you don't want to make your own, and there
+ *              isn't an included one (like mongo) then you can use {@link getUniqueId()}
+ *              defined in this class
+ *      - row_id = this is an auto increment row, ie, the row number. This technically only
+ *                 needs to be generated when mingo_schema::setInc() is used in the ORM's
+ *                 __construct() method, sql it gets created regardless though since it's so
+ *                 easy to do 
  *  
  *  @link http://www.php.net/manual/en/language.oop5.abstract.php
  *  
@@ -189,5 +199,19 @@ abstract class mingo_db_interface {
    *  @return boolean
    */
   abstract public function hasTable($table);
+  
+  /**
+   *  generates a 24 character unique id for the _id of an inserted row
+   *
+   *  @param  string  $table  the table to be used in the hash
+   *  @return string  a 24 character id string   
+   */
+  protected function getUniqueId($table = ''){
+  
+    $id = uniqid();
+    $hash = mb_substr(md5(microtime(true).$table.rand(0,50000)),0,11);
+    return sprintf('%s%s',$id,$hash);
+  
+  }//method
   
 }//class     

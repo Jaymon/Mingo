@@ -4,26 +4,28 @@
  *  maps a mingo collection or table to an object, this is the ORM part of the mingo
  *  package
  *  
- *  all mingo ORMs should extend this class
+ *  all ORMs in your project that user mingo should extend this class
  *
  *  this class reserves some keywords as special: 
  *    - row_id = the auto increment key, always set on SQL db, can be turned on with mongo 
  *               using $this->schema->setInc() in the child class's __construct() method
  *    - _id = the unique id of the row, always set for both mongo and sql
- *    - updated = holds a unix timestamp of the last time the row was saved into the db, alwasy set
+ *    - updated = holds a unix timestamp of the last time the row was saved into the db, always set
  *    - created = holds a unix timestamp of when the row was created, always set
  *
  *   
  *  @todo
- *    1 - move limit and offset (change offset to page) to the schema object? I'm not sure that
- *        would really work   
+ *    1 - move limit and page to the schema object? I'm not sure that
+ *        would really work because what if there was a field in the db that was named
+ *        either "limit" or "page". Plus, having limit and page part of this class makes
+ *        hasMore() and getTotal() make more sense  
  *  
- *  @version 0.1
+ *  @version 0.2
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_map extends mingo_base implements ArrayAccess,Iterator,Countable {
+class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
 
   /**
    *  holds the table that this class will access in the db
@@ -61,7 +63,7 @@ class mingo_map extends mingo_base implements ArrayAccess,Iterator,Countable {
    */
   protected $limit = 0;
   /**
-   *  where {@link load()} will start loading results from the db
+   *  what page or results {@link load()} will use to start loading results from
    *  @var  integer   
    */
   protected $page = 0;
@@ -91,7 +93,7 @@ class mingo_map extends mingo_base implements ArrayAccess,Iterator,Countable {
    *  default constructor
    *  
    *  YOU MUST CALL THIS IN ANY CHILD CLASS THAT EXTENDS THIS CLASS (eg, parent::__construct() in
-   *  the child's __construct() method) BEFORE DOING ANYTHING ELSE IN __construct()
+   *  the child's __construct() method) BEFORE DOING ANYTHING ELSE IN the child's __construct()
    */
   function __construct(){
   
@@ -516,6 +518,7 @@ class mingo_map extends mingo_base implements ArrayAccess,Iterator,Countable {
     }else{
     
       $name = $this->normalizeField($name);
+      $callback = $method_map[$command];
       
       /* currently this can't be supported because set(), and get() are actual
       functions...
@@ -772,7 +775,7 @@ class mingo_map extends mingo_base implements ArrayAccess,Iterator,Countable {
   /**
    *  Check value exists, given it's key e.g. isset($A['title'])
    */
-  function offsetExists($key){  return $this->__call(sprintf('exists%s',ucfirst($key)); }//method
+  function offsetExists($key){  return $this->__call(sprintf('exists%s',ucfirst($key))); }//method
   /**#@-*/
   
   /**

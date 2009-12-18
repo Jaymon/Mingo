@@ -8,12 +8,13 @@ Currently, it can use either Mysql/sqlite, or Mongo Db as its backend, but other
 
 ==== USING MINGO ====
 
-using it is as easy as creating a new class that extends mingo_map. For our example we'll create a user class:
+using it is as easy as creating a new class that extends mingo_orm. For our example we'll create a user class:
 
-class user extends mingo_map {
+class user extends mingo_orm {
 
   function __construct(){
   
+    // the parent constructor is run first to initiate schema...
     parent::__construct();
     
     // set up the this object's table schema...
@@ -31,13 +32,15 @@ Let's see our new user object in action, first we need to connect to our db:
 $type = mingo_db::TYPE_SQLITE;
 $db_name = 'model.sqlite';
 $host = '';
+
 // mysql...
 $type = mingo_db::TYPE_MYSQL;
 $db_name = 'model';
 $host = 'localhost';
 $username = '';
 $password = '';
-// mongo...
+
+// mongo db...
 $type = mingo_db::TYPE_MONGO;
 $db_name = 'model';
 $host = 'localhost:27017';
@@ -48,8 +51,7 @@ Now, let's do the actual connecting:
 
 // activate singleton...
 $db = mingo_db::getInstance();
-// let's turn debugging on, just in case...
-$db->setDebug(true);
+$db->setDebug(true); // activate mingo agile mode
 $db->connect($type,$db_name,$host,$username,$password);
 
 Now that we're connected let's create a user and save it into the db:
@@ -67,7 +69,7 @@ foreach($user_load as $u){
  echo $u->getUsername(),'<br />',$u->getPassword(),'<br />';
 }//foreach
 
-this is just a basic example, but it shows you the initial power of mingo. each class extended from mingo_map has many built in functions to make doing things easy, you see the set* and get* functions, but you also have has* functions to make sure a field exists and is none empty (eg, $user->hasPassword() to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, $user->bumpViews($count) where $count=1). And is* functions to see if a field contains a value (eg, $user->isUsername('tester')).
+this is just a basic example, but it shows you the initial power of mingo. each class extended from mingo_orm has many built in functions to make doing things easy, you just saw the set* and get* functions, but you also have has* functions to make sure a field exists and is non-empty (eg, $user->hasPassword() to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, $user->bumpView($count) where $count=1). And is* functions to see if a field contains a value (eg, $user->isUsername('tester')).
 
 On top of that, the load() function takes a mingo_criteria instance to make loading from the db painless. For example, to load all users with certain usernames, you could:
 
@@ -80,7 +82,7 @@ and, if you wanted to sort them in alphabetical order, you would just add this l
 
 $c->sortUsername(mingo_criteria::ASC);
 
-Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads, and then they have another class that is the actual ORM for the db's table. I decided to combine the two and just have the one class, this will take some getting used to at first, but it is actually pretty cool when you start using it. And if you wanted to create a Peer class, you could:
+Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads and sets, and then they have another class that is the actual ORM for the db's table. I decided to combine the two and just have the one class, this will take some getting used to at first but is actually pretty cool when you start using it. And if you wanted to create a Peer class, you could:
 
 class user_peer {
   static function getByUsername($list){
@@ -92,18 +94,22 @@ class user_peer {
     $user->load($c);
     return $user->get();
   
-  }
+  }//method
 
-}
+}//class
 
-that will produce the traditional array list of user instances instead of having the one $user instance handle all the loaded rows. When a user instance is handling more than one row any calls, like setUsername(), set(), or kill() will affect all the rows that instance represents.
+That will produce the traditional array list of user instances instead of having the one user instance handle all the loaded rows. When a user instance is handling more than one row, then any method calls, like setUsername(), set(), or kill() will affect all the rows that instance represents.
 
-the code is pretty well documented, so if you want to see what other magic functions mingo_map and mingo_criteria have, just check the docblocks and code for the __call() methods.
+the code is pretty well documented, so if you want to see what other magic functions mingo_map and mingo_criteria have, just check the docblocks and code for each class's __call() method.
 
 ==== INSTALLING MINGO ====
 
-Whenever you add an object to your project (like the user object above) you will need to run the install function (eg, $user->install()). This will create the indexes that were defined in the object's schema. 
+When debug is on Mingo is actually quite agile, meaning it will make sure tables exist and check indexes with every db call. This slows down the overall code because mingo is making extra db calls to make sure stuff exists, but allows you to make schema changes on the fly (like adding a new index you didn't know you needed until just now) without worrying about doing a db migration or anything.
 
-Table creation was automatic with Mongo but sadly, isn't with SQL. Either way, you still had to run install() to set the indexes regardless of what backend you used.
+The one problem with this approach is that you won't want debug on when in a production environment because you don't want your live server making unecessary queries when the tables or the schema are unlikely to change for long periods of time. So you will probably need to keep a "production" install script handy that does something like this:
 
-I'm racking my brain in order to figure out a better way to do this, since you have to run install() everytime you change the indexes, etc. but I haven't come up with one yet.
+$user = new user();
+$user->install();
+// now do the same thing for every other ORM class you have made
+
+This isn't the best approach in the world, but it allows you to make on the fly changes while you're developing and when you do run the install script on a fresh db you will get only the latest greatest tables and indexes installed.

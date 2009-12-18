@@ -34,7 +34,15 @@ class mingo_base {
    *  @param  string  $field  the field name
    *  @return string  the $field, normalized
    */
-  protected function normalizeField($field){ return mb_strtolower($field); }//method
+  protected function normalizeField($field){
+    
+    // canary...
+    if(is_numeric($field)){
+      throw new mingo_exception(aprintf('an all numeric $field like %s is not allowed',$field));
+    }//if
+    
+    return mb_strtolower((string)$field);
+  }//method
 
   /**
    *  splits the $method by the first non lowercase char found

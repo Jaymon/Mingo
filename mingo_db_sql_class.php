@@ -169,7 +169,6 @@ class mingo_db_sql extends mingo_db_interface {
           $printf_vars[] = $index_table;
           $printf_vars[] = $where_query;
           
-          
           $query = vsprintf($query,$printf_vars);
           $result = $this->getQuery($query,$val_list);
           
@@ -193,6 +192,14 @@ class mingo_db_sql extends mingo_db_interface {
         
       }//if
       
+    }//if
+    
+    // if another query wasn't run, just run on the main table...
+    if(empty($result)){
+    
+      $query = sprintf('SELECT count(*) FROM %s',$table);
+      $result = $this->getQuery($query);
+    
     }//if
     
     if(isset($result[0]['count(*)'])){ $ret_int = (int)$result[0]['count(*)']; }//if
@@ -373,6 +380,9 @@ class mingo_db_sql extends mingo_db_interface {
       $ret_bool = $this->getQuery($query,$val_list);
       
       if($ret_bool){
+      
+        // get the row id...
+        $map['row_id'] = $this->con_db->lastInsertId();
       
         // we need to add to all the index tables...
         if($schema->hasIndex()){
@@ -676,7 +686,16 @@ class mingo_db_sql extends mingo_db_interface {
             
             foreach($field_list as $field){
             
-              $query .= '%s VARCHAR(100) NOT NULL,';
+              if($this->isMysql()){
+            
+                $query .= '%s VARCHAR(100) NOT NULL,';
+                
+              }else if($this->isSqlite()){
+              
+                $query .= '%s VARCHAR(100) COLLATE NOCASE NOT NULL,';
+              
+              }//if/else if
+                
               $printf_vars[] = $field;
             
             }//foreach
@@ -801,20 +820,6 @@ class mingo_db_sql extends mingo_db_interface {
     }//try/catch
 
     return $ret_mixed;
-  
-  }//method
-  
-  /**
-   *  generates a 24 character unique id for the _id of an inserted row
-   *
-   *  @param  string  $table  the table to be used in the hash
-   *  @return string  a 24 character id string   
-   */
-  private function getUniqueId($table = ''){
-  
-    $id = uniqid();
-    $hash = mb_substr(md5(microtime(true).$table.rand(0,50000)),0,11);
-    return sprintf('%s%s',$id,$hash);
   
   }//method
   

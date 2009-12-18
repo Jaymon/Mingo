@@ -1,7 +1,7 @@
 <?php
 
 /**
- *  allows you to define some stuff about how a mingo_map should be set up (eg, indexes
+ *  allows you to define some stuff about how a mingo_orm should be set up (eg, indexes
  *  and the like)  
  *
  *  @version 0.1
@@ -52,6 +52,12 @@ class mingo_schema extends mingo_base {
     $this->index_map[$index_name] = array();
     
     foreach($args as $field){
+    
+      $field = $this->normalizeField($field);
+      if($field === '_id'){
+        throw new mingo_exception('a table index cannot include the _id field');
+      }//if
+    
       $this->index_map[$index_name][$field] = 1;
     }//foreach
     
