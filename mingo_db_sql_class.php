@@ -59,12 +59,7 @@ class mingo_db_sql extends mingo_db_interface {
         PDO::ATTR_EMULATE_PREPARES => true,
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
       );
-  
-      // alternative to setting charset: $this->query('SET NAMES utf8');
-      // another: $this->query('SET CHARACTER SET UTF8'); 
-      
-      // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html
-    
+
       $dsn = '';
       $query_charset = '';
       if($this->isMysql()){
@@ -72,11 +67,15 @@ class mingo_db_sql extends mingo_db_interface {
         if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
         
         $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db,self::CHARSET);
+        // http://stackoverflow.com/questions/1566602/is-set-character-set-utf8-necessary
         $query_charset = sprintf('SET NAMES %s',self::CHARSET); // another: 'SET CHARACTER SET UTF8';
       
       }else if($this->isSqlite()){
       
         $dsn = sprintf('sqlite:%s',$db);
+        
+        // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html only good on db creation
+        // http://stackoverflow.com/questions/263056/how-to-change-character-encoding-of-a-pdo-sqlite-connection-in-php
       
       }else{
       
@@ -85,11 +84,18 @@ class mingo_db_sql extends mingo_db_interface {
       }//if/else
       
       $this->con_db = new PDO($dsn,$username,$password,$this->con_map['pdo_options']);
+      if(!empty($query_charset)){ $this->getQuery($query_charset); }//if
       $this->con_map['connected'] = true;
       
     }catch(PDOException $e){
     
-      $this->error_msg .= 'dbal::connect - db failed connection '.$e->getMessage();
+      throw new mingo_exception(
+        sprintf(
+          'db failed to connect with exception %s: %s',
+          $e->getcode(),
+          $e->getMessage()
+        )
+      );
       
     }//try/catch
     
@@ -151,29 +157,18 @@ class mingo_db_sql extends mingo_db_interface {
       
       // first get the maps...
       list($where_map,$sort_map) = $where_criteria->get();
+      list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+      $index_table = $this->getIndexTable($table,$where_criteria,$schema);
 
-      if(!empty($where_map)){
+      if(!empty($index_table)){
         
-        list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+        $query = $this->getSelectQuery($index_table,'count(*)',$where_query);
+        $result = $this->getQuery($query,$val_list);
         
-        // we only select on an index if it isn't an _id only, @todo you could select on row_id also 
-        if((count($where_map) > 1) || !isset($where_map['_id'])){
-        
-          // get the table...
-          $index_table = $this->getIndexTable($table,$where_criteria,$schema);
+      }else{
+      
+        if((count($where_map) === 1) && isset($where_map['_id'])){
           
-          // build the query...
-          $query = 'SELECT count(*) FROM %s %s';
-          $printf_vars = array();
-          
-          $printf_vars[] = $index_table;
-          $printf_vars[] = $where_query;
-          
-          $query = vsprintf($query,$printf_vars);
-          $result = $this->getQuery($query,$val_list);
-          
-        }else{
-        
           $printf_vars = array();
           $query = 'SELECT count(*) FROM %s';
           $printf_vars[] = $table;
@@ -187,10 +182,16 @@ class mingo_db_sql extends mingo_db_interface {
           
           $query = vsprintf($query,$printf_vars);
           $result = $this->getQuery($query,$val_list);
+          
+        }else{
+        
+          throw new mingo_exception(
+            sprintf('could not match fields: [%s] with an index table',join(',',array_keys($where_map)))
+          );
         
         }//if/else
-        
-      }//if
+      
+      }//if/else
       
     }//if
     
@@ -225,60 +226,54 @@ class mingo_db_sql extends mingo_db_interface {
     
     if($where_criteria instanceof mingo_criteria){
       
-      // first get the maps...
+      // first get the criteria info...
       list($where_map,$sort_map) = $where_criteria->get();
+      list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+      
+      // now, find the right index table to select from...
+      $index_table = $this->getIndexTable($table,$where_criteria,$schema);
 
-      if(!empty($where_map)){
+      if(!empty($index_table)){
         
-        list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+        $query = $this->getSelectQuery(
+          $index_table,
+          '_id',
+          $where_query,
+          $sort_query,
+          $limit
+        );
+        $row_list = $this->getQuery($query,$val_list);
+        $sort_query = ''; // clear it so it isn't used in the second query
         
-        // we only select on an index if it isn't an _id only, @todo you could select on row_id also 
-        if((count($where_map) > 1) || !isset($where_map['_id'])){
-        
-          // get the table...
-          $index_table = $this->getIndexTable($table,$where_criteria,$schema);
-          
-          // build the query...
-          $query = 'SELECT _id FROM %s %s';
-          $printf_vars = array();
-          
-          $printf_vars[] = $index_table;
-          $printf_vars[] = $where_query;
-          
-          // add sort...
-          if(!empty($sort_query)){
-            $query .= ' '.$sort_query;
+        // build the id list...
+        foreach($row_list as $key => $row){
+          if(isset($row['_id'])){
+            $order_map[$row['_id']] = $key;
+            $id_list[] = $row['_id'];
           }//if
-          $sort_query = ''; // clear sort query so the next query doesn't use it
+        }//foreach
+         
+      }else{
+        
+        if((count($where_map) === 1) && isset($where_map['_id'])){
           
-          if(!empty($limit[0])){
-            $query .= ' LIMIT %d OFFSET %d';
-            $printf_vars[] = $limit[0];
-            $printf_vars[] = $limit[1];
+          // it is a _id query, so the only sort can be row_id...
+          $id_list = $val_list;
+          if(!empty($sort_map) && ((count($sort_map) > 1) || !isset($sort_map['row_id']))){
+            throw new mingo_exception(
+              sprintf('you can only sort by "row_id" when directly selecting on table: %s',$table)
+            );
           }//if
-          
-          $query = vsprintf($query,$printf_vars);
-          $row_list = $this->getQuery($query,$val_list);
-          
-          // build the id list...
-          foreach($row_list as $key => $row){
-            if(isset($row['_id'])){
-              $order_map[$row['_id']] = $key;
-              $id_list[] = $row['_id'];
-            }//if
-          }//foreach
           
         }else{
         
-          // it is a _id query, so the only sort can be row_id...
-          $id_list = $val_list;
-          if(!empty($sort_map) && !isset($sort_map['row_id'])){
-            $sort_query = '';
-          }//if
+          throw new mingo_exception(
+            sprintf('could not match fields: [%s] with an index table',join(',',array_keys($where_map)))
+          );
         
         }//if/else
-        
-      }//if
+      
+      }//if/else
       
     }//if
     
@@ -924,6 +919,7 @@ class mingo_db_sql extends mingo_db_interface {
     list($where_map,$sort_map) = $where_criteria->get();
     
     $field_list = array_keys($where_map);
+    if(empty($field_list) && !empty($sort_map)){ $field_list = array_keys($sort_map); }//if
   
     // now go through the index and see if it matches...
     foreach($schema->getIndex() as $index_map){
@@ -932,9 +928,12 @@ class mingo_db_sql extends mingo_db_interface {
     
       foreach($index_map as $field => $order){
       
+        $is_match = false;
+        
         if(isset($field_list[$field_i])){
         
           if($field === $field_list[$field_i]){
+            $is_match = true;
             $field_i++;
           }else{
             break;
@@ -942,13 +941,19 @@ class mingo_db_sql extends mingo_db_interface {
         
         }else{
         
-          // we're done, we found a match...
-          $ret_str = sprintf('%s_%s',$table,md5(join(',',array_keys($index_map))));
-          break 2;
+          break;
           
         }//if/else
       
       }//foreach
+      
+      if($is_match){
+      
+        // we're done, we found a match...
+        $ret_str = sprintf('%s_%s',$table,md5(join(',',array_keys($index_map))));
+        break;
+        
+      }//if
       
     }//foreach
     
@@ -1024,6 +1029,47 @@ class mingo_db_sql extends mingo_db_interface {
     
     return $this->getQuery($query,$val_list);
   
+  }//method
+  
+  /**
+   *  builds a select query suitable to be passed into {@link getQuery()}
+   *  
+   *  this function puts all the different parts together
+   *  
+   *  @param  string  $table  the table   
+   *  @param  string  $select_query the fields to select from (usually * or count(*), or _id
+   *  @param  string  $where_query  the where part of the string
+   *  @param  string  $sort_query the sort part of the string
+   *  @param  array $limit  array($limit,$offset)
+   *  @return string  the built query         
+   */
+  private function getSelectQuery($table,$select_query,$where_query = '',$sort_query = '',$limit = array()){
+  
+    $printf_vars = array();
+        
+    // build the query...
+    $query = 'SELECT %s FROM %s';
+    $printf_vars[] = $select_query;
+    $printf_vars[] = $table;
+    
+    if(!empty($where_query)){
+      $query .= ' %s';
+      $printf_vars[] = $where_query;
+    }//if
+    
+    // add sort...
+    if(!empty($sort_query)){
+      $query .= ' '.$sort_query;
+    }//if
+    
+    if(!empty($limit[0])){
+      $query .= ' LIMIT %d OFFSET %d';
+      $printf_vars[] = $limit[0];
+      $printf_vars[] = empty($limit[1]) ? 0 : $limit[1];
+    }//if
+    
+    return vsprintf($query,$printf_vars);
+    
   }//method
   
 }//class     

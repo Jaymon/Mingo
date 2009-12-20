@@ -4,7 +4,7 @@
  *  maps a mingo collection or table to an object, this is the ORM part of the mingo
  *  package
  *  
- *  all ORMs in your project that user mingo should extend this class
+ *  all ORMs in your project that use mingo should extend this class
  *
  *  this class reserves some keywords as special: 
  *    - row_id = the auto increment key, always set on SQL db, can be turned on with mongo 
