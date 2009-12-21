@@ -420,6 +420,9 @@ class mingo_db_sql extends mingo_db_interface {
     
     try{
     
+      // we don't need to save the row_id into the body since it gets reset in get()...
+      if(isset($map['row_id'])){ unset($map['row_id']); }//if
+    
       // begin the insert transaction...
       $this->con_db->beginTransaction();
       
