@@ -104,6 +104,8 @@ the code is pretty well documented, so if you want to see what other magic funct
 
 ==== INSTALLING MINGO ====
 
+I actually have only been using Mingo on php >=5.3, but I think it might work with any php >=5.0. If you are using the SQL drivers, you must have PDO, if you are using Mongo, you must have installed the Mongo php extension. Since Mingo was originally designed for Mongo that was the first part of the codebase I wrote, but I haven't actaully tested it in quite a while since I switched to the SQL development, so the Mongo code might actually be a little outdated, when I have some time, I'll update it and make sure it works like it should, but until then, you're on your own.
+
 When debug is on Mingo is actually quite agile, meaning it will make sure tables exist and check indexes with every db call. This slows down the overall code because mingo is making extra db calls to make sure stuff exists, but allows you to make schema changes on the fly (like adding a new index you didn't know you needed until just now) without worrying about doing a db migration or anything.
 
 The one problem with this approach is that you won't want debug on when in a production environment because you don't want your live server making unecessary queries when the tables or the schema are unlikely to change for long periods of time. So you will probably need to keep a "production" install script handy that does something like this:

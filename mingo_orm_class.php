@@ -489,6 +489,9 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    *              
    *  @example  bump 'foo' value by $count
    *              $this->bumpFoo($count); // bumps numeric 'foo' value by $count
+   *              
+   *  @example  if you want to set a field name with a string var for the name
+   *              $this->setField('foo',$val); // *Field($name,...) will work with any prefix
    *                    
    *  @param  string  $method the method that was called
    *  @param  array $args the arguments passed to the function
@@ -509,7 +512,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
       'bump' => 'handleBump'
     );
     
-    list($command,$name) = $this->splitMethod($method);
+    list($command,$field,$args) = $this->splitMethod($method,$args);
     
     if(empty($method_map[$command])){
     
@@ -517,34 +520,21 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
     
     }else{
     
-      $name = $this->normalizeField($name);
       $callback = $method_map[$command];
-      
-      /* currently this can't be supported because set(), and get() are actual
-      functions...
-      if(empty($name)){
-      
-        // since there was no name, the first argument is the name...
-        if(empty($args[0])){
-          throw new mingo_exception('no name found, and none given in argument 1');
-        }//if
-        
-        $name = mb_strtolower($args[0]);
-        $args = array_slice($args,1);
-      
-      }//if */
     
-      if(array_key_exists($name,get_object_vars($this))){
+      if(array_key_exists($field,get_object_vars($this))){
       
-        throw new mingo_exception(sprintf('a field cannot have this name: %s',$name));
+        // @note  we use array_key_exists to compensate for null values which would cause isset to fail
+      
+        throw new mingo_exception(sprintf('a field cannot have this name: %s',$field));
       
       }else{
     
-        $ret_mix = $this->{$callback}($name,$args);
+        $ret_mix = $this->{$callback}($field,$args);
         
         if(is_array($ret_mix)){
         
-          // we only have one index, so return that...
+          // we only have one index, so return that (ie, this instance is only handling one row)...
           if(!isset($ret_mix[1])){ $ret_mix = $ret_mix[0]; }//if
         
         }//if

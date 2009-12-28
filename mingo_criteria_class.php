@@ -21,8 +21,30 @@ class mingo_criteria extends mingo_base {
 
   protected $command_symbol = '$';
   
+  /**
+   *  holds the internal structure of the "WHERE" criteria, usually returned from either
+   *  {@link get()} or {@link getSql()}, while you can set this using {@link set()} it would
+   *  be better to use the magic methods that {@link __call()} defines since that will
+   *  guarrantee a valid criteria array
+   *  
+   *  @var  array               
+   */
   protected $map_criteria = array();
+  
+  /**
+   *  similar to {@link $map_criteria} but is for the "SORT BY..." part of a query
+   *  
+   *  this can only be set with the sort|asc|desc magic methods
+   *  
+   *  @var  array
+   */
   protected $map_sort = array();
+  
+  /**
+   *  used internally to map the commands to the internal methods that will handle them
+   *
+   *  @var  array   
+   */
   protected $method_map = array();
 
   function __construct($map_criteria = array()){
@@ -59,6 +81,8 @@ class mingo_criteria extends mingo_base {
    *  find any 'foo' row that has 1,2,3,4 in it: $instance->inFoo(1,2,3,4);
    *  or $instance->in('foo',1,2,3,4);
    *  
+   *  if you want to find 'foo' using a string: $instance->inField('foo',1,2,3,4)
+   *      
    *  when you want to get the actual maps, just call {@link get()}                     
    *
    *  @param  string  $method the method that was called
@@ -66,27 +90,12 @@ class mingo_criteria extends mingo_base {
    */
   function __call($method,$args){
   
-    list($command,$name) = $this->splitMethod($method);
+    list($command,$field,$args) = $this->splitMethod($method,$args);
     
     if(isset($this->method_map[$command])){
     
-      if(empty($name)){
-      
-        // since there was no name, the first argument is the name...
-        if(empty($args[0])){
-          throw new mingo_exception('no name found, and none given in argument 1');
-        }//if
-        
-        $name = $this->normalizeField($args[0]);
-        $args = array_slice($args,1);
-      
-      }else{
-        // now lowercase the name...
-        $name = $this->normalizeField($name);
-      }//if/else
-    
       $callback = $this->method_map[$command]['set'];
-      $this->{$callback}($command,$name,$args);
+      $this->{$callback}($command,$field,$args);
     
     }else{
     

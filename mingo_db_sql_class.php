@@ -928,10 +928,9 @@ class mingo_db_sql extends mingo_db_interface {
     foreach($schema->getIndex() as $index_map){
     
       $field_i = 0;
+      $is_match = false;
     
       foreach($index_map as $field => $order){
-      
-        $is_match = false;
         
         if(isset($field_list[$field_i])){
         
@@ -939,6 +938,7 @@ class mingo_db_sql extends mingo_db_interface {
             $is_match = true;
             $field_i++;
           }else{
+            $is_match = false;
             break;
           }//if/else
         

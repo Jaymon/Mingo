@@ -207,7 +207,7 @@ class mingo_db_mongo extends mingo_db_interface {
       $inc_max = 100; // only try to auto-increment 100 times before failure
       $inc_count = 0;
       $c = new mingo_criteria();
-      $c->inc($table,1);
+      $c->incField($table,1);
       
       // we are going to try and get an increment, we do this in a loop to make sure
       // we get a real increment since mongo doesn't lock anything
@@ -218,7 +218,7 @@ class mingo_db_mongo extends mingo_db_interface {
           $inc_bool = true;
           $inc_row = $this->getOne($inc_table,$inc_where_map);
           $bump_inc_where_map['inc_version'] = $inc_row['inc_version'];
-          $c->set('inc_version',microtime(true));
+          $c->setField('inc_version',microtime(true));
           
           $this->update($inc_table,$c,$bump_inc_where_map);
           

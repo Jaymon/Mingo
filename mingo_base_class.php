@@ -54,11 +54,12 @@ class mingo_base {
    *  __call() using classes to make it consistent.         
    *  
    *  @param  string  $method the method name that was called
-   *  @return array array($prefix,$name)
+   *  @param  array $args the argument array that was passed into __call() with the method
+   *  @return array array($prefix,$field,$args)
    */
-  protected function splitMethod($method){
+  protected function splitMethod($method,$args = array()){
   
-    $ret_prefix = $ret_name = '';
+    $ret_prefix = $ret_field = '';
   
     // get everything lowercase form start...
     for($i = 0,$max = mb_strlen($method); $i < $max ;$i++){
@@ -66,7 +67,7 @@ class mingo_base {
       $ascii = ord($method[$i]);
       if(($ascii < 97) || ($ascii > 122)){
       
-        $ret_name = mb_substr($method,$i);
+        $ret_field = $this->normalizeField(mb_substr($method,$i));
         break;
       
       }else{
@@ -77,7 +78,35 @@ class mingo_base {
     
     }//for
     
-    return array($ret_prefix,$ret_name);
+    if(empty($ret_field)){
+    
+      throw new mingo_exception(
+        'no field was specified in the method, for example, if you want to "get" the field "foo" '.
+        'you would do: getFoo() or getField(\'foo\')'
+      ); 
+    
+    }else{
+    
+      if($ret_field === 'field'){
+      
+        if(empty($args)){
+        
+          throw new mingo_exception('you are calling getField() with no field name, when using the '.
+            'generic field method, you need to pass the field name as the first argument'
+          );
+        
+        }else{
+      
+          $ret_field = $this->normalizeField($args[0]);
+          $args = array_slice($args,1);
+          
+        }//if/else
+      
+      }//if
+    
+    }//if/else
+    
+    return array($ret_prefix,$ret_field,$args);
   
   }//method
 
