@@ -1,8 +1,6 @@
 h1. Mingo
 
-An easy to use database abstraction layer that uses the db as a dumb key/value storage engine similar to what is described here:
-
-http://bret.appspot.com/entry/how-friendfeed-uses-mysql
+An easy to use database abstraction layer that uses the db as a dumb key/value storage engine similar to "how Friendfeed uses MySql":http://bret.appspot.com/entry/how-friendfeed-uses-mysql
 
 Currently, it can use either Mysql/sqlite, or Mongo Db as its backend, but other databases can easily be added by extending mingo_db_interface_class and implementing all the required methods (see mingo_db_sql_class or mingo_db_mongo_class for how to do that).
 
@@ -124,14 +122,20 @@ I actually have only been using Mingo on php >=5.3, but I think it might work wi
 
 Since Mingo was originally designed for Mongo that was the first part of the codebase I wrote, but I haven't actaully tested it in quite a while since I switched to the SQL development, so the Mongo code might actually be a little outdated, when I have some time, I'll update it and make sure it works like it should, but until then, you're on your own.
 
-When debug is on Mingo is actually quite agile, meaning it will make sure tables exist and check indexes with every db call. This slows down the overall code because mingo is making extra db calls to make sure stuff exists, but allows you to make schema changes on the fly (like adding a new index you didn't know you needed until just now) without worrying about doing a db migration or anything.
+h3. Using Mingo in a Development Environment
 
-The one problem with this approach is that you won't want debug on when in a production environment because you don't want your live server making unecessary queries when the tables or the schema are unlikely to change for long periods of time. So you will probably need to keep a "production" install script handy that does something like this:
+When debug is on (E.G., <code>mingo_db::getInstance()->setDebug(true);</code>) Mingo is actually quite agile, meaning it will make sure tables exist and check indexes with every db call. This slows down the overall code because mingo is making extra db calls to make sure stuff exists, but allows you to make schema changes on the fly (like adding a new index you didn't know you needed until just now) without worrying about doing a db migration, index population, or anything.
+
+h3. Using Mingo in a Production Environment
+
+Mingo can try and recover if a given table isn't found by trying to create the table and creating any new indexes. Usually, it will only have to recover from not having a table once, this is great when not in a development environment since tables will be automatically generated the first time Mingo can't find them.
+
+This allows you to push to production and not have to worry about running an install script or anything. However, you might need to do some custom stuff (like populating new index tables for an existing table when Mingo is using a SQL db). You can handle this use case by creating an install script:
 
 <pre>
 $user = new user();
 $user->install();
-// repeat above code for every other ORM class you have created
-</pre>
+// do any custom installing for the user like updating new index tables, etc.
 
-This isn't the best approach in the world, but it allows you to make on the fly changes while you're developing and when you do run the install script on a fresh db you will get only the latest greatest tables and indexes installed.
+// repeat above code for every other ORM class you have created/added
+</pre>

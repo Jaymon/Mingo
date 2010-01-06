@@ -30,6 +30,15 @@ class mingo_db {
   private $con_db = null;
   
   /**
+   *  maps certain errors to one namespace (ie, key) so we can group table errors
+   *  and handle them all with the same code, even though different dbs (eg, mysql and sqlite)
+   *  throw different errors (eg, they have different error codes for "table doesn't exist")      
+   *
+   *  @var  array   
+   */
+  private $error_map = array();
+  
+  /**
    *  used by {@link getInstance()} to keep a singleton object, the {@link getInstance()} 
    *  method should be the only place this object is ever messed with so if you want to touch it, DON'T!  
    *  @var mingo_db
@@ -37,6 +46,8 @@ class mingo_db {
   private static $instance = null;
   
   function __construct($type = 0,$db = '',$host = '',$username = '',$password = ''){
+  
+    $this->error_map['no_table'] = array(/* sqlite */ 'HY000',/* mysql */ '42S02');
   
     $this->setType($type);
     $this->setDb($db);
@@ -126,16 +137,32 @@ class mingo_db {
     
     }//switch
     
-    // actually connect to the db...
-    $this->con_map['connected'] = $this->con_db->connect(
-      $db,
-      $host,
-      $username,
-      $password
-    );
-    
-    // reset the debug level for the con_db just in case...
-    $this->setDebug($this->getDebug());
+    try{
+      
+      // actually connect to the db...
+      $this->con_map['connected'] = $this->con_db->connect(
+        $db,
+        $host,
+        $username,
+        $password
+      );
+      
+      // reset the debug level for the con_db just in case...
+      $this->setDebug($this->getDebug());
+      
+      if($this->hasDebug()){
+        if(!is_bool($this->con_map['connected'])){
+          throw new mingo_exception(
+            sprintf('%s is not the expected return type of boolean',
+              gettype($this->con_map['connected'])
+            )
+          );
+        }//if
+      }//if
+      
+    }catch(Exception $e){
+      $this->handleException($e);
+    }//try/catch
     
     return $this->con_map['connected'];
   
@@ -204,7 +231,27 @@ class mingo_db {
       }//if
     }//if/else
   
-    return $this->con_db->kill($table,$where_criteria);
+    $ret_bool = false;
+  
+    try{
+    
+      $ret_bool = $this->con_db->kill($table,$where_criteria);
+      
+      if($this->hasDebug()){
+        if(!is_bool($ret_bool)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of boolean',gettype($ret_bool)));
+        }//if
+      }//if
+    
+    }catch(Exception $e){
+    
+      if($this->handleException($e,$table)){
+        $ret_bool = $this->kill($table,$where_criteria);
+      }//if
+    
+    }//try/catch
+  
+    return $ret_bool;
   
   }//method
   
@@ -223,9 +270,28 @@ class mingo_db {
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
-    
+    $ret_list = array();
     list($limit,$offset) = $this->getLimit($limit);
-    return $this->con_db->get($table,$schema,$where_criteria,array($limit,$offset));
+    
+    try{
+    
+      $ret_list = $this->con_db->get($table,$schema,$where_criteria,array($limit,$offset));
+      
+      if($this->hasDebug()){
+        if(!is_array($ret_list)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of array',gettype($ret_list)));
+        }//if
+      }//if
+    
+    }catch(Exception $e){
+    
+      if($this->handleException($e,$table,$schema)){
+        $ret_list = $this->con_db->get($table,$schema,$where_criteria,array($limit,$offset));
+      }//if
+    
+    }//try/catch
+    
+    return $ret_list;
 
   }//method
   
@@ -243,7 +309,28 @@ class mingo_db {
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
-    return $this->con_db->getOne($table,$where_map);
+    $ret_map = array();
+    
+    try{
+    
+      $ret_map = $this->con_db->getOne($table,$where_map);
+      
+      if($this->hasDebug()){
+        if(!is_array($ret_map)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of array',gettype($ret_map)));
+        }//if
+      }//if
+    
+    }catch(Exception $e){
+    
+      if($this->handleException($e,$table,$schema)){
+        $ret_map = $this->con_db->getOne($table,$where_map);
+      }//if
+    
+    }//try/catch
+    
+    
+    return $ret_map;
     
   }//method
   
@@ -261,7 +348,28 @@ class mingo_db {
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
-    return $this->con_db->getCount($table,$schema,$where_criteria);
+    $ret_int = 0;
+    
+    try{
+    
+      $ret_int = $this->con_db->getCount($table,$schema,$where_criteria);
+      
+      if($this->hasDebug()){
+        if(!is_int($ret_int)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of integer',gettype($ret_int)));
+        }//if
+      }//if
+    
+    }catch(Exception $e){
+    
+      if($this->handleException($e,$table,$schema)){
+        $ret_int = $this->con_db->getCount($table,$schema,$where_criteria);
+      }//if
+    
+    }//try/catch
+    
+    
+    return $ret_int;
   
   }//method
   
@@ -284,18 +392,49 @@ class mingo_db {
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
   
     if(empty($map['_id'])){
-      // since there isn't an _id, insert...
-      $map = $this->con_db->insert($table,$map,$schema);
+    
+      try{
+    
+        // since there isn't an _id, insert...
+        $map = $this->con_db->insert($table,$map,$schema);
+        
+      }catch(Exception $e){
+        if($this->handleException($e,$table,$schema)){
+          $map = $this->con_db->insert($table,$map,$schema);
+        }//if
+      }//try/catch
+        
     }else{
-      $id = $map['_id'];
-      unset($map['_id']);
-      $map = $this->con_db->update($table,$id,$map,$schema);
+    
+      try{
+      
+        $id = $map['_id'];
+        unset($map['_id']);
+        $map = $this->con_db->update($table,$id,$map,$schema);
+        
+      }catch(Exception $e){
+        if($this->handleException($e,$table,$schema)){
+          $map = $this->con_db->update($table,$id,$map,$schema);
+        }//if
+      }//try/catch
+        
     }//if
     
-    // make sure _id was set...
-    if(empty($map['_id'])){
-      throw new mingo_exception('$map returned from either insert or update without _id being set');
-    }//if
+    if(is_array($map)){
+      
+      // make sure _id was set...
+      if(empty($map['_id'])){
+        throw new mingo_exception('$map returned from either insert or update without _id being set');
+      }//if
+      
+    }else{
+    
+      if($this->hasDebug()){
+        throw new mingo_exception(sprintf('%s is not the expected return type of array',gettype($map)));
+      }//if
+      
+    
+    }//if/else
   
     return $map;
   
@@ -311,7 +450,22 @@ class mingo_db {
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
-    return $this->con_db->killTable($table);
+    
+    $ret_bool = false;
+    try{
+    
+      $ret_bool = $this->con_db->killTable($table);
+      if($this->hasDebug()){
+        if(!is_bool($ret_bool)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of boolean',gettype($ret_bool)));
+        }//if
+      }//if
+      
+    }catch(Exception $e){
+      $this->handleException($e,$table);
+    }//try/catch
+      
+    return $ret_bool;
   
   }//method
   
@@ -323,7 +477,22 @@ class mingo_db {
   function getTables(){
   
     if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
-    return $this->con_db->getTables();
+    
+    $ret_list = array();
+    try{
+    
+      $ret_list = $this->con_db->getTables();
+      if($this->hasDebug()){
+        if(!is_array($ret_list)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of array',gettype($ret_list)));
+        }//if
+      }//if
+      
+    }catch(Exception $e){
+      $this->handleException($e);
+    }//try/catch
+      
+    return $ret_list;
   
   }//method
   
@@ -340,7 +509,21 @@ class mingo_db {
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
     if(empty($schema)){ throw new mingo_exception('$schema must be present'); }//if
     
-    return $this->con_db->setTable($table,$schema);
+    $ret_bool = false;
+    try{
+    
+      $ret_bool = $this->con_db->setTable($table,$schema);
+      if($this->hasDebug()){
+        if(!is_bool($ret_bool)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of boolean',gettype($ret_bool)));
+        }//if
+      }//if
+      
+    }catch(Exception $e){
+      $this->handleException($e,$table);
+    }//try/catch
+      
+    return $ret_bool;
     
   }//method
   
@@ -354,12 +537,30 @@ class mingo_db {
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
-    return $this->con_db->hasTable($table);
-  
+    
+    $ret_bool = false;
+    try{
+    
+      $ret_bool = $this->con_db->hasTable($table);
+      if($this->hasDebug()){
+        if(!is_bool($ret_bool)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of boolean',gettype($ret_bool)));
+        }//if
+      }//if
+      
+    }catch(Exception $e){
+      $this->handleException($e,$table);
+    }//try/catch
+      
+    return $ret_bool;
+    
   }//method
   
   /**
-   *  set the limit/offset
+   *  set the limit/page
+   *  
+   *  this basically normalizes the limit and the page so you don't have to worry about one or the other
+   *  not being present in the implemenations         
    *  
    *  @param  integer|array $limit  can be either int (eg, limit=10) or array (eg, array($limit,$page)
    *  @return array array($limit,$page)
@@ -397,6 +598,69 @@ class mingo_db {
     $this->con_db = null;
     $this->con_map['connected'] = false;
     return array_keys(get_object_vars($this));
+  }//method
+  
+  /**
+   *  takes any exception and maps it to a mingo_exception
+   *  
+   *  this method will also try and fix any exception that match codes found in {@link $error_map},
+   *  if it does successfully resolve the exception, it will return true giving the failed method
+   *  a chance to redeem itself.
+   *  
+   *  @param  Exception $e  any exception
+   *  @param  string  $table  the table the exception was encountered on
+   *  @param  mingo_schema  $table's schema
+   *  @return boolean true if the exception was resolved, false if it wasn't
+   *  @throws mingo_exception all exceptions get re-thrown as mingo_exception if not resolved
+   */
+  private function handleException(Exception $e,$table = '',mingo_schema $schema = null){
+  
+    $e_resolved = false;
+  
+    // only try and resolve an exception if we have some meta data...
+    if(!empty($table) && ($schema !== null)){
+    
+      $e_code = $e->getCode();
+      if(!empty($e_code)){
+      
+        if(in_array($e_code,$this->error_map['no_table'])){
+        
+          // table was missing, so assure the table and everything...
+          $e_resolved = $this->setTable($table,$schema);
+        
+        }//if
+        
+      }//if
+      
+    }//if
+    
+    if(!$e_resolved){
+    
+      if($e instanceof mingo_exception){
+      
+        // just pass a mingo_exception on up the chain...
+        throw $e;
+      
+      }else{
+      
+        // map the caught exception to a mingo_exception and pass it on up the chain...
+        throw new mingo_exception(
+          sprintf(
+            '%s %s: "%s" originally thrown in %s:%s',
+            get_class($e),
+            $e->getcode(),
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine()
+          )
+        );
+        
+      }//if/else
+      
+    }//if
+  
+    return $e_resolved;
+  
   }//method
   
 }//class     

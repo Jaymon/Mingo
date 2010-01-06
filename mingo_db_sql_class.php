@@ -34,6 +34,8 @@ class mingo_db_sql extends mingo_db_interface {
   
     $this->setType($type);
     
+    $this->error_map['no_table'] = array(/* sqlite */ 'HY000',/* mysql */ '42S02');
+    
   }//method
   
   /**
@@ -51,53 +53,40 @@ class mingo_db_sql extends mingo_db_interface {
    */
   function connect($db,$host = '',$username = '',$password = ''){
 
-    try{
-    
-      $this->con_map['pdo_options'] = array(
-        PDO::ERRMODE_EXCEPTION => true,
-        PDO::ATTR_PERSISTENT => true,
-        PDO::ATTR_EMULATE_PREPARES => true,
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-      );
+    $this->con_map['pdo_options'] = array(
+      PDO::ERRMODE_EXCEPTION => true,
+      PDO::ATTR_PERSISTENT => true,
+      PDO::ATTR_EMULATE_PREPARES => true,
+      PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+    );
 
-      $dsn = '';
-      $query_charset = '';
-      if($this->isMysql()){
-      
-        if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
-        
-        $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db,self::CHARSET);
-        // http://stackoverflow.com/questions/1566602/is-set-character-set-utf8-necessary
-        $query_charset = sprintf('SET NAMES %s',self::CHARSET); // another: 'SET CHARACTER SET UTF8';
-      
-      }else if($this->isSqlite()){
-      
-        $dsn = sprintf('sqlite:%s',$db);
-        
-        // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html only good on db creation
-        // http://stackoverflow.com/questions/263056/how-to-change-character-encoding-of-a-pdo-sqlite-connection-in-php
-      
-      }else{
-      
-        throw new mingo_exception('Unsupported db type, check the mingo_db::TYPE_* constants for supported db types');
-      
-      }//if/else
-      
-      $this->con_db = new PDO($dsn,$username,$password,$this->con_map['pdo_options']);
-      if(!empty($query_charset)){ $this->getQuery($query_charset); }//if
-      $this->con_map['connected'] = true;
-      
-    }catch(PDOException $e){
+    $dsn = '';
+    $query_charset = '';
+    if($this->isMysql()){
     
-      throw new mingo_exception(
-        sprintf(
-          'db failed to connect with exception %s: %s',
-          $e->getcode(),
-          $e->getMessage()
-        )
-      );
+      if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
       
-    }//try/catch
+      $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db,self::CHARSET);
+      // http://stackoverflow.com/questions/1566602/is-set-character-set-utf8-necessary
+      $query_charset = sprintf('SET NAMES %s',self::CHARSET); // another: 'SET CHARACTER SET UTF8';
+    
+    }else if($this->isSqlite()){
+    
+      $dsn = sprintf('sqlite:%s',$db);
+      
+      // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html only good on db creation
+      // http://stackoverflow.com/questions/263056/how-to-change-character-encoding-of-a-pdo-sqlite-connection-in-php
+    
+    }else{
+    
+      throw new mingo_exception('Unsupported db type, check the mingo_db::TYPE_* constants for supported db types');
+    
+    }//if/else
+    
+    $this->con_db = new PDO($dsn,$username,$password,$this->con_map['pdo_options']);
+    if(!empty($query_charset)){ $this->getQuery($query_charset); }//if
+    $this->con_map['connected'] = true;
+    
     
     return $this->con_map['connected'];
   
@@ -752,10 +741,12 @@ class mingo_db_sql extends mingo_db_interface {
    *  prepares and executes the query and returns the result
    *  @param  string  $query  the query to prepare and run
    *  @param  array $val_list the values list for the query, if the query has ?'s then 
-   *                          the values should be in this array      
+   *                          the values should be in this array
+   *  @param  mingo_schema  $schema the table schema, this doesn't need to be passed in
+   *                                but might help if an error is encountered           
    *  @return mixed array of results if select query, last id if insert, update
    */
-  function getQuery($query,$val_list = array()){
+  function getQuery($query,$val_list = array(),mingo_schema $schema = null){
   
     $ret_mixed = false;
   
@@ -775,47 +766,38 @@ class mingo_db_sql extends mingo_db_interface {
       }//if/else
     }//if
   
-    try{
-    
-      // prepare the statement and run the query...
-      // http://us2.php.net/manual/en/function.PDO-prepare.php
-      $stmt_handler = $this->con_db->prepare($query);
-    
-      // execute the query...
-      $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
-      if($is_success){
+    // prepare the statement and run the query...
+    // http://us2.php.net/manual/en/function.PDO-prepare.php
+    $stmt_handler = $this->con_db->prepare($query);
+  
+    // execute the query...
+    $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
+    if($is_success){
 
-        if(mb_stripos($query,'select') === 0){
+      if(mb_stripos($query,'select') === 0){
 
-          // a select statement should always return an array...
-          $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
-          
-        }else{
-        
-          // all other queries should return whether they were successful...
-          $ret_mixed = $is_success;
-          
-        }//if/else
+        // a select statement should always return an array...
+        $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
         
       }else{
       
-        $err_map = $stmt_handler->errorInfo();
-        throw new mingo_exception(sprintf('query "%s" failed execution with error: %s',
-          $query,
-          print_r($err_map,1)
-        ));
+        // all other queries should return whether they were successful...
+        $ret_mixed = $is_success;
         
       }//if/else
-        
-    }catch(PDOException $e){
+      
+    }else{
     
-      throw new mingo_exception(sprintf('query "%s" failed with exception %s: %s',
-        $query,
-        $e->getCode(),
-        $e->getMessage()
-      ));
-    
-    }//try/catch
+      $err_map = $stmt_handler->errorInfo();
+      throw new mingo_exception(
+        sprintf('query "%s" failed execution with error: %s',
+          $query,
+          print_r($err_map,1)
+        ),
+        $err_map[0]
+      );
+      
+    }//if/else
 
     return $ret_mixed;
   
