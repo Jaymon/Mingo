@@ -207,11 +207,11 @@ abstract class mingo_db_interface {
    *  @return string  a 24 character id string   
    */
   protected function getUniqueId($table = ''){
-  
-    $id = uniqid();
-    $hash = mb_substr(md5(microtime(true).$table.rand(0,50000)),0,11);
-    return sprintf('%s%s',$id,$hash);
-  
+    
+    $str = '1234567890abcdefghijklmnpqrstuvwxyz';
+    $id = uniqid(sprintf('%s%s',$str[rand(0,34)],$str[rand(0,34)]),true);
+    return str_replace('.','',$id);
+    
   }//method
   
 }//class     

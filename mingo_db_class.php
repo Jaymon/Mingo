@@ -648,11 +648,12 @@ class mingo_db {
           sprintf(
             '%s %s: "%s" originally thrown in %s:%s',
             get_class($e),
-            $e->getcode(),
+            $e->getCode(),
             $e->getMessage(),
             $e->getFile(),
             $e->getLine()
-          )
+          ),
+          $e->getCode()
         );
         
       }//if/else
