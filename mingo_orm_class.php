@@ -127,13 +127,6 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    */
   function count(){ return $this->getCount(); }//method
   
-  /**
-   *  returns true if this instance is representing 1 or more rows
-   *  
-   *  @return boolean      
-   */
-  function has(){ return $this->hasCount(); }//method
-  
   function setLimit($val){ $this->limit = $val; }//method
   function getLimit(){ return $this->limit; }//method
   function hasLimit(){ return !empty($this->limit); }//method
@@ -141,9 +134,14 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
   function setPage($val){ $this->page = $val; }//method
   function getPage(){ return $this->page; }//method
   function hasPage(){ return !empty($this->page); }//method
-  
+
   protected function setMore($val){ $this->more = $val; }//method
   protected function getMore(){ return $this->more; }//method
+  /**
+   *  return true if the last db load could load more, but was limited by $limit 
+   *
+   *  @return boolean
+   */
   function hasMore(){ return !empty($this->more); }//method
   
   protected function setTotal($val){ $this->total = $val; }//method
@@ -160,7 +158,8 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    *  
    *  the better method to use is {@link get()} because it will create instances
    *  for all the rows that get ripped from this isntance, this returns the raw
-   *  list only
+   *  array list only, it needs to be public so {@link append()} will work when 
+   *  appending other instances of this class   
    *  
    *  @return array the internal {@link $list} array
    */
@@ -299,7 +298,10 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    */
   function load(mingo_criteria $where_criteria = null,$set_load_count = false){
   
-    // canary...
+    $ret_int = 0;
+    $do_reset = false;
+  
+    // figure out what criteria to use on the load...
     if(empty($where_criteria)){
     
       if($this->count > 1){
@@ -320,7 +322,12 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
         
       }//if
     
-    }//if
+    }else{
+    
+      // there is criteria object, so reset anything that is currently in the instance
+      $do_reset = true;
+    
+    }//if/else
     
     // get rows + 1 to test if there are more results in the db for pagination...
     $limit_paginate = $this->getLimit();
@@ -334,34 +341,40 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
       $where_criteria,
       array($limit_paginate,$this->getPage())
     );
-    $this->reset();
     
-    // set whether more results are available or not...
-    $total_list = count($list);
-    if(!empty($limit_paginate) && ($total_list == $limit_paginate)){
+    if(!empty($list) || $do_reset){
       
-      // cut off the final row since it wasn't part of the original requested rows...
-      $list = array_slice($list,0,-1);
-      $this->setMore(true);
+      $this->reset();
       
-      if($set_load_count){
-        $this->setTotal($this->db->getCount($this->getTable(),$this->schema,$where_criteria));
+      // set whether more results are available or not...
+      $total_list = $ret_int = count($list);
+      if(!empty($limit_paginate) && ($total_list == $limit_paginate)){
+        
+        // cut off the final row since it wasn't part of the original requested rows...
+        $list = array_slice($list,0,-1);
+        $this->setMore(true);
+        $ret_int--;
+        
+        if($set_load_count){
+          $this->setTotal($this->db->getCount($this->getTable(),$this->schema,$where_criteria));
+        }else{
+          $this->setTotal($total_list);
+        }//if/else
+        
       }else{
+      
+        $this->setMore(false);
         $this->setTotal($total_list);
+        
       }//if/else
       
-    }else{
-    
-      $this->setMore(false);
-      $this->setTotal($total_list);
+      foreach($list as $map){
+        $this->append($map);
+      }//foreach
       
-    }//if/else
+    }//if
     
-    foreach($list as $map){
-      $this->append($map);
-    }//foreach
-    
-    return $this->count;
+    return $ret_int;
   
   }//method
   
@@ -503,9 +516,6 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    *  @return mixed
    */      
   function __call($method,$args){
-  
-    // canary...
-    if(empty($this->list)){ $this->append(array()); }//if
     
     $method_map = array(
       'set' => 'handleSet',
@@ -563,10 +573,11 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
   
     // canary...
     if(!isset($args[0])){ return null; }//if
+    if(empty($this->list)){ $this->append(array()); }//if
+    
+    $args[0] = $this->normalizeVal($args[0]);
     
     for($i = 0; $i < $this->count ;$i++){
-      
-      $args[0] = $this->normalizeVal($args[0]);
     
       $this->list[$i]['modified'] = true;
       $this->list[$i]['map'][$name] = $args[0];
@@ -588,6 +599,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
   
     // canary...
     if(!isset($args[0])){ $args[0] = null; }//if
+    if(!$this->hasCount()){ return array(); }//if
     
     $ret_list = array();
     
@@ -612,6 +624,9 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    */
   private function handleHas($name,$args = array()){
     
+    // canary...
+    if(!$this->hasCount()){ return false; }//if
+    
     $ret_bool = true;
   
     for($i = 0; $i < $this->count ;$i++){
@@ -635,6 +650,9 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    *  @return boolean true if the $name exists, false otherwise
    */
   private function handleExists($name,$args = array()){
+  
+    // canary...
+    if(!$this->hasCount()){ return false; }//if
   
     $ret_bool = true;
   
@@ -661,6 +679,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
   private function handleIs($name,$args){
     
     // canary...
+    if(!$this->hasCount()){ return false; }//if
     // make sure the $name is present in all the maps, otherwise if fails...
     if(!$this->handleExists($name)){ return false; }//if
     
@@ -713,6 +732,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
     
     // canary...
     if(!isset($args[0])){ throw new mingo_exception(sprintf('no $count specified to bump %s',$name)); }//if
+    if(empty($this->list)){ $this->append(array()); }//if
     
     for($i = 0; $i < $this->count ;$i++){
     
@@ -742,7 +762,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
   /**#@-*/
   
   /**#@+
-   *  Required definition of interface ArrayAccess
+   *  Required definitions of interface ArrayAccess
    *  @link http://www.php.net/manual/en/class.arrayaccess.php   
    */
   /**

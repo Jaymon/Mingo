@@ -34,8 +34,6 @@ class mingo_db_sql extends mingo_db_interface {
   
     $this->setType($type);
     
-    $this->error_map['no_table'] = array(/* sqlite */ 'HY000',/* mysql */ '42S02');
-    
   }//method
   
   /**
@@ -212,6 +210,7 @@ class mingo_db_sql extends mingo_db_interface {
     $id_list = array();
     $order_map = array();
     $sort_query = '';
+    $run_main_query = true;
     
     if($where_criteria instanceof mingo_criteria){
       
@@ -234,13 +233,21 @@ class mingo_db_sql extends mingo_db_interface {
         $row_list = $this->getQuery($query,$val_list);
         $sort_query = ''; // clear it so it isn't used in the second query
         
-        // build the id list...
-        foreach($row_list as $key => $row){
-          if(isset($row['_id'])){
-            $order_map[$row['_id']] = $key;
-            $id_list[] = $row['_id'];
-          }//if
-        }//foreach
+        if(empty($row_list)){
+        
+          $run_main_query = false;
+        
+        }else{
+          
+          // build the id list...
+          foreach($row_list as $key => $row){
+            if(isset($row['_id'])){
+              $order_map[$row['_id']] = $key;
+              $id_list[] = $row['_id'];
+            }//if
+          }//foreach
+          
+        }//if
          
       }else{
         
@@ -266,53 +273,57 @@ class mingo_db_sql extends mingo_db_interface {
       
     }//if
     
-    $printf_vars = array();
-    $query = 'SELECT * FROM %s';
-    $printf_vars[] = $table;
-    
-    if(!empty($id_list)){
+    if($run_main_query){
       
-      $query .= ' WHERE _id IN (%s)';
-      $printf_vars[] = join(',',array_fill(0,count($id_list),'?'));
-    
-    }//if
-    
-    // add sort...
-    if(!empty($sort_query)){
-      $query .= ' '.$sort_query;
-    }//if
-    
-    if(!empty($limit[0])){
-      $query .= ' LIMIT %d OFFSET %d';
-      $printf_vars[] = $limit[0];
-      $printf_vars[] = empty($id_list) ? $limit[1] : 0;
-    }//if
-    
-    $query = vsprintf($query,$printf_vars);
-    
-    $list = $this->getQuery($query,$id_list);
-    foreach($list as $map){
-    
-      $ret_map = $this->getMap($map['body']);
-      $ret_map['_id'] = $map['_id'];
-      $ret_map['row_id'] = $map['row_id'];
+      $printf_vars = array();
+      $query = 'SELECT * FROM %s';
+      $printf_vars[] = $table;
       
-      // put the ret_map in the right place...
-      if(isset($order_map[$map['_id']])){
+      if(!empty($id_list)){
+        
+        $query .= ' WHERE _id IN (%s)';
+        $printf_vars[] = join(',',array_fill(0,count($id_list),'?'));
       
-        $ret_list[$order_map[$map['_id']]] = $ret_map;
+      }//if
       
-      }else{
+      // add sort...
+      if(!empty($sort_query)){
+        $query .= ' '.$sort_query;
+      }//if
       
-        $ret_list[] = $ret_map;
+      if(!empty($limit[0])){
+        $query .= ' LIMIT %d OFFSET %d';
+        $printf_vars[] = $limit[0];
+        $printf_vars[] = empty($id_list) ? $limit[1] : 0;
+      }//if
       
-      }
-    
-    }//foreach
-    
-    // sort the list if an order map was set...
-    if(!empty($order_map)){
-      ksort($ret_list);
+      $query = vsprintf($query,$printf_vars);
+      
+      $list = $this->getQuery($query,$id_list);
+      foreach($list as $map){
+      
+        $ret_map = $this->getMap($map['body']);
+        $ret_map['_id'] = $map['_id'];
+        $ret_map['row_id'] = $map['row_id'];
+        
+        // put the ret_map in the right place...
+        if(isset($order_map[$map['_id']])){
+        
+          $ret_list[$order_map[$map['_id']]] = $ret_map;
+        
+        }else{
+        
+          $ret_list[] = $ret_map;
+        
+        }
+      
+      }//foreach
+      
+      // sort the list if an order map was set...
+      if(!empty($order_map)){
+        ksort($ret_list);
+      }//if
+      
     }//if
 
     return $ret_list;
@@ -999,11 +1010,9 @@ class mingo_db_sql extends mingo_db_interface {
     
     foreach($index_map as $field => $order){
     
-      $val = $map[$field];
-      if(empty($map[$field])){
-        if(!is_numeric($map[$field])){
-          $val = '';
-        }//if
+      $val = '';
+      if(isset($map[$field])){
+        $val = $map[$field];
       }//if
     
       $val_list[] = $val;

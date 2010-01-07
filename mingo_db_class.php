@@ -132,12 +132,17 @@ class mingo_db {
         
       default:
       
-        throw new mingo_exception(sprintf('Invalid $type (%s) specified',$type));
+        throw new mingo_exception(
+          sprintf('Invalid $type (%s) specified, check %s::TYPE_* constants for valid types',$type,__CLASS__)
+        );
         break;
     
     }//switch
     
     try{
+      
+      // reset the debug level for the con_db just in case...
+      $this->setDebug($this->getDebug());
       
       // actually connect to the db...
       $this->con_map['connected'] = $this->con_db->connect(
@@ -146,9 +151,6 @@ class mingo_db {
         $username,
         $password
       );
-      
-      // reset the debug level for the con_db just in case...
-      $this->setDebug($this->getDebug());
       
       if($this->hasDebug()){
         if(!is_bool($this->con_map['connected'])){
@@ -205,7 +207,7 @@ class mingo_db {
   
   function setDebug($val){
     $this->con_map['debug'] = $val;
-    if($this->isConnected()){ $this->con_db->setDebug($val); }//if
+    if($this->con_db !== null){ $this->con_db->setDebug($val); }//if
   }//method
   function getDebug(){ return $this->hasDebug(); }//method
   function hasDebug(){ return !empty($this->con_map['debug']); }//method

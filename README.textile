@@ -139,3 +139,7 @@ $user->install();
 
 // repeat above code for every other ORM class you have created/added
 </pre>
+
+h3. Using Mingo with Symfony
+
+The sfMingoPlugin is a Symfony compatible plugin, in order to use it, just copy all the mingo_* classes (eg, mingo_orm_class.php) into the <code>sfMingoPlugin/lib/</code> directory and place the sfMingoPlugin folder into your Symfony application's plugins folder. If you don't plan on using Mingo with Symfony, you can delete the sfMingoPlugin folder.
