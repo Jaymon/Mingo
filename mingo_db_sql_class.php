@@ -628,7 +628,7 @@ class mingo_db_sql extends mingo_db_interface {
             row_id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
             _id VARCHAR(24) NOT NULL,
             body LONGBLOB,
-            UNIQUE KEY (id),
+            UNIQUE KEY (_id),
             KEY (_id)
         ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
         
@@ -774,7 +774,7 @@ class mingo_db_sql extends mingo_db_interface {
     $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
     if($is_success){
 
-      if(mb_stripos($query,'select') === 0){
+      if(preg_match('#^(?:select|show)#iu',$query)){
 
         // a select statement should always return an array...
         $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);

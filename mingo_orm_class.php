@@ -27,6 +27,11 @@
  ******************************************************************************/
 class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
 
+  const _ID = '_id';
+  const ROW_ID = 'row_id';
+  const UPDATED = 'updated';
+  const CREATED = 'created';
+
   /**
    *  holds the table that this class will access in the db
    *  @var  string
@@ -208,10 +213,10 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
       if(!empty($this->list[$key]['modified'])){
       
         // add created and last touched fields...
-        if(empty($this->list[$key]['map']['created'])){ 
-          $this->list[$key]['map']['created'] = $now;
+        if(empty($this->list[$key]['map'][self::CREATED])){ 
+          $this->list[$key]['map'][self::CREATED] = $now;
         }//if
-        $this->list[$key]['map']['updated'] = $now;
+        $this->list[$key]['map'][self::UPDATED] = $now;
       
         $this->list[$key]['map'] = $this->db->set(
           $this->getTable(),
