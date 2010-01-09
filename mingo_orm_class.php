@@ -93,6 +93,14 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    *  @var  mingo_schema            
    */
   protected $schema = null;
+  
+  /**
+   *  set to true if you want this instance to act like an array even if {@link hasCount()}
+   *  equals 1
+   *  
+   *  @var  boolean
+   */
+  protected $array = false;
 
   /**
    *  default constructor
@@ -127,11 +135,37 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    */
   function count(){ return $this->getCount(); }//method
   
-  function setLimit($val){ $this->limit = $val; }//method
+  /**
+   *  set the limit that any {@link load()} call will use
+   *  
+   *  @param  integer|array if array, then array($limit,$page)
+   */
+  function setLimit($val){
+    if(is_array($val)){
+      if(isset($val[1])){
+        $this->setPage($val[1]);
+      }//if
+      $val = isset($val[0]) ? $val[0] : 0;
+    }//if
+    $this->limit = (int)$val;
+  }//method
   function getLimit(){ return $this->limit; }//method
   function hasLimit(){ return !empty($this->limit); }//method
   
-  function setPage($val){ $this->page = $val; }//method
+  /**
+   *  set the page that any {@link load()} call will offset from
+   *  
+   *  @param  integer|array if array, then array($limit,$page)
+   */
+  function setPage($val){
+    if(is_array($val)){
+      if(isset($val[0])){
+        $this->setLimit($val[0]);
+      }//if
+      $val = isset($val[1]) ? $val[1] : 0;
+    }//if
+    $this->page = (int)$val;
+  }//method
   function getPage(){ return $this->page; }//method
   function hasPage(){ return !empty($this->page); }//method
 
@@ -152,6 +186,19 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
   function setSchema($schema){ $this->schema = $schema; }//method
   
   function getTable(){ return $this->table; }//method
+  
+  /**
+   *  pass in true to make this instance act like it is a list no matter what
+   *  
+   *  eg, you want to iterate through the results of a get call using foreach
+   *  but there might only be one result (which would normally cause only the value
+   *  to be returned instead of a list of values)            
+   *  
+   *  @param  boolean $val
+   */
+  function setArray($val){ $this->array = $val; }//method
+  function getArray(){ return $this->array; }//method
+  function isArray(){ return !empty($this->array); }//method
   
   /**
    *  get the internal representation of this class
@@ -510,7 +557,10 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
    *              
    *  @example  if you want to set a field name with a string var for the name
    *              $this->setField('foo',$val); // *Field($name,...) will work with any prefix
-   *                    
+   *  
+   *  @example  if you want to see if a field has atleast one matching value
+   *              $this->inFoo('bar'); // true if field foo contains bar atleast once   
+   *                       
    *  @param  string  $method the method that was called
    *  @param  array $args the arguments passed to the function
    *  @return mixed
@@ -524,6 +574,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
       'is' => 'handleIs',
       'exists' => 'handleExists',
       'kill' => 'handleKill',
+      'in' => 'handleIn',
       'bump' => 'handleBump'
     );
     
@@ -547,10 +598,18 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
     
         $ret_mix = $this->{$callback}($field,$args);
         
-        if(is_array($ret_mix)){
-        
-          // we only have one index, so return that (ie, this instance is only handling one row)...
-          if(!isset($ret_mix[1])){ $ret_mix = $ret_mix[0]; }//if
+        if($this->isCount(1)){
+          
+          if($command == 'get'){
+          
+            if(!$this->isArray()){
+          
+              // we only have one index, so return that (ie, this instance is only handling one row)...  
+              $ret_mix = $ret_mix[0];
+            
+            }//if
+          
+          }//if
         
         }//if
         
@@ -680,7 +739,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
     
     // canary...
     if(!$this->hasCount()){ return false; }//if
-    // make sure the $name is present in all the maps, otherwise if fails...
+    // make sure the $name is present in all the maps, otherwise it fails...
     if(!$this->handleExists($name)){ return false; }//if
     
     $ret_bool = true;
@@ -693,6 +752,34 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
         break;
       }//if
     
+    }//foreach
+    
+    return $ret_bool;
+    
+  }//method
+  
+  /**
+   *  internally handles all the in* functions of this class
+   *  
+   *  @param  string  $name the name of the index in the current map to get
+   *  @param  array $args the passed in value
+   *  @return boolean true if the $name exists and is the value found in $args, false otherwise
+   */
+  private function handleIn($name,$args){
+    
+    // canary...
+    if(!$this->hasCount()){ return false; }//if
+    
+    $ret_bool = true;
+    $get_list = $this->handleGet($name);
+    
+    foreach($args as $arg){
+      
+      if(!in_array($arg,$get_list,true)){
+        $ret_bool = false;
+        break;
+      }//if
+      
     }//foreach
     
     return $ret_bool;
@@ -808,6 +895,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
   
     $class = get_class($this);
     $ret_map = new $class();
+    ///$ret_map = new self(); // returns mingo_orm
     $ret_map->append(
       $this->list[$i]['map'],
       $this->list[$i]['modified']
@@ -826,6 +914,35 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
     $this->list = array();
     $this->count = 0;
   
+  }//method
+  
+  /**
+   *  increment the limit by one if it exists
+   *  
+   *  if a limit exists ($limit>0), then the limit is incremented by one, the original
+   *  limit is returned in $orig_limit. This is to make the limit info useful to {@link setHasMoreResults()}   
+   *      
+   *  @param  integer|array $page if array, then array($limit,$page) otherwise $page and $limit
+   *                              will use the default found in {@link limit()}         
+   *  @return array array($limit,$page)
+   */
+  private function assureLimit($limit){
+  
+    $limit = $page = 0;
+    
+    if(is_array($page)){
+      
+      $limit = empty($page[0]) ? 0 : (int)$page[0];
+      $page = empty($page[1]) ? 1 : (int)$page[1];
+      
+    }else{
+    
+      $limit = self::limit();
+      $page = ($page < 1) ? 1 : (int)$page;
+      
+    }//if/else
+  
+    return array($limit,(int)$page);
   }//method
 
 }//class     
