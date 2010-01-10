@@ -39,7 +39,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($db,$host,$username = '',$password = ''){
+  function connect($db,$host,$username,$password){
     
     if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
     
@@ -78,10 +78,11 @@ class mingo_db_mongo extends mingo_db_interface {
    *  get all the tables (collections) of the currently connected db
    *  
    *  @link http://us2.php.net/manual/en/mongodb.listcollections.php
-   *      
+   *  
+   *  @param  string  $table  doesn't do anything, just here for abstract signature match   
    *  @return array a list of table names
    */
-  function getTables(){
+  function getTables($table = ''){
   
     $ret_list = array();
     $db_name = sprintf('%s.',$this->getDb());
@@ -355,7 +356,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  mingo_schema  a schema object that defines indexes, etc. for this   
    *  @return boolean
    */
-  function setTable($table,mingo_schema $schema = null){
+  function setTable($table,mingo_schema $schema){
   
     $this->con_db->createCollection($table);
     

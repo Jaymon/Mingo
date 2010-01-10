@@ -40,16 +40,14 @@ class mingo_db_sql extends mingo_db_interface {
    *  connect to the db
    *  
    *  @param  integer $type one of the self::TYPE_* constants   
-   *  @param  string  $db the db to use, defaults to {@link getDb()}
-   *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
-   *                        port, attach it to host (eg, localhost:27017 or example.com:27017), only required
-   *                        for Mysql               
-   *  @param  string  $username the username to use, defaults to {@link getUsername()}
-   *  @param  string  $password the password to use, defaults to {@link getPassword()}   
+   *  @param  string  $db the db to use
+   *  @param  string  $host the host to use               
+   *  @param  string  $username the username to use
+   *  @param  string  $password the password to use   
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($db,$host = '',$username = '',$password = ''){
+  function connect($db,$host,$username,$password){
 
     $this->con_map['pdo_options'] = array(
       PDO::ERRMODE_EXCEPTION => true,
@@ -124,74 +122,6 @@ class mingo_db_sql extends mingo_db_interface {
     }//if
   
     return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  tell how many records match $where_criteria in $table
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema    
-   *  @param  mingo_criteria  $where_criteria
-   *  @return integer the count
-   */
-  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
-  
-    $ret_int = 0;
-    $result = array();
-    
-    if($where_criteria instanceof mingo_criteria){
-      
-      // first get the maps...
-      list($where_map,$sort_map) = $where_criteria->get();
-      list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
-      $index_table = $this->getIndexTable($table,$where_criteria,$schema);
-
-      if(!empty($index_table)){
-        
-        $query = $this->getSelectQuery($index_table,'count(*)',$where_query);
-        $result = $this->getQuery($query,$val_list);
-        
-      }else{
-      
-        if((count($where_map) === 1) && isset($where_map['_id'])){
-          
-          $printf_vars = array();
-          $query = 'SELECT count(*) FROM %s';
-          $printf_vars[] = $table;
-          
-          if(!empty($id_list)){
-            
-            $query .= ' WHERE _id IN (%s)';
-            $printf_vars[] = join(',',array_fill(0,count($id_list),'?'));
-          
-          }//if
-          
-          $query = vsprintf($query,$printf_vars);
-          $result = $this->getQuery($query,$val_list);
-          
-        }else{
-        
-          throw new mingo_exception(
-            sprintf('could not match fields: [%s] with an index table',join(',',array_keys($where_map)))
-          );
-        
-        }//if/else
-      
-      }//if/else
-      
-    }//if
-    
-    // if another query wasn't run, just run on the main table...
-    if(empty($result)){
-    
-      $query = sprintf('SELECT count(*) FROM %s',$table);
-      $result = $this->getQuery($query);
-    
-    }//if
-    
-    if(isset($result[0]['count(*)'])){ $ret_int = (int)$result[0]['count(*)']; }//if
-    return $ret_int;
   
   }//method
   
@@ -343,6 +273,74 @@ class mingo_db_sql extends mingo_db_interface {
     $ret_list = $this->get($table,$schema,$where_criteria,array(1,0));
     return empty($ret_list) ? array() : $ret_list[0];
 
+  }//method
+  
+  /**
+   *  tell how many records match $where_criteria in $table
+   *  
+   *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema    
+   *  @param  mingo_criteria  $where_criteria
+   *  @return integer the count
+   */
+  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+  
+    $ret_int = 0;
+    $result = array();
+    
+    if($where_criteria instanceof mingo_criteria){
+      
+      // first get the maps...
+      list($where_map,$sort_map) = $where_criteria->get();
+      list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+      $index_table = $this->getIndexTable($table,$where_criteria,$schema);
+
+      if(!empty($index_table)){
+        
+        $query = $this->getSelectQuery($index_table,'count(*)',$where_query);
+        $result = $this->getQuery($query,$val_list);
+        
+      }else{
+      
+        if((count($where_map) === 1) && isset($where_map['_id'])){
+          
+          $printf_vars = array();
+          $query = 'SELECT count(*) FROM %s';
+          $printf_vars[] = $table;
+          
+          if(!empty($id_list)){
+            
+            $query .= ' WHERE _id IN (%s)';
+            $printf_vars[] = join(',',array_fill(0,count($id_list),'?'));
+          
+          }//if
+          
+          $query = vsprintf($query,$printf_vars);
+          $result = $this->getQuery($query,$val_list);
+          
+        }else{
+        
+          throw new mingo_exception(
+            sprintf('could not match fields: [%s] with an index table',join(',',array_keys($where_map)))
+          );
+        
+        }//if/else
+      
+      }//if/else
+      
+    }//if
+    
+    // if another query wasn't run, just run on the main table...
+    if(empty($result)){
+    
+      $query = sprintf('SELECT count(*) FROM %s',$table);
+      $result = $this->getQuery($query);
+    
+    }//if
+    
+    if(isset($result[0]['count(*)'])){ $ret_int = (int)$result[0]['count(*)']; }//if
+    return $ret_int;
+  
   }//method
   
   /**

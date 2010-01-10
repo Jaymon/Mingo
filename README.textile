@@ -118,7 +118,7 @@ the code is pretty well documented, so if you want to see what other magic funct
 
 h2. Installing Mingo
 
-I actually have only been using Mingo on php >=5.3, but I think it might work with any php >=5.0. If you are using the SQL drivers, you must have <code>PDO</code>, if you are using Mongo, you must have installed the Mongo php extension. 
+I actually have only been using Mingo on php >=5.2.6 (including 5.3), but I think it might work with any php >=5.0. If you are using the SQL driver, you must have <code>PDO</code> (which I think is built-in with php >=5.0), if you are using Mongo, you must have installed the Mongo php extension. 
 
 Since Mingo was originally designed for Mongo that was the first part of the codebase I wrote, but I haven't actaully tested it in quite a while since I switched to the SQL development, so the Mongo code might actually be a little outdated, when I have some time, I'll update it and make sure it works like it should, but until then, you're on your own.
 
@@ -128,7 +128,7 @@ When debug is on (E.G., <code>mingo_db::getInstance()->setDebug(true);</code>) M
 
 h3. Using Mingo in a Production Environment
 
-Mingo can try and recover if a given table isn't found by trying to create the table and creating any new indexes. Usually, it will only have to recover from not having a table once, this is great when not in a development environment since tables will be automatically generated the first time Mingo can't find them.
+Mingo can try and recover if a given table isn't found by trying to create the table and creating any new indexes. Usually, it will only have to recover from not having a table once, this is great when not in a development environment since tables will be automatically generated the first time Mingo can't find them (kind of like an automatic install script).
 
 This allows you to push to production and not have to worry about running an install script or anything. However, you might need to do some custom stuff (like populating new index tables for an existing table when Mingo is using a SQL db). You can handle this use case by creating an install script:
 

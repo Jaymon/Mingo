@@ -11,6 +11,11 @@
  *    - when implementing the interface, you don't really have to worry about error checking
  *      because mingo_db will do all the error checking before calling the function from this
  *      class
+ *    - you don't have to worry about throwing mingo_exceptions either because mingo_db
+ *      will catch any exceptions from all the abstract methods and wrap them in a mingo_exception.
+ *    - in php 5.3 you can set default values for any of the abstract method params without
+ *      an error being thrown, in php <5.3 the implemented method signatures have to match
+ *      the abstract signature exactly 
  *    - there are certain reserved rows any implementation will have to deal with:
  *      - _id = the unique id assigned to a newly inserted row, this is a 24 character
  *              randomly created string, if you don't want to make your own, and there
@@ -106,7 +111,7 @@ abstract class mingo_db_interface {
    *  @param  array $limit  array($limit,$offset)   
    *  @return array   
    */
-  abstract public function get($table,mingo_schema $schema,mingo_criteria $where_criteria,$limit);
+  abstract public function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array());
   
   /**
    *  get the first found row in $table according to $where_map find criteria
@@ -116,7 +121,7 @@ abstract class mingo_db_interface {
    *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  abstract public function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria);
+  abstract public function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null);
   
   /**
    *  tell how many records match $where_criteria in $table
@@ -126,7 +131,7 @@ abstract class mingo_db_interface {
    *  @param  mingo_criteria  $where_criteria
    *  @return integer the count
    */
-  abstract public function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria);
+  abstract public function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null);
   
   /**
    *  insert $map into $table
@@ -176,7 +181,7 @@ abstract class mingo_db_interface {
    *  
    *  @return array a list of table names
    */
-  abstract public function getTables($table);
+  abstract public function getTables($table = '');
   
   /**
    *  adds a table to the db
