@@ -439,7 +439,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
       // get all the ids...
       $where_criteria = new mingo_criteria();
       $where_criteria->in_id($this->get_id());
-      if($this->db->kill($this->getTable(),$where_criteria)){
+      if($this->db->kill($this->getTable(),$this->schema,$where_criteria)){
         $this->reset();
         $ret_bool = true;
       }//if
@@ -465,7 +465,7 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
         // we don't want to accidently delete everything by passing in an empty where...
         if($where_criteria->has()){
         
-          if($this->db->kill($this->getTable(),$where_criteria)){
+          if($this->db->kill($this->getTable(),$this->schema,$where_criteria)){
           
             unset($this->list[$i]);
             $this->count--;

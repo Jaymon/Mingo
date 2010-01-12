@@ -218,10 +218,11 @@ class mingo_db {
    *  delete the records that match $where_criteria in $table
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema    
    *  @param  mingo_criteria $where_criteria
    *  @return boolean
    */
-  function kill($table,mingo_criteria $where_criteria){
+  function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
@@ -232,12 +233,13 @@ class mingo_db {
         throw new mingo_exception('aborting delete because $where_criteria was empty');
       }//if
     }//if/else
+    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
   
     $ret_bool = false;
   
     try{
     
-      $ret_bool = $this->con_db->kill($table,$where_criteria);
+      $ret_bool = $this->con_db->kill($table,$schema,$where_criteria);
       
       if($this->hasDebug()){
         if(!is_bool($ret_bool)){
@@ -247,8 +249,8 @@ class mingo_db {
     
     }catch(Exception $e){
     
-      if($this->handleException($e,$table)){
-        $ret_bool = $this->kill($table,$where_criteria);
+      if($this->handleException($e,$table,$schema)){
+        $ret_bool = $this->kill($table,$schema,$where_criteria);
       }//if
     
     }//try/catch

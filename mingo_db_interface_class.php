@@ -97,10 +97,11 @@ abstract class mingo_db_interface {
    *  that manually.         
    *  
    *  @param  string  $table
-   *  @param  mingo_criteria  $where_criteria
+   *  @param  mingo_schema  $schema the table schema    
+   *  @param  mingo_criteria $where_criteria
    *  @return boolean
    */
-  abstract public function kill($table,mingo_criteria $where_criteria);
+  abstract public function kill($table,mingo_schema $schema,mingo_criteria $where_criteria);
   
   /**
    *  get a list of rows matching $where_map

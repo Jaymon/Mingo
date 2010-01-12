@@ -100,10 +100,11 @@ class mingo_db_mongo extends mingo_db_interface {
    *  tell how many records match $where_criteria in $table
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
    *  @return integer the count
    */
-  function getCount($table,mingo_criteria $where_criteria = null){
+  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
   
     $ret_int = 0;
     $table = $this->getTable($table);
@@ -125,10 +126,11 @@ class mingo_db_mongo extends mingo_db_interface {
    *  that manually.         
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema     
    *  @param  mingo_criteria  $where_criteria
    *  @return boolean
    */
-  function kill($table,mingo_criteria $where_criteria){
+  function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
   
     $table = $this->getTable($table);
     list($where_map) = $this->getCriteria($where_criteria);
@@ -140,11 +142,12 @@ class mingo_db_mongo extends mingo_db_interface {
    *  get a list of rows matching $where_map
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_map
    *  @param  array $limit  array($limit,$offset)   
    *  @return array   
    */
-  function get($table,mingo_criteria $where_criteria = null,$limit = array()){
+  function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
     
     $ret_list = array();
     $table = $this->getTable($table);
@@ -172,10 +175,11 @@ class mingo_db_mongo extends mingo_db_interface {
    *  get the first found row in $table according to $where_map find criteria
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  function getOne($table,mingo_criteria $where_criteria = null){
+  function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
     
     $table = $this->getTable($table);
     list($where_map) = $this->getCriteria($where_criteria);

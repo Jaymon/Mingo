@@ -102,24 +102,63 @@ class mingo_db_sql extends mingo_db_interface {
    *  that manually.         
    *  
    *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema    
    *  @param  mingo_criteria  $where_criteria
    *  @return boolean
    */
-  function kill($table,mingo_criteria $where_criteria){
+  function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
   
     $ret_bool = false;
-    list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
-  
-    if(empty($where_query)){
     
-      throw new mingo_exception('aborting delete because $where_criteria was empty');
+    try{
     
-    }else{
+      $_id_list = array();
+      $_id_count = 0;
     
-      $query = sprintf('DELETE FROM %s %s',$table,$where_query);
-      $ret_bool = $this->getQuery($query,$val_list);
+      // ok, load up all the rows we're going to delete...
+      $row_list = $this->get($table,$schema,$where_criteria);
+      if(!empty($row_list)){
+      
+        // populate the _id_list...
+        foreach($row_list as $row){
+          
+          if(!empty($row['_id'])){
+            $_id_list[] = $row['_id'];
+            $_id_count++;
+          }//if
+        
+        }//foreach
+        
+      }//if
+      
+      if(!empty($_id_list)){
+        
+        // begin the delete transaction...
+        $this->con_db->beginTransaction();
+        
+        // delete values from index tables...
+        $this->killIndexes($table,$_id_list,$schema);
+        
+        // delete values from main table...
+        $query = sprintf(
+          'DELETE FROM %s WHERE _id IN (%s)',
+          $table,
+          join(',',array_fill(0,$_id_count,'?'))
+        );
+        $ret_bool = $this->getQuery($query,$_id_list);
+        
+        // finish the delete transaction...
+        $this->con_db->commit();
+        
+      }//if
+        
+    }catch(Exception $e){
     
-    }//if
+      // get rid of any changes that were made since we failed...
+      $this->con_db->rollback();
+      throw $e;
+    
+    }//try/catch
   
     return $ret_bool;
   
@@ -395,7 +434,7 @@ class mingo_db_sql extends mingo_db_interface {
     
        // get rid of any changes that were made since we failed...
       $this->con_db->rollback();
-      throw new mingo_exception(sprintf('insert error: %s',$e->getMessage()));
+      throw $e;
     
     }//try/catch
     
@@ -449,7 +488,7 @@ class mingo_db_sql extends mingo_db_interface {
     
        // get rid of any changes that were made since we failed...
       $this->con_db->rollback();
-      throw new mingo_exception(sprintf('update error: %s',$e->getMessage()));
+      throw $e;
     
     }//try/catch
     
@@ -870,13 +909,17 @@ class mingo_db_sql extends mingo_db_interface {
    *  this is called after updating the value and before calling {@link setIndexes()}
    *
    *  @param  string  $table
-   *  @param  string  $_id
+   *  @param  string|array  $_id  either one _id or many in an array
    *  @param  mingo_schema  $schema
    *  @return boolean
    */
-  private function killIndexes($table,$_id,$schema){
+  private function killIndexes($table,$_id_list,$schema){
+  
+    // canary...
+    if(!is_array($_id_list)){ $_id_list = array($_id_list); }//if
   
     $ret_bool = false;
+    $_id_count = count($_id_list);
   
     foreach($schema->getIndex() as $index_map){
     
@@ -885,11 +928,15 @@ class mingo_db_sql extends mingo_db_interface {
       $index_table = sprintf('%s_%s',$table,md5($field_name_str));
       
       if(!empty($index_table)){
-       
-        $where_criteria = new mingo_criteria();
-        $where_criteria->is_id($_id);
-        $ret_bool = $this->kill($index_table,$where_criteria);
+      
+        $query = sprintf(
+          'DELETE FROM %s WHERE _id IN (%s)',
+          $index_table,
+          join(',',array_fill(0,$_id_count,'?'))
+        );
         
+        $ret_bool = $this->getQuery($query,$_id_list);
+  
       }//if
       
     }//foreach
