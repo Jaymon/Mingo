@@ -163,7 +163,27 @@ class mingo_db {
       }//if
       
     }catch(Exception $e){
+    
+      if($this->hasDebug()){
+      
+        $e_msg = array();
+        $con_map_msg = array();
+        foreach($this->con_map as $key => $val){
+          $con_map_msg[] = sprintf('%s => %s',$key,empty($val) ? '""' : $val);
+        }//foreach
+        
+        $e_msg[] = sprintf(
+          'db connection failed with message "%s" and connection variables: [%s]',
+          $e->getMessage(),
+          join(',',$con_map_msg)
+        );
+        
+        $e = new mingo_exception(join("\r\n",$e_msg),$e->getCode(),$e);
+        
+      }//if
+    
       $this->handleException($e);
+      
     }//try/catch
     
     return $this->con_map['connected'];

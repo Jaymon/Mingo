@@ -79,10 +79,44 @@ class mingo_db_sql extends mingo_db_interface {
     
     }//if/else
     
-    $this->con_db = new PDO($dsn,$username,$password,$this->con_map['pdo_options']);
-    if(!empty($query_charset)){ $this->getQuery($query_charset); }//if
-    $this->con_map['connected'] = true;
+    try{
+      
+      $this->con_db = new PDO($dsn,$username,$password,$this->con_map['pdo_options']);
+      if(!empty($query_charset)){ $this->getQuery($query_charset); }//if
+      $this->con_map['connected'] = true;
+      
+    }catch(Exception $e){
     
+      if($this->hasDebug()){
+      
+        $e_msg = array();
+        
+        $con_map_msg = array();
+        foreach($this->con_map['pdo_options'] as $key => $val){
+          $con_map_msg[] = sprintf('%s => %s',$key,$val);
+        }//foreach
+        
+        $e_msg[] = sprintf(
+          'new PDO("%s","%s","%s",array(%s)) failed.',
+          $dsn,
+          $username,
+          $password,
+          join(',',$con_map_msg)
+        );
+        
+        $e_msg[] = '';
+        $e_msg[] = sprintf(
+          'available drivers if original exception was "could not find driver" exception: [%s]',
+          join(',',PDO::getAvailableDrivers())
+        );
+        
+        throw new mingo_exception(join("\r\n",$e_msg),$e->getCode(),$e);
+        
+      }else{
+        throw $e;
+      }//if/else
+    
+    }//try/catch
     
     return $this->con_map['connected'];
   
