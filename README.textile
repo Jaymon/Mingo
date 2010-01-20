@@ -146,9 +146,11 @@ The sfMingoPlugin is a Symfony compatible plugin, in order to use it, just copy 
 
 h2. Other
 
-h3. Mingo in the press: 
+h3. Mingo in the press:
+
 "Techcrunch Jan, 12, 2010":http://www.techcrunch.com/2010/01/12/plancast-facebook-events/
 "Plancast has started using a “No SQL” solution for some of their data. More tech-savvy readers may recognize that is also a solution FriendFeed is using on their backend, as Facebook’s Bret Taylor wrote about at length "here":http://bret.appspot.com/entry/how-friendfeed-uses-mysql. Plancast has "open-sourced":http://github.com/Jaymon/Mingo their version of this."
 
 h3. Mingo in action
+
 "Plancast.com":http://plancast.com
