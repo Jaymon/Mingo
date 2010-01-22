@@ -25,7 +25,7 @@
  *  @since 11-14-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
+abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
 
   const _ID = '_id';
   const ROW_ID = 'row_id';
@@ -104,19 +104,26 @@ class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
 
   /**
    *  default constructor
-   *  
-   *  YOU MUST CALL THIS IN ANY CHILD CLASS THAT EXTENDS THIS CLASS (eg, parent::__construct() in
-   *  the child's __construct() method) BEFORE DOING ANYTHING ELSE IN the child's __construct()
    */
-  function __construct(){
+  final function __construct(){
   
     $this->table = mb_strtolower(get_class($this));
   
     $this->setDb(mingo_db::getInstance());
     
     $this->setSchema(new mingo_schema($this->table));
+    
+    // do the child's initializing stuff, like setting ORM specific schema stuff...
+    $this->start();
   
   }//method
+  
+  /**
+   *  in this method you should do stuff like set the {@link $schema} in the child
+   *  class. This gets called in {@link __construct()} and should do any of the initializing
+   *  that the child class needs
+   */
+  abstract protected function start();
   
   /**
    *  get how many rows this class represents, remember if it's greater than 1 then

@@ -11,10 +11,10 @@ using it is as easy as creating a new class that extends mingo_orm. For our exam
 <pre>
 class user extends mingo_orm {
 
-  function __construct(){
-  
-    // the parent constructor is run first to initiate schema...
-    parent::__construct();
+  /*
+   *  every child that extends mingo_orm needs to implement the start() method
+   */
+  protected function start(){
     
     // set up the this object's table schema...
     $this->schema->setIndex('username','password');
