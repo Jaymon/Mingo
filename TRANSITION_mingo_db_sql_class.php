@@ -11,7 +11,7 @@
  *    - extend PDO to do this http://us2.php.net/manual/en/pdo.begintransaction.php#81022
  *      for better transaction support   
  *  
- *  @version 0.2
+ *  @version 0.1
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-12-09
  *  @package mingo 
@@ -891,9 +891,6 @@ class mingo_db_sql extends mingo_db_interface {
    *  I zlib compress: http://www.php.net/manual/en/ref.zlib.php
    *  Not really sure why except that Friendfeed does it, and I don't want to be different         
    *
-   *  between version .1 and .2 this changed from json to serialize because of the
-   *  associative arrays becoming stdObjects problem
-   *      
    *  @param  array $map  the key/value pairings
    *  @return string  a zlib compressed json encoded string
    */
@@ -908,16 +905,29 @@ class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
-   *  opposite of {@link getBody()}
+   *  opposit of {@link getBody()}
    *  
-   *  between version .1 and .2 this changed from json to serialize because of the
-   *  associative arrays becoming stdObjects problem   
-   *      
    *  @param  string  $body the getBody() compressed string, probably returned from a db call
    *  @return array the key/value pairs restored to their former glory
    */
   private function getMap($body){
-    return unserialize(gzuncompress($body));
+    $map = (array)json_decode(gzuncompress($body));
+    return $this->transitionMap($map);
+  }//method
+  
+  private function transitionMap($map){
+  
+    // canary...
+    if($map instanceof stdClass){ $map = (array)$map; }//if
+  
+    if(is_array($map)){
+      foreach($map as $key => $val){
+        $map[$key] = $this->transitionMap($val);
+      }//foreach
+    }//if
+  
+    return $map;
+  
   }//method
   
   /**

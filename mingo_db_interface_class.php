@@ -214,7 +214,8 @@ abstract class mingo_db_interface {
    */
   protected function getUniqueId($table = ''){
     
-    $str = '1234567890abcdefghijklmnpqrstuvwxyz';
+    // took out x and b, because 1 id started 0x which made it a hex number, and b just because
+    $str = '1234567890acdefghijklmnpqrstuvwyz';
     $id = uniqid(sprintf('%s%s',$str[rand(0,34)],$str[rand(0,34)]),true);
     return str_replace('.','',$id);
     

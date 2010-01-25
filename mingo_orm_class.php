@@ -4,7 +4,8 @@
  *  maps a mingo collection or table to an object, this is the ORM part of the mingo
  *  package
  *  
- *  all ORMs in your project that use mingo should extend this class
+ *  all ORMs in your project that use mingo should extend this class and implement
+ *  the start() method 
  *
  *  this class reserves some keywords as special: 
  *    - row_id = the auto increment key, always set on SQL db, can be turned on with mongo 
@@ -20,7 +21,7 @@
  *        either "limit" or "page". Plus, having limit and page part of this class makes
  *        hasMore() and getTotal() make more sense  
  *  
- *  @version 0.2
+ *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
@@ -197,9 +198,20 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   /**
    *  pass in true to make this instance act like it is a list no matter what
    *  
-   *  eg, you want to iterate through the results of a get call using foreach
+   *  eg, you want to iterate through the results of a get* call using foreach
    *  but there might only be one result (which would normally cause only the value
-   *  to be returned instead of a list of values)            
+   *  to be returned instead of a list of values)
+   *  
+   *  example:
+   *    // foo extends mingo_orm...   
+   *    $foo = new foo();
+   *    $foo->set_id($_id);
+   *    $foo->load();
+   *    // foo will only have one row loaded since _id is always unique...
+   *    $foo->get_id(); // '4z4b59960417cff191587927'
+   *    $foo->setArray(true);
+   *    $foo->get_id(); // array(0 => '4z4b59960417cff191587927')        
+   *                
    *  
    *  @param  boolean $val
    */
@@ -222,8 +234,13 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   /**
    *  returns a list of all the maps this class contains
    *  
+   *  between v0.2 and 0.3 this went through a change in that it always returns a list,
+   *  before, it would return an object if there was only 1 map represented, now it
+   *  will return array(0 => instance), I realize the idea of being able to make a quick
+   *  clone is great, but it is almost as easy to do $this->get(0) to make the clone         
+   *      
    *  @param  integer $i  the index we want to get if we don't want all of them      
-   *  @return array|object
+   *  @return array
    */
   function get(){
   
@@ -237,7 +254,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       foreach($this as $map){ $ret_mix[] = $map; }//foreach
       
       // we only have one index, so return that...
-      if(!isset($ret_mix[1])){ $ret_mix = $ret_mix[0]; }//if
+      ///if(!isset($ret_mix[1])){ $ret_mix = $ret_mix[0]; }//if
     
     }else{
     

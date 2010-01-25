@@ -38,7 +38,7 @@ class mingo_base {
     
     // canary...
     if(is_numeric($field)){
-      throw new mingo_exception(aprintf('an all numeric $field like %s is not allowed',$field));
+      throw new mingo_exception(sprintf('an all numeric $field like %s is not allowed',$field));
     }//if
     
     return mb_strtolower((string)$field);
