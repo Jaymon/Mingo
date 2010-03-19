@@ -216,7 +216,7 @@ abstract class mingo_db_interface {
     
     // took out x and b, because 1 id started 0x which made it a hex number, and b just because
     $str = '1234567890acdefghijklmnpqrstuvwyz';
-    $id = uniqid(sprintf('%s%s',$str[rand(0,34)],$str[rand(0,34)]),true);
+    $id = uniqid(sprintf('%s%s',$str[rand(0,33)],$str[rand(0,33)]),true);
     return str_replace('.','',$id);
     
   }//method
