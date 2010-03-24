@@ -22,7 +22,7 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   private $inc_map = array();
   
-  function __construct(){
+  protected function start(){
 
     $this->inc_map['table'] = array();
   
@@ -471,6 +471,12 @@ class mingo_db_mongo extends mingo_db_interface {
     return array($where_map,$sort_map);
       
   }//method
+  
+  /**
+   *  this doesn't do anything except return false since Mongo pretty much adds tables and
+   *  indexes if they don't already exist. It's needed for interface compatibility though
+   */
+  protected function handleException(Exception $e,$table,mingo_schema $schema){ return false; }//method
   
   /**
    *  set up an auto increment field for a table

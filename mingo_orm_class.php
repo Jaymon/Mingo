@@ -191,6 +191,8 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   function hasTotal(){ return !empty($this->total); }//method
   
   function setDb($db){ $this->db = $db; }//method
+  function getDb(){ return $this->db; }//method
+  
   function setSchema($schema){ $this->schema = $schema; }//method
   
   function getTable(){ return $this->table; }//method

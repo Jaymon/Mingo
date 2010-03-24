@@ -5,16 +5,12 @@
  *  class is used to establish the singleton, and then allow the map to interact
  *  with the db layer.
  *
- *  @version 0.1
+ *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-08-09
  *  @package mingo 
  ******************************************************************************/
 class mingo_db {
-
-  const TYPE_MONGO = 1;
-  const TYPE_MYSQL = 2;
-  const TYPE_SQLITE = 3;
 
   /**
    *  holds all the connection information this class used
@@ -25,18 +21,9 @@ class mingo_db {
   
   /**
    *  holds the actual db connection, established by calling {@link connect()}
-   *  @var  MongoDb
+   *  @var  mingo_db_interface
    */
   private $con_db = null;
-  
-  /**
-   *  maps certain errors to one namespace (ie, key) so we can group table errors
-   *  and handle them all with the same code, even though different dbs (eg, mysql and sqlite)
-   *  throw different errors (eg, they have different error codes for "table doesn't exist")      
-   *
-   *  @var  array   
-   */
-  private $error_map = array();
   
   /**
    *  used by {@link getInstance()} to keep a singleton object, the {@link getInstance()} 
@@ -45,11 +32,9 @@ class mingo_db {
    */
   private static $instance = null;
   
-  function __construct($type = 0,$db = '',$host = '',$username = '',$password = ''){
+  function __construct($db_interface = '',$db = '',$host = '',$username = '',$password = ''){
   
-    $this->error_map['no_table'] = array(/* sqlite */ 'HY000',/* mysql */ '42S02');
-  
-    $this->setType($type);
+    $this->setInterface($db_interface);
     $this->setDb($db);
     $this->setHost($host);
     
@@ -61,7 +46,7 @@ class mingo_db {
   /**
    *  connect to the db
    *  
-   *  @param  integer $type one of the self::TYPE_* constants   
+   *  @param  string $db_interface  the name of the class that extends mingo_db_interface that will be used   
    *  @param  string  $db the db to use, defaults to {@link getDb()}
    *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
    *                        port, attach it to host (eg, localhost:27017 or example.com:27017)            
@@ -70,17 +55,19 @@ class mingo_db {
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($type = 0,$db = '',$host = '',$username = '',$password = ''){
+  function connect($db_interface = '',$db = '',$host = '',$username = '',$password = ''){
   
     // set all the connection variables...
-    if(empty($type)){
-      if($this->hasType()){
-        $type = $this->getType();
+    if(empty($db_interface)){
+      if($this->hasInterface()){
+        $db_interface = $this->getInterface();
       }else{
-        throw new mingo_exception('no $type specified');
+        throw new mingo_exception(
+          'no $db_interface specified. An interface is a class that extends mingo_db_interface'
+        );
       }//if/else
     }else{
-      $this->setType($type);
+      $this->setInterface($db_interface);
     }//if/else
     
     if(empty($db)){
@@ -117,29 +104,31 @@ class mingo_db {
       $this->setPassword($password);
     }//if/else
     
-    switch($type){
-    
-      case self::TYPE_MONGO:
+    try{
       
-        $this->con_db = new mingo_db_mongo();
-        break;
-      
-      case self::TYPE_MYSQL:
-      case self::TYPE_SQLITE:
-      
-        $this->con_db = new mingo_db_sql($type);
-        break;
+      // make sure $db_interface exists and is compatible...
+      if(class_exists($db_interface)){
+  
+        if(is_subclass_of($db_interface,'mingo_db_interface')){
+  
+          $this->con_db = new $db_interface();
+          
+        }else{
+          throw new mingo_exception(
+            sprintf(
+              'class %s does not extend mingo_db_interface and is assumed not compatible',
+              $db_interface
+            )
+          );
+        }//if/else
         
-      default:
+      }else{
       
         throw new mingo_exception(
-          sprintf('Invalid $type (%s) specified, check %s::TYPE_* constants for valid types',$type,__CLASS__)
+          sprintf('class %s does not seem to exist and is needed to connext to the db',$db_interface)
         );
-        break;
-    
-    }//switch
-    
-    try{
+      
+      }//if/else
       
       // reset the debug level for the con_db just in case...
       $this->setDebug($this->getDebug());
@@ -204,10 +193,10 @@ class mingo_db {
     return self::$instance;
   }//method
 
-  function setType($val){ $this->con_map['type'] = $val; }//method
-  function getType(){ return $this->hasType() ? $this->con_map['type'] : 0; }//method
-  function hasType(){ return !empty($this->con_map['type']); }//method
-  function isType($val){ return ((int)$this->getType() === (int)$val); }//method
+  function setInterface($val){ $this->con_map['interface'] = $val; }//method
+  function getInterface(){ return $this->hasInterface() ? $this->con_map['interface'] : 0; }//method
+  function hasInterface(){ return !empty($this->con_map['interface']); }//method
+  function isInterface($val){ return ((string)$this->getInterface() === (string)$val); }//method
   
   function setDb($val){ $this->con_map['db'] = $val; }//method
   function getDb(){ return $this->hasDb() ? $this->con_map['db'] : ''; }//method
@@ -581,6 +570,16 @@ class mingo_db {
   }//method
   
   /**
+   *  return all the queries that have been executed by the connection
+   *  
+   *  there is no guarrantee that the db interface that is being used will return 
+   *  the queries, it is up to the developer to save and return them.
+   *  
+   *  @return array a list of queries executed on the db using the db_interface
+   */
+  function getQueries(){ return $this->con_db->getQueries(); }//method
+  
+  /**
    *  set the limit/page
    *  
    *  this basically normalizes the limit and the page so you don't have to worry about one or the other
@@ -627,9 +626,8 @@ class mingo_db {
   /**
    *  takes any exception and maps it to a mingo_exception
    *  
-   *  this method will also try and fix any exception that match codes found in {@link $error_map},
-   *  if it does successfully resolve the exception, it will return true giving the failed method
-   *  a chance to redeem itself.
+   *  this will also try and resolve the exception if $table and $schema are given, if solving
+   *  it returns true then this method will return true allowing the failed code to try again         
    *  
    *  @param  Exception $e  any exception
    *  @param  string  $table  the table the exception was encountered on
@@ -644,16 +642,11 @@ class mingo_db {
     // only try and resolve an exception if we have some meta data...
     if(!empty($table) && ($schema !== null)){
     
-      $e_code = $e->getCode();
-      if(!empty($e_code)){
-      
-        if(in_array($e_code,$this->error_map['no_table'])){
-        
-          // table was missing, so assure the table and everything...
-          $e_resolved = $this->setTable($table,$schema);
-        
+      $e_resolved = $this->con_db->handleException($e,$table,$schema);
+      if($this->hasDebug()){
+        if(!is_bool($e_resolved)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of boolean',gettype($e_resolved)));
         }//if
-        
       }//if
       
     }//if

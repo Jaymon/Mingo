@@ -30,19 +30,19 @@ Let's see our new user object in action, first we need to connect to our db:
 
 <pre>
 // sqlite...
-$type = mingo_db::TYPE_SQLITE;
+$db_interface = 'mingo_db_sqlite';
 $db_name = 'model.sqlite';
 $host = '';
 
 // mysql...
-$type = mingo_db::TYPE_MYSQL;
+$db_interface = 'mingo_db_mysql';
 $db_name = 'model';
 $host = 'localhost';
 $username = '';
 $password = '';
 
 // mongo db...
-$type = mingo_db::TYPE_MONGO;
+$db_interface = 'mingo_db_mongo';
 $db_name = 'model';
 $host = 'localhost:27017';
 $username = '';
@@ -55,7 +55,7 @@ Now, let's do the actual connecting:
 // activate singleton...
 $db = mingo_db::getInstance();
 $db->setDebug(true); // activate mingo agile mode
-$db->connect($type,$db_name,$host,$username,$password);
+$db->connect($db_interface,$db_name,$host,$username,$password);
 </pre>
 
 Now that we're connected let's create a user and save it into the db:

@@ -11,30 +11,38 @@
  *    - extend PDO to do this http://us2.php.net/manual/en/pdo.begintransaction.php#81022
  *      for better transaction support   
  *  
- *  @version 0.2
+ *  @version 0.4
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-12-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_db_sql extends mingo_db_interface {
+abstract class mingo_db_sql extends mingo_db_interface {
 
   /**
    *  everything is utf-8, I'm not even giving people a choice
    */        
   const CHARSET = 'UTF8';
   const ENGINE = 'InnoDB';
-
-  /**
-   *  hold all the queries this instance has run
-   *  @var  array
-   */
-  private $query_list = array();
-
-  function __construct($type){
   
-    $this->setType($type);
-    
-  }//method
+  /**
+   *  supported SQL databases
+   */
+  const TYPE_MYSQL = 1;
+  const TYPE_SQLITE = 2;
+  
+  /**
+   *  maps certain errors to one namespace (ie, key) so we can group table errors
+   *  and handle them all with the same code, even though different dbs (eg, mysql and sqlite)
+   *  throw different errors (eg, they have different error codes for "table doesn't exist")      
+   *
+   *  @var  array   
+   */
+  protected $error_map = array(
+    'no_table' => array(
+      'HY000', // sqlite
+      '42S02' // mysql
+    )
+  );
   
   /**
    *  connect to the db
@@ -126,8 +134,8 @@ class mingo_db_sql extends mingo_db_interface {
   function getType(){ return $this->hasType() ? $this->con_map['type'] : 0; }//method
   function hasType(){ return !empty($this->con_map['type']); }//method
   function isType($val){ return ((int)$this->getType() === (int)$val); }//method
-  function isSqlite(){ return $this->isType(mingo_db::TYPE_SQLITE); }//method
-  function isMysql(){ return $this->isType(mingo_db::TYPE_MYSQL); }//method
+  function isSqlite(){ return $this->isType(self::TYPE_SQLITE); }//method
+  function isMysql(){ return $this->isType(self::TYPE_MYSQL); }//method
   
   /**
    *  delete the records that match $where_criteria in $table
@@ -610,7 +618,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  string  $table  the main table's name      
    *  @return boolean
    */
-  private function killIndexTables($table){
+  protected function killIndexTables($table){
   
     $ret_bool = false;
     $query_drop = 'DROP TABLE IF EXISTS %s';
@@ -839,10 +847,12 @@ class mingo_db_sql extends mingo_db_interface {
       if(is_array($val_list)){
         $debug_query = $query;
         foreach($val_list as $key => $val){
-          if(!is_numeric($val)){ $val = "'".$val."'"; }//if
+          if(!is_numeric($val)){
+            $val = $this->isBinaryString($val) ? "'[:BINARY STRING:]'" : sprintf("'%s'",$val); 
+          }//if
           $debug_query = preg_replace('/\?/u',$val,$debug_query,1);
         }//foreach
-        $this->query_list[] = empty($debug_query) ? $query : $debug_query;
+        $this->query_list[] = $debug_query;
       }else{
         $this->query_list[] = $query;
       }//if/else
@@ -886,6 +896,40 @@ class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
+   *  hnalde an error state
+   *  
+   *  this is handy for trying to add tables or indexes if they don't exist so the db
+   *  handler can then try the queries that errored out again
+   *  
+   *  this method will also try and fix any exception that match codes found in {@link $error_map},
+   *  if it does successfully resolve the exception, it will return true giving the failed method
+   *  a chance to redeem itself.      
+   *  
+   *  @param  Exception $e  the exception that was raised
+   *  @param  string  $table  the table name
+   *  @param  mingo_schema  $schema the table schema
+   *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
+   */
+  protected function handleException(Exception $e,$table,mingo_schema $schema){
+  
+    $ret_bool = false;
+    $e_code = $e->getCode();
+    if(!empty($e_code)){
+    
+      if(in_array($e_code,$this->error_map['no_table'])){
+      
+        // table was missing, so assure the table and everything...
+        $ret_bool = $this->setTable($table,$schema);
+      
+      }//if
+      
+    }//if
+  
+    return $ret_bool;
+  
+  }//method
+  
+  /**
    *  get the body that is the key/val pairs that will go in the body field of the table
    *  
    *  I zlib compress: http://www.php.net/manual/en/ref.zlib.php
@@ -897,7 +941,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  array $map  the key/value pairings
    *  @return string  a zlib compressed json encoded string
    */
-  private function getBody($map){
+  protected function getBody($map){
   
     // get rid of table stuff...
     if(isset($map['row_id'])){ unset($map['row_id']); }//if
@@ -916,7 +960,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  string  $body the getBody() compressed string, probably returned from a db call
    *  @return array the key/value pairs restored to their former glory
    */
-  private function getMap($body){
+  protected function getMap($body){
     return unserialize(gzuncompress($body));
   }//method
   
@@ -929,7 +973,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  mingo_schema  $schema the table schema
    *  @return boolean
    */
-  private function setIndexes($table,$_id,$map,$schema){
+  protected function setIndexes($table,$_id,$map,$schema){
         
     $ret_bool = false;
     
@@ -953,7 +997,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  mingo_schema  $schema
    *  @return boolean
    */
-  private function killIndexes($table,$_id_list,$schema){
+  protected function killIndexes($table,$_id_list,$schema){
   
     // canary...
     if(!is_array($_id_list)){ $_id_list = array($_id_list); }//if
@@ -992,7 +1036,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  array $field_list a list of the field names the index encompasses
    *  @return string  the index table name
    */
-  private function getIndexTable($table,mingo_criteria $where_criteria,mingo_schema $schema){
+  protected function getIndexTable($table,mingo_criteria $where_criteria,mingo_schema $schema){
   
     $ret_str = '';
   
@@ -1049,7 +1093,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  array $index_map  an index map, usually retrieved from the table schema
    *  @param  mingo_schema  $schema just here so get() will work as expected    
    */
-  private function populateIndex($table,$index_map,mingo_schema $schema){
+  protected function populateIndex($table,$index_map,mingo_schema $schema){
   
     $ret_bool = false;
     $limit = 100;
@@ -1081,7 +1125,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  array $index_map  the map that represents the index
    *  @return boolean
    */
-  private function insertIndex($table,$_id,$map,$index_map){
+  protected function insertIndex($table,$_id,$map,$index_map){
     
     $field_list = array_keys($index_map);
     $field_name_str = join(',',$field_list);
@@ -1122,7 +1166,7 @@ class mingo_db_sql extends mingo_db_interface {
    *  @param  array $limit  array($limit,$offset)
    *  @return string  the built query         
    */
-  private function getSelectQuery($table,$select_query,$where_query = '',$sort_query = '',$limit = array()){
+  protected function getSelectQuery($table,$select_query,$where_query = '',$sort_query = '',$limit = array()){
   
     $printf_vars = array();
         
@@ -1149,6 +1193,33 @@ class mingo_db_sql extends mingo_db_interface {
     
     return vsprintf($query,$printf_vars);
     
+  }//method
+  
+  /**
+   *  return true if a string is binary
+   *   
+   *  this method is a cross between http://bytes.com/topic/php/answers/432633-how-tell-if-file-binary
+   *  and this: http://groups.google.co.uk/group/comp.lang.php/msg/144637f2a611020c?dmode=source
+   *  but I'm still not completely satisfied that it is 100% accurate, though it seems to be
+   *  accurate for my purposes.
+   *  
+   *  @param  string  $val  the val to check to see if contains binary characters
+   *  @return boolean true if binary, false if not
+   */
+  private function isBinaryString($val){
+  
+    $val = (string)$val;
+    $ret_bool = false;
+    $not_printable_count = 0;
+    for($i = 0, $max = strlen($val); $i < $max ;$i++){
+      if(ord($val[$i]) === 0){ $ret_bool = true; break; }//if
+      if(!ctype_print($val[$i])){
+        if(++$not_printable_count > 5){ $ret_bool = true; break; }//if
+      }//if 
+    }//for
+    
+    return $ret_bool;
+  
   }//method
   
 }//class     

@@ -49,32 +49,61 @@ abstract class mingo_db_interface {
   protected $con_db = null;
   
   /**
+   *  hold all the queries this instance has run
+   *  @var  array
+   */
+  protected $query_list = array();
+  
+  /**
+   *  create an instance, this method is final to assure that all instance creation
+   *  is the same for any class that extends this class
+   */
+  final function __construct(){
+    $this->start();
+  }//method
+  
+  /**
    *  turn debugging on or off
    *  
    *  @param  boolean $val
    */        
-  function setDebug($val){ $this->con_map['debug'] = !empty($val); }//method
+  public function setDebug($val){ $this->con_map['debug'] = !empty($val); }//method
   
   /**
    *  get the currently set debug level
    *  
    *  @return boolean
    */
-  function getDebug(){ return $this->hasDebug(); }//method
+  public function getDebug(){ return $this->hasDebug(); }//method
   
   /**
    *  true if debug is on, false if it's off
    *  
    *  @return boolean
    */
-  function hasDebug(){ return !empty($this->con_map['debug']); }//method
+  public function hasDebug(){ return !empty($this->con_map['debug']); }//method
   
   /**
    *  returns true if {@link connect()} has been called and returned true
    *  
    *  @return boolean
    */
-  function isConnected(){ return !empty($this->con_map['connected']); }//method
+  public function isConnected(){ return !empty($this->con_map['connected']); }//method
+  
+  /**
+   *  returns a list of the queries executed  
+   *  
+   *  the class that implements this interface should track the queries using {@link $query_list}
+   *  but that isn't assured. For example, the SQL interfaces only save queries when debug is true   
+   *      
+   *  @return array a list of queries executed by this db interface instance
+   */
+  public function getQueries(){ return $this->query_list; }//method
+  
+  /**
+   *  init function that is called when a new instance is created
+   */
+  abstract protected function start();
   
   /**
    *  connect to the db
@@ -205,6 +234,19 @@ abstract class mingo_db_interface {
    *  @return boolean
    */
   abstract public function hasTable($table);
+  
+  /**
+   *  hnalde an error state
+   *  
+   *  this is handy for trying to add tables or indexes if they don't exist so the db
+   *  handler can then try the queries that errored out again
+   *  
+   *  @param  Exception $e  the exception that was raised
+   *  @param  string  $table  the table name
+   *  @param  mingo_schema  $schema the table schema
+   *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
+   */
+  abstract protected function handleException(Exception $e,$table,mingo_schema $schema);
   
   /**
    *  generates a 24 character unique id for the _id of an inserted row
