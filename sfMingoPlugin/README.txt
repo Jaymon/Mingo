@@ -1,8 +1,9 @@
 in your databases.yml file you can use the following params under the "mingo" name:
 
 mingo:
+    class:        sfMingoDatabase # the callname you want to use to hook into symfony
     param:
-      type:       2 # check mingo_db::TYPE_* constants for the value to put here
+      interface:  mingo_db_mysql # the classname you want to use as the interface
       dbname:     DATABASE_NAME
       host:       DATABASE_HOST
       username:   USERNAME

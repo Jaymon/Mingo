@@ -28,6 +28,7 @@
  *  
  *  @link http://www.php.net/manual/en/language.oop5.abstract.php
  *  
+ *  @abstract 
  *  @version 0.1
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-16-09
@@ -236,7 +237,7 @@ abstract class mingo_db_interface {
   abstract public function hasTable($table);
   
   /**
-   *  hnalde an error state
+   *  hanlde an error state
    *  
    *  this is handy for trying to add tables or indexes if they don't exist so the db
    *  handler can then try the queries that errored out again
@@ -246,7 +247,7 @@ abstract class mingo_db_interface {
    *  @param  mingo_schema  $schema the table schema
    *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
-  abstract protected function handleException(Exception $e,$table,mingo_schema $schema);
+  abstract public function handleException(Exception $e,$table,mingo_schema $schema);
   
   /**
    *  generates a 24 character unique id for the _id of an inserted row

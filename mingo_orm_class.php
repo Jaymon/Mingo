@@ -21,6 +21,7 @@
  *        either "limit" or "page". Plus, having limit and page part of this class makes
  *        hasMore() and getTotal() make more sense  
  *  
+ *  @abstract 
  *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09

@@ -896,7 +896,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
-   *  hnalde an error state
+   *  handle an error state
    *  
    *  this is handy for trying to add tables or indexes if they don't exist so the db
    *  handler can then try the queries that errored out again
@@ -910,7 +910,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  mingo_schema  $schema the table schema
    *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
-  protected function handleException(Exception $e,$table,mingo_schema $schema){
+  function handleException(Exception $e,$table,mingo_schema $schema){
   
     $ret_bool = false;
     $e_code = $e->getCode();
