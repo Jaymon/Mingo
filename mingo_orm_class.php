@@ -268,6 +268,37 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     return $ret_mix;
   
   }//method
+  
+  /**
+   *  returns a list of all the array maps this class contains
+   *  
+   *  Unlike {@link get()} which returns separate instances for each map this class represents
+   *  this will return an actual map (eg, key/val paired array). Like get() you can do $this->getMap(0)
+   *  to just get one map array      
+   *  
+   *  @param  integer $i  the index we want to get if we don't want all of them      
+   *  @return array
+   */
+  function getMap(){
+  
+    $ret_mix = null;
+    $args = func_get_args();
+  
+    if(empty($args)){
+    
+      $ret_mix = array();
+    
+      foreach($this->list as $map){ $ret_mix[] = $map['map']; }//foreach
+      
+    }else{
+    
+      $ret_mix = $this->list[$args[0]]['map'];
+    
+    }//if/else
+    
+    return $ret_mix;
+  
+  }//method
 
   /**
    *  save this instance into the db
