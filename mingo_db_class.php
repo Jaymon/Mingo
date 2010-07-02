@@ -274,7 +274,7 @@ class mingo_db {
    *  @param  string  $table
    *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
-   *  @param  integer|array $limit  either something like 10, or array($limit,$page)   
+   *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
    *  @return array
    */
   function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = 0){
@@ -585,8 +585,8 @@ class mingo_db {
    *  this basically normalizes the limit and the page so you don't have to worry about one or the other
    *  not being present in the implemenations         
    *  
-   *  @param  integer|array $limit  can be either int (eg, limit=10) or array (eg, array($limit,$page)
-   *  @return array array($limit,$page)
+   *  @param  integer|array $limit  can be either int (eg, limit=10) or array (eg, array($limit,$offset)
+   *  @return array array($limit,$offset)
    */
   protected function getLimit($limit){
   
@@ -598,8 +598,7 @@ class mingo_db {
     if(is_array($limit)){
       $ret_limit = (int)$limit[0];
       if(isset($limit[1])){
-        $limit[1] = (int)$limit[1];
-        $ret_offset = (empty($limit[1]) ? 0 : ($limit[1] - 1)) * $ret_limit;
+        $ret_offset = (int)$limit[1];
       }//if
     }else{
       $ret_limit = (int)$limit;

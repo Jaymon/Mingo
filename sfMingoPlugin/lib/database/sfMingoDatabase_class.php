@@ -20,7 +20,7 @@ class sfMingoDatabase extends sfDatabase {
    * @throws <b>sfDatabaseException</b> If a connection could not be created
    */
   function connect(){
-  
+
     // canary...
     if($this->connection !== null){ return $this->connection; }//if
     
@@ -83,11 +83,15 @@ class sfMingoDatabase extends sfDatabase {
    */
   public function initialize($parameters = array())
   {
-    // use the debug toolbar...
-    sfContext::getInstance()->getEventDispatcher()->connect('debug.web.load_panels', array(
-      'sfMingoDebugToolbar',
-      'listenToAddPanelEvent'
-    ));
+    if(sfContext::hasInstance())
+    {
+      // use the debug toolbar...
+      sfContext::getInstance()->getEventDispatcher()->connect('debug.web.load_panels', array(
+        'sfMingoDebugToolbar',
+        'listenToAddPanelEvent'
+      ));
+      
+    }//if
     
     parent::initialize($parameters);
     

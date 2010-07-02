@@ -434,8 +434,16 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     }//if/else
     
-    // get rows + 1 to test if there are more results in the db for pagination...
+    // set limit stuff...
     $limit_paginate = $this->getLimit();
+    
+    $limit_offset = 0;
+    if($this->hasPage()){
+      $limit_page = $this->getPage();
+      $limit_offset = ($limit_page - 1) * $limit_paginate;
+    }//if
+    
+    // get rows + 1 to test if there are more results in the db for pagination...
     if($limit_paginate > 0){
       $limit_paginate++;
     }//if
@@ -444,7 +452,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       $this->getTable(),
       $this->schema,
       $where_criteria,
-      array($limit_paginate,$this->getPage())
+      array($limit_paginate,$limit_offset)
     );
     
     if(!empty($list) || $do_reset){
@@ -655,22 +663,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       }else{
     
         $ret_mix = $this->{$callback}($field,$args);
-        
-        if($this->isCount(1)){
-          
-          if($command == 'get'){
-          
-            if(!$this->isArray()){
-          
-              // we only have one index, so return that (ie, this instance is only handling one row)...  
-              $ret_mix = $ret_mix[0];
-            
-            }//if
-          
-          }//if
-        
-        }//if
-        
         return $ret_mix;
         
       }//if/else
@@ -710,13 +702,15 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  
    *  @param  string  $name the name of the index in the current map to get
    *  @param  array $args the passed in value
-   *  @return mixed whatever value is found in {@link $db_map}, otherwise $arg[0] (default_val)
+   *  @return mixed whatever value is found, otherwise $args[0] (default_val), if there is
+   *                only one row (ie $this->isCount(1) is true) then just that value is returned
+   *                otherwise an array of values are returned      
    */
   private function handleGet($name,$args = array()){
   
     // canary...
     if(!isset($args[0])){ $args[0] = null; }//if
-    if(!$this->hasCount()){ return array(); }//if
+    if(!$this->hasCount()){ return $this->isArray() ? array() : $args[0]; }//if
     
     $ret_list = array();
     
@@ -727,8 +721,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       : $args[0];
       
     }//for
-  
-    return $ret_list;
+    
+    // check for just one index and just return that value if found...
+    return ($this->isCount(1) && !$this->isArray()) ? $ret_list[0] : $ret_list;
   
   }//method
   
@@ -801,7 +796,8 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     if(!$this->handleExists($name)){ return false; }//if
     
     $ret_bool = true;
-    $get_list = $this->handleGet($name);
+    $get_list = $this->hasCount() ? $this->handleGet($name) : array();
+    if($this->isCount(1) && !$this->isArray()){ $get_list = array($get_list); }//if
     
     foreach($get_list as $val){
     
@@ -829,7 +825,8 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     if(!$this->hasCount()){ return false; }//if
     
     $ret_bool = true;
-    $get_list = $this->handleGet($name);
+    $get_list = $this->hasCount() ? $this->handleGet($name) : array();
+    if($this->isCount(1) && !$this->isArray()){ $get_list = array($get_list); }//if
     
     foreach($args as $arg){
       
@@ -882,11 +879,11 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     for($i = 0; $i < $this->count ;$i++){
     
       if(!isset($this->list[$i]['map'][$name])){
-        $this->list[$i][$name] = 0;
+        $this->list[$i]['map'][$name] = 0;
       }//if
       
       $this->list[$i]['modified'] = true;
-      $this->list[$i][$name] += $args[0];
+      $this->list[$i]['map'][$name] += $args[0];
     
     }//for
     
