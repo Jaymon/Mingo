@@ -4,12 +4,11 @@
  *  base class for all the interfaces that mingo_db can use   
  *
  *  if you want to make an interface for mingo, just create a class that extends
- *  this class and implement all the functions below. A type and row in the mingo_db::connect()
- *  will also have to be added.
+ *  this class and implement all the functions below.
  *  
  *  @notes
  *    - when implementing the interface, you don't really have to worry about error checking
- *      because mingo_db will do all the error checking before calling the function from this
+ *      because mingo_db will do all the error checking before calling the functions from this
  *      class
  *    - you don't have to worry about throwing mingo_exceptions either because mingo_db
  *      will catch any exceptions from all the abstract methods and wrap them in a mingo_exception.
@@ -23,13 +22,12 @@
  *              defined in this class
  *      - row_id = this is an auto increment row, ie, the row number. This technically only
  *                 needs to be generated when mingo_schema::setInc() is used in the ORM's
- *                 __construct() method, sql it gets created regardless though since it's so
- *                 easy to do 
+ *                 __construct() method
  *  
  *  @link http://www.php.net/manual/en/language.oop5.abstract.php
  *  
  *  @abstract 
- *  @version 0.1
+ *  @version 0.2
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-16-09
  *  @package mingo 
@@ -62,44 +60,6 @@ abstract class mingo_db_interface {
   final function __construct(){
     $this->start();
   }//method
-  
-  /**
-   *  turn debugging on or off
-   *  
-   *  @param  boolean $val
-   */        
-  public function setDebug($val){ $this->con_map['debug'] = !empty($val); }//method
-  
-  /**
-   *  get the currently set debug level
-   *  
-   *  @return boolean
-   */
-  public function getDebug(){ return $this->hasDebug(); }//method
-  
-  /**
-   *  true if debug is on, false if it's off
-   *  
-   *  @return boolean
-   */
-  public function hasDebug(){ return !empty($this->con_map['debug']); }//method
-  
-  /**
-   *  returns true if {@link connect()} has been called and returned true
-   *  
-   *  @return boolean
-   */
-  public function isConnected(){ return !empty($this->con_map['connected']); }//method
-  
-  /**
-   *  returns a list of the queries executed  
-   *  
-   *  the class that implements this interface should track the queries using {@link $query_list}
-   *  but that isn't assured. For example, the SQL interfaces only save queries when debug is true   
-   *      
-   *  @return array a list of queries executed by this db interface instance
-   */
-  public function getQueries(){ return $this->query_list; }//method
   
   /**
    *  init function that is called when a new instance is created
@@ -237,7 +197,7 @@ abstract class mingo_db_interface {
   abstract public function hasTable($table);
   
   /**
-   *  hanlde an error state
+   *  handle an error state
    *  
    *  this is handy for trying to add tables or indexes if they don't exist so the db
    *  handler can then try the queries that errored out again
@@ -248,6 +208,54 @@ abstract class mingo_db_interface {
    *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
   abstract public function handleException(Exception $e,$table,mingo_schema $schema);
+  
+  /**
+   *  this should be used to take the generic $where_criteria and turn it into something
+   *  the interface can use (eg, for a SQL interface, the $where_criteria would be turned
+   *  into a valid SQL string).
+   *  
+   *  @param  mingo_criteria  $where_criteria
+   *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
+   */
+  abstract protected function getCriteria($where_criteria);
+  
+  /**
+   *  turn debugging on or off
+   *  
+   *  @param  boolean $val
+   */        
+  public function setDebug($val){ $this->con_map['debug'] = !empty($val); }//method
+  
+  /**
+   *  get the currently set debug level
+   *  
+   *  @return boolean
+   */
+  public function getDebug(){ return $this->hasDebug(); }//method
+  
+  /**
+   *  true if debug is on, false if it's off
+   *  
+   *  @return boolean
+   */
+  public function hasDebug(){ return !empty($this->con_map['debug']); }//method
+  
+  /**
+   *  returns true if {@link connect()} has been called and returned true
+   *  
+   *  @return boolean
+   */
+  public function isConnected(){ return !empty($this->con_map['connected']); }//method
+  
+  /**
+   *  returns a list of the queries executed  
+   *  
+   *  the class that implements this interface should track the queries using {@link $query_list}
+   *  but that isn't assured. For example, the SQL interfaces only save queries when debug is true   
+   *      
+   *  @return array a list of queries executed by this db interface instance
+   */
+  public function getQueries(){ return $this->query_list; }//method
   
   /**
    *  generates a 24 character unique id for the _id of an inserted row

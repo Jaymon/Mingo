@@ -1,15 +1,15 @@
 <?php
 
 /**
- *  creates criteria for querying a mingo db, also maps those to sql when using 
- *  a relational backend 
+ *  creates criteria for querying a mingo db, it's up to the db's interface to convert
+ *  this criteria into something the interface's backend can use  
  *
  *  allow an easy way to define most of the advanced queries defined here:
  *  http://www.mongodb.org/display/DOCS/Advanced+Queries#AdvancedQueries-{{group()}}
  *  http://www.mongodb.org/display/DOCS/Atomic+Operations
  *  http://www.mongodb.org/display/DOCS/Sorting   
  *  
- *  @version 0.2
+ *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-17-09
  *  @package mingo 
@@ -19,6 +19,14 @@ class mingo_criteria extends mingo_base {
   const ASC = 1;
   const DESC = -1;
 
+  /**
+   *  by default, this is the same command symbol Mongo uses by default, this is
+   *  used internally to decide between commands, names, and values. Basically, if
+   *  it starts with this symbol its a special command      
+   *  
+   *  @var  string
+   *  @see  getCommandSymbol()
+   */
   protected $command_symbol = '$';
   
   /**
@@ -53,20 +61,20 @@ class mingo_criteria extends mingo_base {
     if(!empty($command_symbol)){ $this->command_symbol = $command_symbol; }//if
     
     $this->method_map = array(
-      'in' => array('set' => 'handleList', 'sql' => 'handleListSql', 'symbol' => 'IN'),
-      'nin' => array('set' => 'handleList', 'sql' => 'handleListSql', 'symbol' => 'NOT IN'),
-      'is' => array('set' => 'handleIs', 'sql' => 'handleValSql', 'symbol' => '='), // =
-      'ne' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '!='), // !=
-      'gt' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '>'), // >
-      'gte' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '>='), // >=
-      'lt' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '<'), // <
-      'lte' => array('set' => 'handleVal', 'sql' => 'handleValSql', 'symbol' => '<='), // <=
-      'sort' => array('set' => 'handleSort', 'sql' => 'handleSortSql'),
-      'asc' => array('set' => 'handleSortAsc', 'sql' => 'handleSortSql'),
-      'desc' => array('set' => 'handleSortDesc', 'sql' => 'handleSortSql'), 
-      'between' => array('set' => 'handleBetween', 'sql' => ''), // between is handled by >= and <= sql handlers
-      'inc' => array('set' => 'handleAtomic', 'sql' => ''),
-      'set' => array('set' => 'handleAtomic', 'sql' => '')
+      'in' => array('set' => 'handleList'),
+      'nin' => array('set' => 'handleList'),
+      'is' => array('set' => 'handleIs'), // =
+      'ne' => array('set' => 'handleVal'), // !=
+      'gt' => array('set' => 'handleVal'), // >
+      'gte' => array('set' => 'handleVal'), // >=
+      'lt' => array('set' => 'handleVal'), // <
+      'lte' => array('set' => 'handleVal'), // <=
+      'sort' => array('set' => 'handleSort'),
+      'asc' => array('set' => 'handleSortAsc'),
+      'desc' => array('set' => 'handleSortDesc'), 
+      'between' => array('set' => 'handleBetween'),
+      'inc' => array('set' => 'handleAtomic'),
+      'set' => array('set' => 'handleAtomic')
     );
     
     $this->set($map_criteria);
@@ -127,7 +135,19 @@ class mingo_criteria extends mingo_base {
   function get(){ return array($this->map_criteria,$this->map_sort); }//method
   
   /**
+   *  return the command symbol
+   *
+   *  @return string   
+   */
+  function getCommandSymbol(){ return $this->command_symbol; }//method
+  
+  /**
    *  convert an array criteria into an instance of this
+   *  
+   *  this method is dangerous because if the structure of your array isn't right
+   *  then it will cause any queries to be made with it to be fubar'ed, so it's best
+   *  to build your queries using this object's methods to ensure the structure of the
+   *  map_criteria is correct.                   
    *
    *  @param  array $map_criteria the criteria that should be handled internally
    */
@@ -147,154 +167,6 @@ class mingo_criteria extends mingo_base {
    *  @return boolean
    */
   function has(){ return !empty($this->map_criteria) || !empty($this->map_sort); }//method
-  
-  /**
-   *  convert the internal criteria into SQL
-   *  
-   *  the sql is suitable to be used in PDO, and so the string has ? where each value
-   *  should go, the value array will correspond to each of the ?      
-   *      
-   *  @return array an array map with 'where_str', 'where_val', and 'sort_str' keys set      
-   */
-  function getSql(){
-  
-    $ret_map = array();
-    $ret_map['where_str'] = ''; $ret_map[0] = &$ret_map['where_str'];
-    $ret_map['where_val'] = array(); $ret_map[1] = &$ret_map['where_val'];
-    $ret_map['sort_str'] = array(); $ret_map[2] = &$ret_map['sort_str'];
-  
-    $ret_where = $ret_sort = '';
-  
-    list($criteria_where,$criteria_sort) = $this->get();
-  
-    foreach($criteria_where as $name => $map){
-    
-      // we only deal with non-command names right now for sql...
-      if($name[0] != $this->command_symbol){
-      
-        $where_sql = '';
-        $where_val = array();
-      
-        if(is_array($map)){
-        
-          $total_map = count($map);
-        
-          // go through each map val and append it to the sql string...
-          foreach($map as $command => $val){
-    
-            if($command[0] == $this->command_symbol){
-            
-              $command_bare = mb_substr($command,1);
-              $command_sql = '';
-              $command_val = array();
-            
-              // build the sql...
-              if(isset($this->method_map[$command_bare])){
-              
-                if(!empty($this->method_map[$command_bare]['sql'])){
-                
-                  $callback = $this->method_map[$command_bare]['sql'];
-                  list($command_sql,$command_val) = $this->{$callback}(
-                    $this->method_map[$command_bare]['symbol'],
-                    $name,
-                    $map[$command]
-                  );
-                  
-                  list($where_sql,$where_val) = $this->appendSql(
-                    'AND',
-                    $command_sql,
-                    $command_val,
-                    $where_sql,
-                    $where_val
-                  );
-                  
-                }//if
-              
-              }//if
-            
-            }else{
-            
-              // @todo  throw an error, there shouldn't ever be an array value outside a command
-              throw new mingo_exception(
-                'there is an error in your criteria, this happens when you pass in an array to '
-                .'the constructor, maybe try generating your criteria using the object\'s methods '
-                .'and not passing in an array.'
-              );
-            
-            }//if/else
-            
-          }//foreach
-          
-          if($total_map > 1){ $where_sql = sprintf(' (%s)',trim($where_sql)); }//if
-        
-        }else{
-        
-          // we have a NAME=VAL (an is* method call)...
-          list($where_sql,$where_val) = $this->handleValSql('=',$name,$map);
-        
-        }//if/else
-        
-        list($ret_map['where_str'],$ret_map['where_val']) = $this->appendSql(
-          'AND',
-          $where_sql,
-          $where_val,
-          $ret_map['where_str'],
-          $ret_map['where_val']
-        );
-      
-      }//if
-    
-    }//foreach
-  
-    if(!empty($ret_map['where_val'])){
-      $ret_map['where_str'] = sprintf('WHERE%s',$ret_map['where_str']);
-    }//if
-    
-    // build the sort sql...
-    foreach($criteria_sort as $name => $direction){
-    
-      $dir_sql = ($direction > 0) ? 'ASC' : 'DESC';
-      if(empty($ret_map['sort_sql'])){
-        $ret_map['sort_str'] = sprintf('ORDER BY %s %s',$name,$dir_sql);
-      }else{
-        $ret_map['sort_str'] = sprintf('%s,%s %s',$ret_map['sort_sql'],$name,$dir_sql);
-      }//if/else
-    
-    }//foreach
-
-    return $ret_map;
-  
-  }//method
-  
-  /**
-   *  handle sql'ing a generic list: NAME SYMBOL (...)
-   *  
-   *  @param  string  $symbol the symbol to use in the sQL string
-   *  @param  string  $name the name of the field      
-   *  @param  array $args a list of values that $name will be in         
-   *  @return array array($sql,$val_list);
-   */
-  protected function handleListSql($symbol,$name,$args){
-  
-    $ret_str = sprintf(' %s %s (%s)',$name,$symbol,join(',',array_fill(0,count($args),'?')));
-    return array($ret_str,$args);
-  
-  }//method
-  
-  /**
-   *  handle sql'ing a generic val: NAME SYMBOL ?
-   *  
-   *  @param  string  $symbol the symbol to use in the sQL string
-   *  @param  string  $name the name of the field      
-   *  @param  array $arg  the argument         
-   *  @return array array($sql,$val);
-   */
-  protected function handleValSql($symbol,$name,$arg){
-  
-    $ret_str = sprintf(' %s %s ?',$name,$symbol);
-    return array($ret_str,$arg);
-  
-  }//method
   
   /**
    *  handle atomic operations
@@ -458,40 +330,6 @@ class mingo_criteria extends mingo_base {
   
   private function getCommand($command){
     return sprintf('%s%s',$this->command_symbol,$command);
-  }//method
-  
-  /**
-   *  handle appending to a sql string
-   *  
-   *  @param  string  $separator  something like 'AND' or 'OR'
-   *  @param  string  $new_sql  the sql that will be appended to $old_sql
-   *  @param  array $new_val  if $new_sql has any ?'s then their values need to be in $new_val
-   *  @param  string  $old_sql  the original sql that will have $new_sql appended to it using $separator
-   *  @param  array $old_val  all the old values that will be merged with $new_val
-   *  @return array array($sql,$val)
-   */
-  private function appendSql($separator,$new_sql,$new_val,$old_sql,$old_val){
-  
-    // sanity...
-    if(empty($new_sql)){ return array($old_sql,$old_val); }//if
-  
-    // build the separator...
-    if(empty($old_sql)){
-      $separator = '';
-    }else{
-      $separator = ' '.trim($separator);
-    }//if
-          
-    $old_sql = sprintf('%s%s%s',$old_sql,$separator,$new_sql);
-    
-    if(is_array($new_val)){
-      $old_val = array_merge($old_val,$new_val);
-    }else{
-      $old_val[] = $new_val;
-    }//if/else
-  
-    return array($old_sql,$old_val);
-  
   }//method
 
 }//class     

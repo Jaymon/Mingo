@@ -11,7 +11,7 @@
  *    - extend PDO to do this http://us2.php.net/manual/en/pdo.begintransaction.php#81022
  *      for better transaction support   
  *  
- *  @version 0.4
+ *  @version 0.5
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-12-09
  *  @package mingo 
@@ -42,6 +42,25 @@ abstract class mingo_db_sql extends mingo_db_interface {
       'HY000', // sqlite
       '42S02' // mysql
     )
+  );
+  
+  /**
+   *  these are directly correlated with mingo_criteria's $where_criteria internal
+   *  map that is returned from calling mingo_criteria::get(). These are used in
+   *  the {@link getCriteria()} method to change a where_criteria object into usable SQL      
+   *
+   *  @var  array   
+   */
+  protected $method_map = array(
+    'in' => array('sql' => 'handleListSql', 'symbol' => 'IN'),
+    'nin' => array('sql' => 'handleListSql', 'symbol' => 'NOT IN'),
+    'is' => array('sql' => 'handleValSql', 'symbol' => '='),
+    'ne' => array('sql' => 'handleValSql', 'symbol' => '!='),
+    'gt' => array('sql' => 'handleValSql', 'symbol' => '>'),
+    'gte' => array('sql' => 'handleValSql', 'symbol' => '>='),
+    'lt' => array('sql' => 'handleValSql', 'symbol' => '<'),
+    'lte' => array('sql' => 'handleValSql', 'symbol' => '<='),
+    'sort' => array('sql' => 'handleSortSql')
   );
   
   /**
@@ -227,7 +246,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
       
       // first get the criteria info...
       list($where_map,$sort_map) = $where_criteria->get();
-      list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+      list($where_query,$val_list,$sort_query) = $this->getCriteria($where_criteria);
       
       // now, find the right index table to select from...
       $index_table = $this->getIndexTable($table,$where_criteria,$schema);
@@ -330,7 +349,9 @@ abstract class mingo_db_sql extends mingo_db_interface {
       
       }//foreach
       
-      // sort the list if an order map was set...
+      // sort the list if an order map was set, this is done because the rows
+      // returned from the main table are not guarranteed to be in the same order
+      // that the index table returned (I'm looking at you MySQL)...
       if(!empty($order_map)){
         ksort($ret_list);
       }//if
@@ -369,11 +390,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $ret_int = 0;
     $result = array();
     
-    if($where_criteria instanceof mingo_criteria){
+    if(($where_criteria instanceof mingo_criteria) && $where_criteria->has()){
       
       // first get the maps...
       list($where_map,$sort_map) = $where_criteria->get();
-      list($where_query,$val_list,$sort_query) = $where_criteria->getSql();
+      list($where_query,$val_list,$sort_query) = $this->getCriteria($where_criteria);
       $index_table = $this->getIndexTable($table,$where_criteria,$schema);
 
       if(!empty($index_table)){
@@ -1193,6 +1214,190 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     return vsprintf($query,$printf_vars);
     
+  }//method
+  
+  /**
+   *  convert the $criteria_where and the $criteria_sort into SQL
+   *  
+   *  the sql is suitable to be used in PDO, and so the string has ? where each value
+   *  should go, the value array will correspond to each of the ?      
+   *  
+   *  @param  mingo_criteria  $where_criteria   
+   *  @return array an array map with 'where_str', 'where_val', and 'sort_str' keys set      
+   */
+  protected function getCriteria($where_criteria){
+  
+    $ret_map = array();
+    $ret_map['where_str'] = ''; $ret_map[0] = &$ret_map['where_str'];
+    $ret_map['where_val'] = array(); $ret_map[1] = &$ret_map['where_val'];
+    $ret_map['sort_str'] = array(); $ret_map[2] = &$ret_map['sort_str'];
+  
+    $ret_where = $ret_sort = '';
+  
+    list($criteria_where,$criteria_sort) = $where_criteria->get();
+    $command_symbol = $where_criteria->getCommandSymbol();
+  
+    foreach($criteria_where as $name => $map){
+    
+      // we only deal with non-command names right now for sql...
+      if($name[0] != $command_symbol){
+      
+        $where_sql = '';
+        $where_val = array();
+      
+        if(is_array($map)){
+        
+          $total_map = count($map);
+        
+          // go through each map val and append it to the sql string...
+          foreach($map as $command => $val){
+    
+            if($command[0] == $command_symbol){
+            
+              $command_bare = mb_substr($command,1);
+              $command_sql = '';
+              $command_val = array();
+            
+              // build the sql...
+              if(isset($this->method_map[$command_bare])){
+              
+                if(!empty($this->method_map[$command_bare]['sql'])){
+                
+                  $callback = $this->method_map[$command_bare]['sql'];
+                  list($command_sql,$command_val) = $this->{$callback}(
+                    $this->method_map[$command_bare]['symbol'],
+                    $name,
+                    $map[$command]
+                  );
+                  
+                  list($where_sql,$where_val) = $this->appendSql(
+                    'AND',
+                    $command_sql,
+                    $command_val,
+                    $where_sql,
+                    $where_val
+                  );
+                  
+                }//if
+              
+              }//if
+            
+            }else{
+            
+              // @todo  throw an error, there shouldn't ever be an array value outside a command
+              throw new mingo_exception(
+                'there is an error in your criteria, this happens when you pass in an array to '
+                .'the constructor, maybe try generating your criteria using the object\'s methods '
+                .'and not passing in an array.'
+              );
+            
+            }//if/else
+            
+          }//foreach
+          
+          if($total_map > 1){ $where_sql = sprintf(' (%s)',trim($where_sql)); }//if
+        
+        }else{
+        
+          // we have a NAME=VAL (an is* method call)...
+          list($where_sql,$where_val) = $this->handleValSql('=',$name,$map);
+        
+        }//if/else
+        
+        list($ret_map['where_str'],$ret_map['where_val']) = $this->appendSql(
+          'AND',
+          $where_sql,
+          $where_val,
+          $ret_map['where_str'],
+          $ret_map['where_val']
+        );
+      
+      }//if
+    
+    }//foreach
+  
+    if(!empty($ret_map['where_val'])){
+      $ret_map['where_str'] = sprintf('WHERE%s',$ret_map['where_str']);
+    }//if
+    
+    // build the sort sql...
+    foreach($criteria_sort as $name => $direction){
+    
+      $dir_sql = ($direction > 0) ? 'ASC' : 'DESC';
+      if(empty($ret_map['sort_sql'])){
+        $ret_map['sort_str'] = sprintf('ORDER BY %s %s',$name,$dir_sql);
+      }else{
+        $ret_map['sort_str'] = sprintf('%s,%s %s',$ret_map['sort_sql'],$name,$dir_sql);
+      }//if/else
+    
+    }//foreach
+
+    return $ret_map;
+  
+  }//method
+  
+  /**
+   *  handle sql'ing a generic list: NAME SYMBOL (...)
+   *  
+   *  @param  string  $symbol the symbol to use in the sQL string
+   *  @param  string  $name the name of the field      
+   *  @param  array $args a list of values that $name will be in         
+   *  @return array array($sql,$val_list);
+   */
+  protected function handleListSql($symbol,$name,$args){
+  
+    $ret_str = sprintf(' %s %s (%s)',$name,$symbol,join(',',array_fill(0,count($args),'?')));
+    return array($ret_str,$args);
+  
+  }//method
+  
+  /**
+   *  handle sql'ing a generic val: NAME SYMBOL ?
+   *  
+   *  @param  string  $symbol the symbol to use in the sQL string
+   *  @param  string  $name the name of the field      
+   *  @param  array $arg  the argument         
+   *  @return array array($sql,$val);
+   */
+  protected function handleValSql($symbol,$name,$arg){
+  
+    $ret_str = sprintf(' %s %s ?',$name,$symbol);
+    return array($ret_str,$arg);
+  
+  }//method
+  
+  /**
+   *  handle appending to a sql string
+   *  
+   *  @param  string  $separator  something like 'AND' or 'OR'
+   *  @param  string  $new_sql  the sql that will be appended to $old_sql
+   *  @param  array $new_val  if $new_sql has any ?'s then their values need to be in $new_val
+   *  @param  string  $old_sql  the original sql that will have $new_sql appended to it using $separator
+   *  @param  array $old_val  all the old values that will be merged with $new_val
+   *  @return array array($sql,$val)
+   */
+  protected function appendSql($separator,$new_sql,$new_val,$old_sql,$old_val){
+  
+    // sanity...
+    if(empty($new_sql)){ return array($old_sql,$old_val); }//if
+  
+    // build the separator...
+    if(empty($old_sql)){
+      $separator = '';
+    }else{
+      $separator = ' '.trim($separator);
+    }//if
+          
+    $old_sql = sprintf('%s%s%s',$old_sql,$separator,$new_sql);
+    
+    if(is_array($new_val)){
+      $old_val = array_merge($old_val,$new_val);
+    }else{
+      $old_val[] = $new_val;
+    }//if/else
+  
+    return array($old_sql,$old_val);
+  
   }//method
   
   /**
