@@ -575,7 +575,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @param  boolean $drop_table true if you want to drop the table if it exists               
    *  @return boolean
    */
-  function install($drop_table = false){
+  public function install($drop_table = false){
   
     if($drop_table){ $this->db->killTable($this->getTable()); }//if
   
@@ -587,6 +587,17 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     }//if/else
     
     return true;
+  
+  }//method
+  
+  /**
+   *  resets the class's internal list   
+   */
+  public function reset(){
+  
+    $this->current_i = 0;
+    $this->list = array();
+    $this->count = 0;
   
   }//method
 
@@ -936,6 +947,34 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   /**#@-*/
   
   /**
+   *  close the db connection so we don't run afoul of anything when serializing this
+   *  class   
+   *  
+   *  http://www.php.net/manual/en/language.oop5.magic.php#language.oop5.magic.sleep
+   *  
+   *  @note if this method isn't good enough, try the serializable interface:
+   *    http://www.php.net/manual/en/class.serializable.php   
+   *  
+   *  @return the names of all the variables that should be serialized      
+   */
+  function __sleep(){
+    $this->db = null;
+    return array_keys(get_object_vars($this));
+  }//method
+  
+  /**
+   *  re-establish the db connection when this instance is unserialized
+   *
+   *  http://www.php.net/manual/en/language.oop5.magic.php#language.oop5.magic.sleep
+   *  
+   *  @note if this method isn't good enough, try the serializable interface:
+   *    http://www.php.net/manual/en/class.serializable.php         
+   */
+  function __wakeup(){
+    $this->setDb(mingo_db::getInstance());
+  }//method
+  
+  /**
    *  rips out the map found at index $i into its own instance
    *  
    *  this class is internal, but you can see it used in {@link current()} and {@link get()}
@@ -957,17 +996,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     );
     
     return $ret_map;
-  
-  }//method
-  
-  /**
-   *  resets the class's internal list   
-   */
-  private function reset(){
-  
-    $this->current_i = 0;
-    $this->list = array();
-    $this->count = 0;
   
   }//method
   

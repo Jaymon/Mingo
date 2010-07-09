@@ -223,7 +223,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $sort_query = '';
     $run_main_query = true;
     
-    if($where_criteria instanceof mingo_criteria){
+    if(($where_criteria instanceof mingo_criteria) && $where_criteria->has()){
       
       // first get the criteria info...
       list($where_map,$sort_map) = $where_criteria->get();

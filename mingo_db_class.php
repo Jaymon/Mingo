@@ -235,6 +235,7 @@ class mingo_db {
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
     if(empty($where_criteria)){
       throw new mingo_exception('no $where_criteria specified');
     }else{
@@ -281,6 +282,7 @@ class mingo_db {
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection, please call connect()'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_list = array();
@@ -320,6 +322,7 @@ class mingo_db {
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection, please call connect()'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_map = array();
@@ -359,6 +362,7 @@ class mingo_db {
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection, please call connect()'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_int = 0;
@@ -402,6 +406,7 @@ class mingo_db {
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if(empty($map)){ throw new mingo_exception('no point in setting an empty $map'); }//if
     if(empty($schema)){ throw new mingo_exception('no $schema specified'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
   
     if(empty($map['_id'])){
@@ -463,6 +468,7 @@ class mingo_db {
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
     
     $ret_bool = false;
     try{
@@ -521,6 +527,7 @@ class mingo_db {
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
     if(empty($schema)){ throw new mingo_exception('$schema must be present'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
     
     $ret_bool = false;
     try{
@@ -550,6 +557,7 @@ class mingo_db {
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection, please call connect()'); }//if
     
     $ret_bool = false;
     try{

@@ -225,7 +225,7 @@ class mingo_criteria extends mingo_base {
             
           }//foreach
           
-          if($total_map > 1){ $where_sql = sprintf(' (%s)',$where_sql); }//if
+          if($total_map > 1){ $where_sql = sprintf(' (%s)',trim($where_sql)); }//if
         
         }else{
         
@@ -413,7 +413,11 @@ class mingo_criteria extends mingo_base {
       throw new mingo_exception(sprintf('%s must have a passed in value, none given',$command));
     }//if
   
-    $this->map_criteria[$name] = $this->getMap($command,$args[0]);
+    if(empty($this->map_criteria[$name])){
+      $this->map_criteria[$name] = array();
+    }//if
+    
+    $this->map_criteria[$name][] = $this->getMap($command,$args[0]);
   
   }//method
   
