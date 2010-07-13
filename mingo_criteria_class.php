@@ -169,6 +169,77 @@ class mingo_criteria extends mingo_base {
   function has(){ return !empty($this->map_criteria) || !empty($this->map_sort); }//method
   
   /**
+   *  set the limit
+   *  
+   *  @param  integer
+   */
+  function setLimit($val){ $this->limit = (int)$val; }//method
+  function getLimit(){ return $this->limit; }//method
+  function hasLimit(){ return !empty($this->limit); }//method
+  
+  /**
+   *  set the page that will be used to calculate the offset
+   *  
+   *  @param  integer
+   */
+  function setPage($val){ $this->page = (int)$val; }//method
+  function getPage(){ return $this->page; }//method
+  function hasPage(){ return !empty($this->page); }//method
+  
+  /**
+   *  takes either 2 values or an array to set the bounds (ie, limit and page) for
+   *  the query
+   * 
+   *  @see  setLimit(), setPage()    
+   *  @param  integer|array $limit  if an array, then array($limit,$page)
+   *  @param  integer $page what page to use
+   */
+  function setBounds($limit,$page = 0){
+  
+    if(is_array($limit)){
+      
+      $this->setLimit(empty($limit[0]) ? 0 : $limit[0]);
+      $this->setPage(empty($limit[1]) ? $page : $limit[1]);
+      
+    }else{
+    
+      $this->setLimit($limit);
+      $this->setPage($page);
+      
+    }//if/else
+    
+  }//method
+  
+  /**
+   *  this ones a little tricky because while setBounds takes a limit and a page
+   *  this method returns a limit and an offset, and a limit_paginate (limit + 1 for
+   *  finding out if there are more rows in the db)
+   *  
+   *  @return array array($limit,$offset,$limit_paginate)
+   */
+  public function getBounds(){
+    
+    $limit = $offset = $limit_paginate = 0;
+    
+    if($this->hasLimit()){
+      
+      $limit = $this->getLimit();
+      
+      // get rows + 1 to test if there are more results in the db for pagination...
+      $limit_paginate = ($limit + 1);
+      
+    }//method
+    
+    if($this->hasPage()){
+      $page = $this->getPage();
+      $offset = ($limit - 1) * $limit;
+    }//if
+    
+    return array($limit,$offset,$limit_paginate);
+    
+  }//method
+  
+  /**
    *  handle atomic operations
    *  
    *  @link http://www.mongodb.org/display/DOCS/Atomic+Operations      

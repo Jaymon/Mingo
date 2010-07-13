@@ -204,6 +204,11 @@ class mingo_db_mongo extends mingo_db_interface {
     
     // see if this table has auto_increment stuff...
     if(isset($this->inc_map['map'][$table])){
+    
+      // @todo  I'm pretty sure this doesn't work anymore, the ->update() code on line ~233 has
+      // the wrong parameters and I don't have time to fix it
+      throw new RuntimeException('the auto-increment stuff has not been tested in a while and I am
+      pretty sure it no longer works, so please do not use it right now, unless you want to debug it');
       
       // increment the table's unique id...
       $inc_field = $this->inc_map['map'][sprintf('%s_field',$table)];

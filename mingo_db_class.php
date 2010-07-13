@@ -329,7 +329,7 @@ class mingo_db {
     
     try{
     
-      $ret_map = $this->con_db->getOne($table,$where_map);
+      $ret_map = $this->con_db->getOne($table,$schema,$where_criteria);
       
       if($this->hasDebug()){
         if(!is_array($ret_map)){
@@ -340,7 +340,7 @@ class mingo_db {
     }catch(Exception $e){
     
       if($this->handleException($e,$table,$schema)){
-        $ret_map = $this->con_db->getOne($table,$where_map);
+        $ret_map = $this->con_db->getOne($table,$schema,$where_criteria);
       }//if
     
     }//try/catch

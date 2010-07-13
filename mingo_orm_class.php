@@ -22,16 +22,36 @@
  *        hasMore() and getTotal() make more sense  
  *  
  *  @abstract 
- *  @version 0.3
+ *  @version 0.4
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
  ******************************************************************************/
 abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
 
+  /**
+   *  every row that has, or will be, saved into the db will carry an _id
+   *  
+   *  the id is usually a 24 character hash/string
+   */
   const _ID = '_id';
+  /**
+   *  this is an auto-increment row id 
+   *  
+   *  the row_id is an integer
+   */
   const ROW_ID = 'row_id';
+  /**
+   *  when the row was last updated
+   *  
+   *  a unix timestamp, which is an integer
+   */
   const UPDATED = 'updated';
+  /**
+   *  when the row was created
+   *  
+   *  a unix timestamp, which is an integer
+   */
   const CREATED = 'created';
 
   /**
@@ -63,17 +83,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @var  array an array with each index having 'modified' and 'map' keys
    */
   protected $list = array();
-  
-  /**
-   *  how many rows calling {@link load()} will actually load from the db
-   *  @var  integer   
-   */
-  protected $limit = 0;
-  /**
-   *  what page or results {@link load()} will use to start loading results from
-   *  @var  integer   
-   */
-  protected $page = 0;
+
   /**
    *  if {@link load()} could have loaded more results, this will be set to true
    *  @var  boolean   
@@ -90,7 +100,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   /**
    *  hold the schema object for this instance
    *  
-   *  usually, the schema will be populated/defined in the child class's __construct()
+   *  usually, the schema will be populated/defined in the child class's {@link start()}
    *  
    *  @var  mingo_schema            
    */
@@ -98,16 +108,18 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
   /**
    *  set to true if you want this instance to act like an array even if {@link hasCount()}
-   *  equals 1
+   *  equals 1 (ie, this instance only represents one row)
    *  
    *  @var  boolean
    */
-  protected $array = false;
+  protected $multi = false;
 
   /**
    *  default constructor
+   *  
+   *  @param  array|string  $_id_list one or more unique _ids to load into this instance      
    */
-  final function __construct(){
+  final public function __construct($_id_list = array()){
   
     $this->table = mb_strtolower(get_class($this));
   
@@ -117,6 +129,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     // do the child's initializing stuff, like setting ORM specific schema stuff...
     $this->start();
+    
+    // load the id list if passed in...
+    $this->loadBy_Id($_id_list);
   
   }//method
   
@@ -135,68 +150,35 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  
    *  @return integer how many rows this class represents               
    */
-  function getCount(){ return $this->count; }//method
-  function hasCount(){ return !empty($this->count); }//method
-  function isCount($count){ return ($this->count == $count); }//method
+  public function getCount(){ return $this->count; }//method
+  public function hasCount(){ return !empty($this->count); }//method
+  public function isCount($count){ return ($this->count == $count); }//method
   /**
    *  Required definition for Countable, allows count($this) to work
    *  @link http://www.php.net/manual/en/class.countable.php
    */
   function count(){ return $this->getCount(); }//method
-  
-  /**
-   *  set the limit that any {@link load()} call will use
-   *  
-   *  @param  integer|array if array, then array($limit,$page)
-   */
-  function setLimit($val){
-    if(is_array($val)){
-      if(isset($val[1])){
-        $this->setPage($val[1]);
-      }//if
-      $val = isset($val[0]) ? $val[0] : 0;
-    }//if
-    $this->limit = (int)$val;
-  }//method
-  function getLimit(){ return $this->limit; }//method
-  function hasLimit(){ return !empty($this->limit); }//method
-  
-  /**
-   *  set the page that any {@link load()} call will offset from
-   *  
-   *  @param  integer|array if array, then array($limit,$page)
-   */
-  function setPage($val){
-    if(is_array($val)){
-      if(isset($val[0])){
-        $this->setLimit($val[0]);
-      }//if
-      $val = isset($val[1]) ? $val[1] : 0;
-    }//if
-    $this->page = (int)$val;
-  }//method
-  function getPage(){ return $this->page; }//method
-  function hasPage(){ return !empty($this->page); }//method
 
-  protected function setMore($val){ $this->more = $val; }//method
-  protected function getMore(){ return $this->more; }//method
   /**
    *  return true if the last db load could load more, but was limited by $limit 
    *
    *  @return boolean
    */
-  function hasMore(){ return !empty($this->more); }//method
+  public function hasMore(){ return !empty($this->more); }//method
+  protected function setMore($val){ $this->more = $val; }//method
+  protected function getMore(){ return $this->more; }//method
   
   protected function setTotal($val){ $this->total = $val; }//method
-  function getTotal(){ return $this->total; }//method
-  function hasTotal(){ return !empty($this->total); }//method
+  public function getTotal(){ return $this->total; }//method
+  public function hasTotal(){ return !empty($this->total); }//method
   
-  function setDb($db){ $this->db = $db; }//method
-  function getDb(){ return $this->db; }//method
+  public function setDb($db){ $this->db = $db; }//method
+  public function getDb(){ return $this->db; }//method
   
-  function setSchema($schema){ $this->schema = $schema; }//method
+  public function setSchema($schema){ $this->schema = $schema; }//method
+  public function getSchema(){ return $this->schema; }//method
   
-  function getTable(){ return $this->table; }//method
+  public function getTable(){ return $this->table; }//method
   
   /**
    *  pass in true to make this instance act like it is a list no matter what
@@ -212,15 +194,14 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *    $foo->load();
    *    // foo will only have one row loaded since _id is always unique...
    *    $foo->get_id(); // '4z4b59960417cff191587927'
-   *    $foo->setArray(true);
+   *    $foo->setMulti(true);
    *    $foo->get_id(); // array(0 => '4z4b59960417cff191587927')        
    *                
    *  
    *  @param  boolean $val
    */
-  function setArray($val){ $this->array = $val; }//method
-  function getArray(){ return $this->array; }//method
-  function isArray(){ return !empty($this->array); }//method
+  public function setMulti($multi){ $this->multi = $multi; }//method
+  public function isMulti(){ return !empty($this->multi); }//method
   
   /**
    *  get the internal representation of this class
@@ -255,13 +236,15 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       $ret_mix = array();
     
       foreach($this as $map){ $ret_mix[] = $map; }//foreach
-      
-      // we only have one index, so return that...
-      ///if(!isset($ret_mix[1])){ $ret_mix = $ret_mix[0]; }//if
     
     }else{
     
-      $ret_mix = $this->rip($args[0]);
+      $total_args = func_num_args();
+      if($total_args > 1){
+        foreach($args as $arg){ $ret_mix[] = $this->rip($arg); }//foreach
+      }else{
+        $ret_mix = $this->rip($args[0]);
+      }//if
     
     }//if/else
     
@@ -292,7 +275,12 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       
     }else{
     
-      $ret_mix = $this->list[$args[0]]['map'];
+      $total_args = func_num_args();
+      if($total_args > 1){
+        foreach($args as $arg){ $ret_mix[] = $this->list[$args[0]]['map']; }//foreach
+      }else{
+        $ret_mix = $this->list[$args[0]]['map'];
+      }//if
     
     }//if/else
     
@@ -353,12 +341,28 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     // canary...
     if(isset($this->list[$this->count])){ $this->count = count($this->list); }//if
   
-    if($map instanceof self){
+    if(is_object($map)){
     
-      // go through each row this class tracks internally...
-      foreach($map->getList() as $m){
-        $this->append($m['map'],$m['modified']);
-      }//method
+      $class_name = get_class($this);
+    
+      if($map instanceof $class_name){
+      
+        // go through each row this class tracks internally...
+        foreach($map->getList() as $m){
+          $this->append($m['map'],$m['modified']);
+        }//method
+        
+      }else{
+      
+        throw new InvalidArgumentException(
+          sprintf(
+            '$map is not the correct instance. Expected %s, but got %s',
+            $class_name,
+            get_class($map)
+          )
+        );
+      
+      }//if/else
     
     }else if(is_array($map)){
     
@@ -369,7 +373,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     }else{
     
-      throw new mingo_exception(sprintf('trying to append an unsupported $map type: %s',gettype($map)));
+      throw new InvalidArgumentException(sprintf('trying to append an unsupported $map type: %s',gettype($map)));
     
     }//if/else if/else
   
@@ -380,20 +384,14 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   /**
    *  load the contents from the db
    *  
-   *  contents are loaded in one of 2 ways, if you pass in a $where_map then that 
-   *  is used to load the internal contents of this instance, if you have set some
-   *  variables using set* methods, and then call load() without passing in a $where_map
-   *  then those set internal vars will be used as the map
+   *  contents are loaded passing in a $where_criteria that is used to load the 
+   *  internal contents of this instance
    *  
-   *  @example  
-   *    load something using internal loading:
-   *      $instance->set_id('4affd9e8da7f000000003645');
-   *      $instance->load()                     
-   *
-   *    load something using $where_criteria:
-   *      $mc = new mingo_criteria();
-   *      $mc->in_id('4affd9e8da7f000000003645');
-   *      $instance->load($mc);
+   *  @example                      
+   *    // load something using $where_criteria:
+   *    $mc = new mingo_criteria();
+   *    $mc->in_id('4affd9e8da7f000000003645');
+   *    $instance->load($mc);
    *
    *  @param  mingo_criteria  $where_criteria  criteria for loading db rows into this object
    *  @param  boolean $set_load_count if true, then {@link getTotal()} will return how many results
@@ -404,64 +402,32 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   function load(mingo_criteria $where_criteria = null,$set_load_count = false){
   
     $ret_int = 0;
-    $do_reset = false;
+    $limit = $offset = $limit_paginate = 0;
   
     // figure out what criteria to use on the load...
-    if(empty($where_criteria)){
+    if(!empty($where_criteria)){
     
-      if($this->count > 1){
-        throw new mingo_exception('no $where_criteria passed in and one could not be inferred because count > 1');
-      }//if
-      
-      if(!empty($this->list[0]['map'])){
-      
-        $where_criteria = new mingo_criteria();
-      
-        if(isset($this->list[0]['map']['_id'])){
-          // only use the id if it is present...
-          $where_criteria->is_id($this->list[0]['map']['_id']);
-        }else{
-          // use the whole map as a criteria since no _id was found...
-          $where_criteria->set($this->list[0]['map']);
-        }//if/else
-        
-      }//if
+      list($limit,$offset,$limit_paginate) = $where_criteria->getBounds();
     
-    }else{
-    
-      // there is criteria object, so reset anything that is currently in the instance
-      $do_reset = true;
-    
-    }//if/else
-    
-    // set limit stuff...
-    $limit_paginate = $this->getLimit();
-    
-    $limit_offset = 0;
-    if($this->hasPage()){
-      $limit_page = $this->getPage();
-      $limit_offset = ($limit_page - 1) * $limit_paginate;
     }//if
     
-    // get rows + 1 to test if there are more results in the db for pagination...
-    if($limit_paginate > 0){
-      $limit_paginate++;
-    }//if
+    // go back to square one...
+    $this->reset();
     
+    // get stuff from the db...
     $list = $this->db->get(
       $this->getTable(),
       $this->schema,
       $where_criteria,
-      array($limit_paginate,$limit_offset)
+      array($limit_paginate,$offset)
     );
     
-    if(!empty($list) || $do_reset){
-      
-      $this->reset();
+    // re-populate this instance...
+    if(!empty($list)){
       
       // set whether more results are available or not...
-      $total_list = $ret_int = count($list);
-      if(!empty($limit_paginate) && ($total_list == $limit_paginate)){
+      $ret_int = count($list);
+      if(!empty($limit_paginate) && ($ret_int == $limit_paginate)){
         
         // cut off the final row since it wasn't part of the original requested rows...
         $list = array_slice($list,0,-1);
@@ -471,23 +437,104 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         if($set_load_count){
           $this->setTotal($this->db->getCount($this->getTable(),$this->schema,$where_criteria));
         }else{
-          $this->setTotal($total_list);
+          $this->setTotal($ret_int);
         }//if/else
         
       }else{
       
         $this->setMore(false);
-        $this->setTotal($total_list);
+        $this->setTotal($ret_int);
         
       }//if/else
       
-      foreach($list as $map){
-        $this->append($map);
-      }//foreach
+      // we append so that the structure of the internal map is maintained...
+      foreach($list as $map){ $this->append($map); }//foreach
+      
+    }//if
+    
+    if($ret_int > 0){
+      
+      if($ret_int === 1){
+        $this->setMulti(false);
+      }else{
+        $this->setMulti(true);
+      }//if/else
       
     }//if
     
     return $ret_int;
+  
+  }//method
+  
+  /**
+   *  load one row from the db
+   *  
+   *  @example                      
+   *    // load something using $where_criteria:
+   *    $mc = new mingo_criteria();
+   *    $mc->is_id('4affd9e8da7f000000003645');
+   *    $instance->loadOne($mc);
+   *
+   *  @param  mingo_criteria  $where_criteria  criteria for loading db rows into this object      
+   *  @return boolean
+   */
+  function loadOne(mingo_criteria $where_criteria){
+  
+    // canary...
+    if(empty($where_criteria)){
+      throw new InvalidArgumentException('$where_criteria cannot be empty');
+    }//if
+  
+    $ret_bool = false;
+  
+    // go back to square one...
+    $this->reset();
+    
+    // get stuff from the db...
+    $map = $this->db->getOne(
+      $this->getTable(),
+      $this->getSchema(),
+      $where_criteria
+    );
+    
+    // re-populate this instance...
+    if(!empty($map)){
+      
+      $this->setMore(false);
+      $this->setTotal(1);
+      $this->append($map);
+      $this->setMulti(false);
+      $ret_bool = true;
+      
+    }//if
+    
+    return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  load by the unique _ids
+   *
+   *  @param  integer|array $_id_list one or more _ids
+   *  @return integer how many rows where loaded
+   */
+  public function loadBy_Id($_id_list){
+  
+    // canary...
+    if(empty($_id_list)){ return 0; }//if
+    
+    $ret_bool = false;
+    
+    $where_criteria = new mingo_criteria();
+    if(is_array($_id_list)){
+      $where_criteria->inField(self::_ID,$_id_list);
+      $ret_bool = ($this->load($where_criteria) > 0) ? true : false;
+    }else{
+      $where_criteria->isField(self::_ID,$_id_list);
+      $ret_bool = $this->loadOne($where_criteria);
+    }//if/else
+  
+    return $ret_bool;
   
   }//method
   
@@ -500,11 +547,11 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     $ret_bool = false;
   
-    if($this->has_id()){
+    if($this->hasField(self::_ID)){
     
       // get all the ids...
       $where_criteria = new mingo_criteria();
-      $where_criteria->in_id($this->get_id());
+      $where_criteria->inField(self::_ID,$this->getField(self::_ID));
       if($this->db->kill($this->getTable(),$this->schema,$where_criteria)){
         $this->reset();
         $ret_bool = true;
@@ -598,6 +645,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     $this->current_i = 0;
     $this->list = array();
     $this->count = 0;
+    $this->setMulti(false);
   
   }//method
 
@@ -721,7 +769,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     // canary...
     if(!isset($args[0])){ $args[0] = null; }//if
-    if(!$this->hasCount()){ return $this->isArray() ? array() : $args[0]; }//if
+    if(!$this->hasCount()){ return $this->isMulti() ? array() : $args[0]; }//if
     
     $ret_list = array();
     
@@ -734,7 +782,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     }//for
     
     // check for just one index and just return that value if found...
-    return ($this->isCount(1) && !$this->isArray()) ? $ret_list[0] : $ret_list;
+    return ($this->isMulti()) ? $ret_list : $ret_list[0];
   
   }//method
   
@@ -807,8 +855,10 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     if(!$this->handleExists($name)){ return false; }//if
     
     $ret_bool = true;
-    $get_list = $this->hasCount() ? $this->handleGet($name) : array();
-    if($this->isCount(1) && !$this->isArray()){ $get_list = array($get_list); }//if
+    $multi_orig = $this->isMulti();
+    $this->setMulti(true);
+    $get_list = $this->handleGet($name);
+    $this->setMulti($multi_orig);
     
     foreach($get_list as $val){
     
@@ -836,8 +886,10 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     if(!$this->hasCount()){ return false; }//if
     
     $ret_bool = true;
-    $get_list = $this->hasCount() ? $this->handleGet($name) : array();
-    if($this->isCount(1) && !$this->isArray()){ $get_list = array($get_list); }//if
+    $multi_orig = $this->isMulti();
+    $this->setMulti(true);
+    $get_list = $this->handleGet($name);
+    $this->setMulti($multi_orig);
     
     foreach($args as $arg){
       
@@ -997,35 +1049,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     return $ret_map;
   
-  }//method
-  
-  /**
-   *  increment the limit by one if it exists
-   *  
-   *  if a limit exists ($limit>0), then the limit is incremented by one, the original
-   *  limit is returned in $orig_limit. This is to make the limit info useful to {@link setHasMoreResults()}   
-   *      
-   *  @param  integer|array $page if array, then array($limit,$page) otherwise $page and $limit
-   *                              will use the default found in {@link limit()}         
-   *  @return array array($limit,$page)
-   */
-  private function assureLimit($limit){
-  
-    $limit = $page = 0;
-    
-    if(is_array($page)){
-      
-      $limit = empty($page[0]) ? 0 : (int)$page[0];
-      $page = empty($page[1]) ? 1 : (int)$page[1];
-      
-    }else{
-    
-      $limit = self::limit();
-      $page = ($page < 1) ? 1 : (int)$page;
-      
-    }//if/else
-  
-    return array($limit,(int)$page);
   }//method
 
 }//class     
