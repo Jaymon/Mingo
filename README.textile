@@ -114,7 +114,7 @@ class user_peer {
 
 That will produce the traditional array list of user instances instead of having the one user instance handle all the loaded rows. When a user instance is handling more than one row, then any method calls, like setUsername(), set(), or kill() will affect all the rows that instance represents.
 
-the code is pretty well documented, so if you want to see what other magic functions <code>mingo_map</code> and <code>mingo_criteria</code> have, just check the docblocks and code for each class's __call() method.
+the code is pretty well documented, so if you want to see what other magic functions <code>mingo_orm</code> and <code>mingo_criteria</code> have, just check the docblocks and code for each class's __call() method.
 
 h2. Installing Mingo
 

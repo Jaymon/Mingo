@@ -125,7 +125,7 @@ class mingo_db {
       }else{
       
         throw new mingo_exception(
-          sprintf('class %s does not seem to exist and is needed to connext to the db',$db_interface)
+          sprintf('class %s does not seem to exist and is needed to connect to the db',$db_interface)
         );
       
       }//if/else
