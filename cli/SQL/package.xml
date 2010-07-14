@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE package SYSTEM "http://pear.php.net/dtd/package-1.0">
+<package version="1.0">
+  <name>SQL_Parser</name>
+  <summary>An SQL parser</summary>
+  <description>This class is primarily an SQL parser, written with influences from a variety of sources (mSQL, CPAN's SQL-Statement, mySQL). It also includes a tokenizer (lexer) class and a reimplementation of the ctype extension in PHP.</description>
+  <maintainers>
+    <maintainer>
+      <user>busterb</user>
+      <name>Brent Cook</name>
+      <email>busterbcook@yahoo.com</email>
+      <role>lead</role>
+    </maintainer>
+  </maintainers>
+  <release>
+    <version>0.5</version>
+    <date>2004-05-02</date>
+    <license>LGPL</license>
+    <state>devel</state>
+    <notes>Parser:
+    * More robust search clause parsing; now handles subsearches
+      with parentheses in more cases (Brent Cook
+    * Add more alias handling cases (John Griffin)
+    * Handle ordinal functions in select project clauses correctly
+    * Add explicit join support (John Griffin)
+    * Add initial support for multiple SQL dialects (ANSI, MySQL)
+      (John Griffin, Brent Cook)
+    * Added SQL Compiler that takes a parse tree and generates a
+      SQL statement (John Griffin)</notes>
+    <filelist>
+      <file role="php" baseinstalldir="/SQL" name="Parser.php"/>
+      <file role="php" baseinstalldir="/SQL" name="Lexer.php"/>
+      <file role="php" baseinstalldir="/SQL" name="Compiler.php"/>
+      <file role="php" baseinstalldir="/SQL" name="Dialect_ANSI.php"/>
+      <file role="php" baseinstalldir="/SQL" name="Dialect_MySQL.php"/>
+      <file role="php" baseinstalldir="/SQL" name="ctype.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/test_parser.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/parser_cases.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/create.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/delete.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/drop.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/insert.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/select.php"/>
+      <file role="test" baseinstalldir="/SQL" name="tests/update.php"/>
+    </filelist>
+  </release>
+</package>

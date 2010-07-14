@@ -1,0 +1,1 @@
+php mingo.php --interface=mingo_db_sqlite_class --db=..\mingo_db_sqlite
