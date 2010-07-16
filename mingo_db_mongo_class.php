@@ -7,6 +7,8 @@
  *        error to see if they were successful, I found this out through this link:
  *        http://markmail.org/message/ghapbonzag2uim2p     
  *
+ *  @link http://us2.php.net/mongo
+ *  
  *  @version 0.1
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-09-09
@@ -102,9 +104,10 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string  $table
    *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
+   *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
    *  @return integer the count
    */
-  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
   
     $ret_int = 0;
     $table = $this->getTable($table);
@@ -113,6 +116,11 @@ class mingo_db_mongo extends mingo_db_interface {
       $ret_int = $table->count();
     }else{
       $cursor = $table->find($where_map);
+      
+      // do the limit stuff...
+      if(!empty($limit[0])){ $cursor->limit($limit[0]); }//if
+      if(!empty($limit[1])){ $cursor->skip($limit[1]); }//if
+      
       $ret_int = $cursor->count();
     }//if/else
     return $ret_int;
@@ -326,6 +334,20 @@ class mingo_db_mongo extends mingo_db_interface {
   
   }//method
   
+  /**
+   *  get all the indexes of $table
+   *
+   *  @link http://us2.php.net/manual/en/mongocollection.getindexinfo.php
+   *                
+   *  @param  string  $table  the table to get the indexes from
+   *  @return array an array in the same format that {@link mingo_schema::getIndexes()} returns
+   */
+  public function getIndexes($table){
+  
+    $table = $this->getTable($table);
+    return $table->getIndexInfo();
+  
+  }//method
   
   /**
    *  deletes a table

@@ -55,7 +55,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     'in' => array('sql' => 'handleListSql', 'symbol' => 'IN'),
     'nin' => array('sql' => 'handleListSql', 'symbol' => 'NOT IN'),
     'is' => array('sql' => 'handleValSql', 'symbol' => '='),
-    'ne' => array('sql' => 'handleValSql', 'symbol' => '!='),
+    'not' => array('sql' => 'handleValSql', 'symbol' => '!='),
     'gt' => array('sql' => 'handleValSql', 'symbol' => '>'),
     'gte' => array('sql' => 'handleValSql', 'symbol' => '>='),
     'lt' => array('sql' => 'handleValSql', 'symbol' => '<'),
@@ -305,29 +305,13 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     if($run_main_query){
       
-      $printf_vars = array();
-      $query = 'SELECT * FROM %s';
-      $printf_vars[] = $table;
-      
-      if(!empty($id_list)){
-        
-        $query .= ' WHERE _id IN (%s)';
-        $printf_vars[] = join(',',array_fill(0,count($id_list),'?'));
-      
-      }//if
-      
-      // add sort...
-      if(!empty($sort_query)){
-        $query .= ' '.$sort_query;
-      }//if
-      
-      if(!empty($limit[0])){
-        $query .= ' LIMIT %d OFFSET %d';
-        $printf_vars[] = $limit[0];
-        $printf_vars[] = empty($id_list) ? $limit[1] : 0;
-      }//if
-      
-      $query = vsprintf($query,$printf_vars);
+      $query = $this->getSelectQuery(
+        $table,
+        '*',
+        sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($id_list),'?'))),
+        $sort_query,
+        $limit
+      );
       
       $list = $this->getQuery($query,$id_list);
       foreach($list as $map){
@@ -345,7 +329,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         
           $ret_list[] = $ret_map;
         
-        }
+        }//if/else
       
       }//foreach
       
@@ -383,9 +367,10 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  string  $table
    *  @param  mingo_schema  $schema the table schema    
    *  @param  mingo_criteria  $where_criteria
+   *  @param  integer|array $limit  array($limit,$offset)   
    *  @return integer the count
    */
-  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
   
     $ret_int = 0;
     $result = array();
@@ -399,25 +384,28 @@ abstract class mingo_db_sql extends mingo_db_interface {
 
       if(!empty($index_table)){
         
-        $query = $this->getSelectQuery($index_table,'count(*)',$where_query);
+        $query = $this->getSelectQuery($index_table,'count(*)',$where_query,'',$limit);
         $result = $this->getQuery($query,$val_list);
         
       }else{
       
         if((count($where_map) === 1) && isset($where_map['_id'])){
           
-          $printf_vars = array();
-          $query = 'SELECT count(*) FROM %s';
-          $printf_vars[] = $table;
+          $where_query = '';
+          if(is_array($where_map['_id'])){
           
-          if(!empty($id_list)){
+            $where_query = sprintf(
+              'WHERE _id IN (%s)',
+              join(',',array_fill(0,count($where_map['_id']),'?'))
+            );
             
-            $query .= ' WHERE _id IN (%s)';
-            $printf_vars[] = join(',',array_fill(0,count($id_list),'?'));
+          }else{
           
-          }//if
+            $where_query = 'WHERE _id=?';
           
-          $query = vsprintf($query,$printf_vars);
+          }//if/else
+          
+          $query = $this->getSelectQuery($table,'count(*)',$where_query,'',$limit);
           $result = $this->getQuery($query,$val_list);
           
         }else{
@@ -435,7 +423,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     // if another query wasn't run, just run on the main table...
     if(empty($result)){
     
-      $query = sprintf('SELECT count(*) FROM %s',$table);
+      $query = $this->getSelectQuery($table,'count(*)','','',$limit);
       $result = $this->getQuery($query);
     
     }//if
@@ -798,7 +786,9 @@ abstract class mingo_db_sql extends mingo_db_interface {
             
             }//foreach
           
-            $query .= '_id VARCHAR(24) NOT NULL UNIQUE, PRIMARY KEY (%s,_id))';
+            // it turns out putting NOT NULL UNIQUE creates an index, so when I set the _id index later
+            // it makes 2 _id indexes, one unique and one normal
+            $query .= '_id VARCHAR(24) NOT NULL, PRIMARY KEY (%s,_id))';
             $printf_vars[] = $field_list_str;
           
             if($this->isMysql()){
@@ -887,7 +877,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
     if($is_success){
 
-      if(preg_match('#^(?:select|show)#iu',$query)){
+      if(preg_match('#^(?:select|show|pragma)#iu',$query)){
 
         // a select statement should always return an array...
         $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
@@ -913,6 +903,86 @@ abstract class mingo_db_sql extends mingo_db_interface {
     }//if/else
 
     return $ret_mixed;
+  
+  }//method
+  
+  /**
+   *  get all the indexes of $table
+   *        
+   *  @param  string  $table  the table to get the indexes from
+   *  @return array an array in the same format that {@link mingo_schema::getIndexes()} returns
+   */
+  public function getIndexes($table){
+  
+    $ret_list = array();
+  
+    // get just the $table tables...
+    $table_list = array();
+    foreach($this->getTables() as $table_name){
+    
+      if(($table_name === $table) || preg_match(sprintf('#^%s_[a-z0-9]{32,}#i',$table),$table_name)){
+      
+        $table_list[] = $table_name;
+      
+      }//if
+    
+    }//foreach
+    
+    foreach($table_list as $table_name){
+      
+      if($this->isMysql()){
+      
+        // http://www.techiegyan.com/?p=209
+      
+        $query = sprintf('SHOW INDEX FROM %s',$table_name);
+        $index_list = $this->getQuery($query);
+        $ret_map = array();
+        foreach($index_list as $index_map){
+        
+          if($index_map['Seq_in_index'] == 1){
+          
+            if(!empty($ret_map)){
+              if(!in_array($ret_map,$ret_list,true)){
+                $ret_list[] = $ret_map;
+              }//if
+              $ret_map = array();
+            }//if
+          
+          }//if
+          
+          $ret_map[$index_map['Column_name']] = 1;
+        
+        }//foreach
+        
+      }else if($this->isSqlite()){
+      
+        // sqlite: pragma table_info(table_name)
+        //  http://www.sqlite.org/pragma.html#schema
+        //  http://www.mail-archive.com/sqlite-users@sqlite.org/msg22055.html
+        //  http://stackoverflow.com/questions/604939/how-can-i-get-the-list-of-a-columns-in-a-table-for-a-sqlite-database
+        $query = sprintf('PRAGMA index_list(%s)',$table_name);
+        $index_list = $this->getQuery($query);
+        foreach($index_list as $index_map){
+        
+          $query = sprintf('PRAGMA index_info(%s)',$index_map['name']);
+          $field_list = $this->getQuery($query);
+
+          $ret_map = array();
+          foreach($field_list as $field_map){
+            $ret_map[$field_map['name']] = 1; // all sql indexes sort asc
+          }//foreach
+          
+          if(!in_array($ret_map,$ret_list,true)){
+            $ret_list[] = $ret_map;
+          }//if
+          
+        }//foreach
+        
+      }//if/else if
+      
+    }//foreach
+    
+    return $ret_list;
   
   }//method
   
@@ -1208,8 +1278,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     if(!empty($limit[0])){
       $query .= ' LIMIT %d OFFSET %d';
-      $printf_vars[] = $limit[0];
-      $printf_vars[] = empty($limit[1]) ? 0 : $limit[1];
+      $printf_vars[] = (int)$limit[0];
+      $printf_vars[] = (int)(empty($limit[1]) ? 0 : $limit[1]);
     }//if
     
     return vsprintf($query,$printf_vars);

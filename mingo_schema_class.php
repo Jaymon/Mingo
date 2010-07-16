@@ -11,6 +11,9 @@
  ******************************************************************************/
 class mingo_schema extends mingo_base {
 
+  const INDEX_ASC = 1;
+  const INDEX_DESC = -1;
+
   /**
    *  hold the table name this schema represents
    *  @var  string
@@ -38,7 +41,13 @@ class mingo_schema extends mingo_base {
   /**
    *  set an index on the table this schema represents
    *
-   *  @param  string  $field,...  one or more field names to be indexed
+   *  @param  string|array  $field,...
+   *                          1 - pass in a bunch of strings, each one representing
+   *                              a field name: setIndex('field_1','field_2',...);
+   *                          2 - pass in one array with this structure: array('field_name' => direction,...)
+   *                              where the field's name is the key and the value is an int direction
+   *                              of either 1 (ASC) or -1 (DESC)
+   *  @return boolean   
    */
   function setIndex(){
   
@@ -47,19 +56,43 @@ class mingo_schema extends mingo_base {
     // canary...
     if(empty($args)){ throw new mingo_exception('no fields specified for the index'); }//if
     
-    // save the index...
-    $index_name = sprintf('i%s',md5(join(',',$args)));
-    $this->index_map[$index_name] = array();
+    if(is_array($args[0])){
     
-    foreach($args as $field){
+      $field_list = array();
+      $index_map = array();
+      foreach($args[0] as $field => $direction){
+      
+        $field = $this->normalizeField($field);
+        $index_map[$field] = ($direction >= 0) ? self::INDEX_ASC : self::INDEX_DESC;
+        $field_list[] = $field;
+      
+      }//foreach
     
-      $field = $this->normalizeField($field);
-      if($field === '_id'){
-        throw new mingo_exception('a table index cannot include the _id field');
+      if(!empty($index_map)){
+      
+        // index is in the form: array('field_name' => direction,...)
+        $index_name = sprintf('i%s',md5(join(',',$field_list)));
+        $this->index_map[$index_name] = $index_map;
+        
       }//if
-    
-      $this->index_map[$index_name][$field] = 1;
-    }//foreach
+      
+    }else{
+      
+      // save the index...
+      $index_name = sprintf('i%s',md5(join(',',$args)));
+      $this->index_map[$index_name] = array();
+      
+      foreach($args as $field){
+      
+        $field = $this->normalizeField($field);
+        if($field === '_id'){
+          throw new mingo_exception('a table index cannot include the _id field');
+        }//if
+      
+        $this->index_map[$index_name][$field] = self::INDEX_ASC;
+      }//foreach
+      
+    }//if/else
     
     return true;
   

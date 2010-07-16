@@ -194,7 +194,7 @@ class mingo_db {
   }//method
 
   function setInterface($val){ $this->con_map['interface'] = $val; }//method
-  function getInterface(){ return $this->hasInterface() ? $this->con_map['interface'] : 0; }//method
+  function getInterface(){ return $this->hasInterface() ? $this->con_map['interface'] : ''; }//method
   function hasInterface(){ return !empty($this->con_map['interface']); }//method
   function isInterface($val){ return ((string)$this->getInterface() === (string)$val); }//method
   
@@ -356,9 +356,10 @@ class mingo_db {
    *  @param  string  $table
    *  @param  mingo_schema  $schema the table schema    
    *  @param  mingo_criteria $where_criteria
+   *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
    *  @return integer the count   
    */
-  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = 0){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
@@ -366,10 +367,11 @@ class mingo_db {
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_int = 0;
+    list($limit,$offset) = $this->getLimit($limit);
     
     try{
     
-      $ret_int = $this->con_db->getCount($table,$schema,$where_criteria);
+      $ret_int = $this->con_db->getCount($table,$schema,$where_criteria,array($limit,$offset));
       
       if($this->hasDebug()){
         if(!is_int($ret_int)){
@@ -380,7 +382,7 @@ class mingo_db {
     }catch(Exception $e){
     
       if($this->handleException($e,$table,$schema)){
-        $ret_int = $this->con_db->getCount($table,$schema,$where_criteria);
+        $ret_int = $this->con_db->getCount($table,$schema,$where_criteria,array($limit,$offset));
       }//if
     
     }//try/catch
@@ -501,6 +503,34 @@ class mingo_db {
     try{
     
       $ret_list = $this->con_db->getTables();
+      if($this->hasDebug()){
+        if(!is_array($ret_list)){
+          throw new mingo_exception(sprintf('%s is not the expected return type of array',gettype($ret_list)));
+        }//if
+      }//if
+      
+    }catch(Exception $e){
+      $this->handleException($e);
+    }//try/catch
+      
+    return $ret_list;
+  
+  }//method
+  
+  /**
+   *  get all the indexes of $table
+   *
+   *  @param  string  $table  the table to get the indexes from
+   *  @return array an array in the same format that {@link mingo_schema::getIndexes()} returns
+   */
+  public function getIndexes($table){
+  
+    if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
+    
+    $ret_list = array();
+    try{
+    
+      $ret_list = $this->con_db->getIndexes($table);
       if($this->hasDebug()){
         if(!is_array($ret_list)){
           throw new mingo_exception(sprintf('%s is not the expected return type of array',gettype($ret_list)));

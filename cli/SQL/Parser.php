@@ -824,6 +824,7 @@ class SQL_Parser
 
     // {{{ parseSelect()
     function parseSelect($subSelect = false) {
+    
         $tree = array('command' => 'select');
         $this->getTok();
         if (($this->token == 'distinct') || ($this->token == 'all')) {

@@ -64,7 +64,7 @@ class mingo_criteria extends mingo_base {
       'in' => array('set' => 'handleList'),
       'nin' => array('set' => 'handleList'),
       'is' => array('set' => 'handleIs'), // =
-      'ne' => array('set' => 'handleVal'), // !=
+      'not' => array('set' => 'handleVal'), // !=
       'gt' => array('set' => 'handleVal'), // >
       'gte' => array('set' => 'handleVal'), // >=
       'lt' => array('set' => 'handleVal'), // <
