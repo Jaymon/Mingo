@@ -232,7 +232,7 @@ class mingo_criteria extends mingo_base {
     
     if($this->hasPage()){
       $page = $this->getPage();
-      $offset = ($limit - 1) * $limit;
+      $offset = ($page - 1) * $limit;
     }//if
     
     return array($limit,$offset,$limit_paginate);
