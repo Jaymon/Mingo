@@ -163,8 +163,8 @@ abstract class mingo_db_interface {
    *  get all the indexes of $table
    *  
    *  this was added so you can make arbitrary queries against the db without worrying about
-   *  having a mingo_schema (specifically, so the new command line interface will work)   
-   *      
+   *  having a mingo_schema (specifically, so the new command line interface will work)      
+   *          
    *  @since  7-15-10      
    *  @param  string  $table  the table to get the indexes from
    *  @return array an array in the same format that {@link mingo_schema::getIndexes()} returns

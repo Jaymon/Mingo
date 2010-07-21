@@ -933,6 +933,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
       if($this->isMysql()){
       
         // http://www.techiegyan.com/?p=209
+        
+        // see also: http://www.xaprb.com/blog/2006/08/28/how-to-find-duplicate-and-redundant-indexes-in-mysql/
+        // for another way to find indexes
+        
+        // also good reading: http://www.mysqlperformanceblog.com/2006/08/17/duplicate-indexes-and-redundant-indexes/
       
         $query = sprintf('SHOW INDEX FROM %s',$table_name);
         $index_list = $this->getQuery($query);

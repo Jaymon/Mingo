@@ -74,6 +74,10 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
   /**
    *  holds this class's db access instance
+   *  
+   *  don't touch this object directly in your class (eg, $this->db), instead, always
+   *  get this by using {@link getDb()}   
+   *         
    *  @var  mingo_db
    */
   protected $db = null;
@@ -113,6 +117,15 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @var  boolean
    */
   protected $multi = false;
+  
+  /**
+   *  this will point to the last loaded criteria object passed into methods like load()
+   *  
+   *  @see  load(), loadOne()
+   *      
+   *  @var  mingo_criteria
+   */
+  protected $criteria = null;
 
   /**
    *  default constructor
@@ -123,8 +136,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     $this->table = mb_strtolower(get_class($this));
   
-    $this->setDb(mingo_db::getInstance());
-    
     $this->setSchema(new mingo_schema($this->table));
     
     // do the child's initializing stuff, like setting ORM specific schema stuff...
@@ -173,10 +184,31 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   public function hasTotal(){ return !empty($this->total); }//method
   
   public function setDb($db){ $this->db = $db; }//method
-  public function getDb(){ return $this->db; }//method
+  
+  /**
+   *  return the db object that this instance is using
+   *  
+   *  @return mingo_db  an instance of the db object that will be used
+   */
+  public function getDb(){
+    
+    if($this->db === null){
+      $this->setDb(mingo_db::getInstance());
+      
+      if(empty($this->db)){
+        throw new UnexpectedValueException('a valid mingo_db instance could not be found');
+      }//if
+      
+    }//if
+    
+    return $this->db;
+    
+  }//method
   
   public function setSchema($schema){ $this->schema = $schema; }//method
   public function getSchema(){ return $this->schema; }//method
+  
+  public function getCriteria(){ return $this->criteria; }//method
   
   public function getTable(){ return $this->table; }//method
   
@@ -298,6 +330,8 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     $ret_bool = true;
     $now = time();
+    $db = $this->getDb();
+    
     
     foreach(array_keys($this->list) as $key){
     
@@ -310,7 +344,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         }//if
         $this->list[$key]['map'][self::UPDATED] = $now;
       
-        $this->list[$key]['map'] = $this->db->set(
+        $this->list[$key]['map'] = $db->set(
           $this->getTable(),
           $this->list[$key]['map'],
           $this->schema
@@ -402,7 +436,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   function load(mingo_criteria $where_criteria = null,$set_load_count = false){
   
     $ret_int = 0;
+    $db = $this->getDb();
     $limit = $offset = $limit_paginate = 0;
+    $this->criteria = $where_criteria;
   
     // figure out what criteria to use on the load...
     if(!empty($where_criteria)){
@@ -415,7 +451,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     $this->reset();
     
     // get stuff from the db...
-    $list = $this->db->get(
+    $list = $db->get(
       $this->getTable(),
       $this->schema,
       $where_criteria,
@@ -435,7 +471,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         $ret_int--;
         
         if($set_load_count){
-          $this->setTotal($this->db->getCount($this->getTable(),$this->schema,$where_criteria));
+          $this->setTotal($db->getCount($this->getTable(),$this->schema,$where_criteria));
         }else{
           $this->setTotal($ret_int);
         }//if/else
@@ -486,12 +522,14 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     }//if
   
     $ret_bool = false;
+    $db = $this->getDb();
+    $this->criteria = $where_criteria;
   
     // go back to square one...
     $this->reset();
     
     // get stuff from the db...
-    $map = $this->db->getOne(
+    $map = $db->getOne(
       $this->getTable(),
       $this->getSchema(),
       $where_criteria
@@ -546,13 +584,14 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   function kill(){
   
     $ret_bool = false;
+    $db = $this->getDb();
   
     if($this->hasField(self::_ID)){
     
       // get all the ids...
       $where_criteria = new mingo_criteria();
       $where_criteria->inField(self::_ID,$this->getField(self::_ID));
-      if($this->db->kill($this->getTable(),$this->schema,$where_criteria)){
+      if($db->kill($this->getTable(),$this->schema,$where_criteria)){
         $this->reset();
         $ret_bool = true;
       }//if
@@ -567,7 +606,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
         if(isset($this->list[$i]['map']['_id'])){
         
-          $where_criteria->is_id($this->list[$i]['map']['_id']);
+          $where_criteria->isField(self::_ID,$this->list[$i]['map']['_id']);
       
         }else{
         
@@ -578,7 +617,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         // we don't want to accidently delete everything by passing in an empty where...
         if($where_criteria->has()){
         
-          if($this->db->kill($this->getTable(),$this->schema,$where_criteria)){
+          if($db->kill($this->getTable(),$this->schema,$where_criteria)){
           
             unset($this->list[$i]);
             $this->count--;
@@ -624,10 +663,12 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    */
   public function install($drop_table = false){
   
-    if($drop_table){ $this->db->killTable($this->getTable()); }//if
+    $db = $this->getDb();
+  
+    if($drop_table){ $db->killTable($this->getTable()); }//if
   
     // create the table...
-    if(!$this->db->setTable($this->getTable(),$this->schema)){
+    if(!$db->setTable($this->getTable(),$this->schema)){
     
       throw new mingo_exception(sprintf('failed in table %s creation',$this->getTable()));
     
@@ -1010,20 +1051,8 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @return the names of all the variables that should be serialized      
    */
   function __sleep(){
-    $this->db = null;
+    $this->setDb(null);
     return array_keys(get_object_vars($this));
-  }//method
-  
-  /**
-   *  re-establish the db connection when this instance is unserialized
-   *
-   *  http://www.php.net/manual/en/language.oop5.magic.php#language.oop5.magic.sleep
-   *  
-   *  @note if this method isn't good enough, try the serializable interface:
-   *    http://www.php.net/manual/en/class.serializable.php         
-   */
-  function __wakeup(){
-    $this->setDb(mingo_db::getInstance());
   }//method
   
   /**
