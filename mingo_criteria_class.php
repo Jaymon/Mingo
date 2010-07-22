@@ -1,22 +1,31 @@
 <?php
 
 /**
- *  creates criteria for querying a mingo db, it's up to the db's interface to convert
- *  this criteria into something the interface's backend can use  
+ *  creates a standard criteria for querying a mingo db
+ *  
+ *  it's up to the db's interface to convert this criteria into something the 
+ *  interface's backend can use.  
  *
  *  allow an easy way to define most of the advanced queries defined here:
  *  http://www.mongodb.org/display/DOCS/Advanced+Queries#AdvancedQueries-{{group()}}
  *  http://www.mongodb.org/display/DOCS/Atomic+Operations
  *  http://www.mongodb.org/display/DOCS/Sorting   
  *  
- *  @version 0.3
+ *  @version 0.4
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-17-09
  *  @package mingo 
  ******************************************************************************/
 class mingo_criteria extends mingo_base {
 
+  /**
+   *  used for sort ascending
+   */        
   const ASC = 1;
+  
+  /**
+   *  used for sort descending
+   */
   const DESC = -1;
 
   /**
@@ -30,73 +39,95 @@ class mingo_criteria extends mingo_base {
   protected $command_symbol = '$';
   
   /**
-   *  holds the internal structure of the "WHERE" criteria, usually returned from either
-   *  {@link get()} or {@link getSql()}, while you can set this using {@link set()} it would
-   *  be better to use the magic methods that {@link __call()} defines since that will
-   *  guarrantee a valid criteria array
+   *  holds the internal structure of the "WHERE" criteria. While you can set this 
+   *  using {@link setWhere()} it would be better to use the magic methods that 
+   *  {@link __call()} defines since that will guarantee a valid where criteria array
    *  
+   *  @see  getWhere(), setWhere(), hasWhere()   
    *  @var  array               
    */
-  protected $map_criteria = array();
+  protected $map_where = array();
   
   /**
-   *  similar to {@link $map_criteria} but is for the "SORT BY..." part of a query
+   *  is for the "SORT BY..." part of a query
    *  
    *  this can only be set with the sort|asc|desc magic methods
    *  
+   *  @see  getSort(), setSort(), hasSort()   
    *  @var  array
    */
   protected $map_sort = array();
   
   /**
+   *  handle atomic operations
+   *  
+   *  @see  getOperations(), setOperations(), hasOperations()   
+   *  @var  array
+   */
+  protected $map_operations = array();
+  
+  /**
+   *  holds the limit, page information
+   *
+   *  @see  getBounds(), setBounds(), hasBounds()   
+   *  @var  array
+   */  
+  protected $map_bounds = array();
+  
+  /**
    *  used internally to map the commands to the internal methods that will handle them
+   *  
+   *  the key is used to tell the {@link __call()} method what to do, for example, if
+   *  you wanted to query on foo less than 100, you could do: $this->ltFoo(100);            
    *
    *  @var  array   
    */
-  protected $method_map = array();
+  protected $method_map = array(
+    // these are the where map commands...
+    'in' => array('set' => 'handleList'),
+    'nin' => array('set' => 'handleList'),
+    'is' => array('set' => 'handleIs'), // =
+    'not' => array('set' => 'handleVal'), // !=
+    'gt' => array('set' => 'handleVal'), // >
+    'gte' => array('set' => 'handleVal'), // >=
+    'lt' => array('set' => 'handleVal'), // <
+    'lte' => array('set' => 'handleVal'), // <=
+    'between' => array('set' => 'handleBetween'),
+    // these are the sort map commands...
+    'sort' => array('set' => 'handleSort'),
+    'asc' => array('set' => 'handleSortAsc'),
+    'desc' => array('set' => 'handleSortDesc'), 
+    // these are the operations map commands...
+    'inc' => array('set' => 'handleAtomic'),
+    'set' => array('set' => 'handleAtomic')
+  );
 
-  function __construct($map_criteria = array()){
+  final public function __construct(){
   
     $command_symbol = ini_get('mongo.cmd');
     if(!empty($command_symbol)){ $this->command_symbol = $command_symbol; }//if
     
-    $this->method_map = array(
-      'in' => array('set' => 'handleList'),
-      'nin' => array('set' => 'handleList'),
-      'is' => array('set' => 'handleIs'), // =
-      'not' => array('set' => 'handleVal'), // !=
-      'gt' => array('set' => 'handleVal'), // >
-      'gte' => array('set' => 'handleVal'), // >=
-      'lt' => array('set' => 'handleVal'), // <
-      'lte' => array('set' => 'handleVal'), // <=
-      'sort' => array('set' => 'handleSort'),
-      'asc' => array('set' => 'handleSortAsc'),
-      'desc' => array('set' => 'handleSortDesc'), 
-      'between' => array('set' => 'handleBetween'),
-      'inc' => array('set' => 'handleAtomic'),
-      'set' => array('set' => 'handleAtomic')
-    );
-    
-    $this->set($map_criteria);
+    $this->start();
     
   }//method
-
+  
   /**
-   *  build a valid criteria map for making a mongo db call, this can be done in
-   *  one of 2 ways, you can put the field in the method, or pass it in as the first
-   *  param...
-   *  
-   *  find any 'foo' row that has 1,2,3,4 in it: $instance->inFoo(1,2,3,4);
-   *  or $instance->in('foo',1,2,3,4);
-   *  
-   *  if you want to find 'foo' using a string: $instance->inField('foo',1,2,3,4)
-   *      
-   *  when you want to get the actual maps, just call {@link get()}                     
+   *  this is here so if this class is extended the developer has a plact to put init code
+   */        
+  protected function start(){}//method
+
+  /** 
+   *  uses the {@link $method_map} to decide how a called method should be handled
+   *  and added to a criteria map.     
+   *     
+   *  For example, find any 'foo' row that has 1,2,3,4 in it: $this->inFoo(1,2,3,4);
+   *  or if you want to find 'foo' using a variable: $foo->inField('foo',1,2,3,4). Check
+   *  the method map for all the method prefixes (commands) you can do, (eg, lt for <, lte for <=)                        
    *
    *  @param  string  $method the method that was called
    *  @param  array $args the params passed into the method
    */
-  function __call($method,$args){
+  public function __call($method,$args){
   
     list($command,$field,$args) = $this->splitMethod($method,$args);
     
@@ -118,21 +149,12 @@ class mingo_criteria extends mingo_base {
   /**
    *  get rid of the internally set criteria maps
    */
-  function reset(){
-    $this->map_criteria = array();
+  public function reset(){
+    $this->map_where = array();
     $this->map_sort = array();
+    $this->map_operations = array();
+    $this->map_bounds = array();
   }//method
-  
-  /**
-   *  get the criterias created in this instance
-   *  
-   *  this returns both the criteria and the sort criteria
-   *  
-   *  @example  list($c,$sort_c) = $mc->get();         
-   *  
-   *  @return array array($criteria,$sort_criteria);            
-   */
-  function get(){ return array($this->map_criteria,$this->map_sort); }//method
   
   /**
    *  return the command symbol
@@ -140,51 +162,54 @@ class mingo_criteria extends mingo_base {
    *  @return string   
    */
   function getCommandSymbol(){ return $this->command_symbol; }//method
-  
-  /**
-   *  convert an array criteria into an instance of this
-   *  
-   *  this method is dangerous because if the structure of your array isn't right
-   *  then it will cause any queries to be made with it to be fubar'ed, so it's best
-   *  to build your queries using this object's methods to ensure the structure of the
-   *  map_criteria is correct.                   
-   *
-   *  @param  array $map_criteria the criteria that should be handled internally
-   */
-  function set($map_criteria){
-    
+
+  public function getWhere(){ return $this->map_where; }//method
+  public function hasWhere(){ return !empty($this->map_where); }//method
+  public function setWhere($map){
     // canary...
-    if(empty($map_criteria)){ $map_criteria = array(); }//if
-    if(!is_array($map_criteria)){ throw new mingo_exception('$map_criteria isn\'t an array'); }//if
-  
-    $this->map_criteria = $map_criteria;
+    if(empty($map)){ $map = array(); }//if
+    if(!is_array($map)){ throw new mingo_exception('$map isn\'t an array'); }//if
     
+    return $this->map_where = $map;
   }//method
   
-  /**
-   *  true if this criteria instance isn't empty
-   *
-   *  @return boolean
-   */
-  function has(){ return !empty($this->map_criteria) || !empty($this->map_sort); }//method
+  public function getSort(){ return $this->map_sort; }//method
+  public function hasSort(){ return !empty($this->map_sort); }//method
+  public function setSort($map){
+    // canary...
+    if(empty($map)){ $map = array(); }//if
+    if(!is_array($map)){ throw new mingo_exception('$map isn\'t an array'); }//if
+    
+    return $this->map_sort = $map;
+  }//method
+  
+  public function getOperations(){ return $this->map_operations; }//method
+  public function hasOperations(){ return !empty($this->map_operations); }//method
+  public function setOperations($map){
+    // canary...
+    if(empty($map)){ $map = array(); }//if
+    if(!is_array($map)){ throw new mingo_exception('$map isn\'t an array'); }//if
+    
+    return $this->map_operations = $map;
+  }//method
   
   /**
    *  set the limit
    *  
    *  @param  integer
    */
-  function setLimit($val){ $this->limit = (int)$val; }//method
-  function getLimit(){ return $this->limit; }//method
-  function hasLimit(){ return !empty($this->limit); }//method
+  public function setLimit($val){ $this->map_bounds['limit'] = (int)$val; }//method
+  public function getLimit(){ return empty($this->map_bounds['limit']) ? 0 : $this->map_bounds['limit']; }//method
+  public function hasLimit(){ return !empty($this->map_bounds['limit']); }//method
   
   /**
    *  set the page that will be used to calculate the offset
    *  
    *  @param  integer
    */
-  function setPage($val){ $this->page = (int)$val; }//method
-  function getPage(){ return $this->page; }//method
-  function hasPage(){ return !empty($this->page); }//method
+  public function setPage($val){ $this->$this->map_bounds['page'] = (int)$val; }//method
+  public function getPage(){ return empty($this->map_bounds['page']) ? 0 : $this->map_bounds['page']; }//method
+  public function hasPage(){ return !empty($this->map_bounds['page']); }//method
   
   /**
    *  takes either 2 values or an array to set the bounds (ie, limit and page) for
@@ -194,7 +219,7 @@ class mingo_criteria extends mingo_base {
    *  @param  integer|array $limit  if an array, then array($limit,$page)
    *  @param  integer $page what page to use
    */
-  function setBounds($limit,$page = 0){
+  public function setBounds($limit,$page = 0){
   
     if(is_array($limit)){
       
@@ -239,6 +264,10 @@ class mingo_criteria extends mingo_base {
     
   }//method
   
+  public function hasBounds(){
+    return empty($this->map_bounds) ? true : (!$this->hasLimit() && !$this->hasPage());
+  }//method
+  
   /**
    *  handle atomic operations
    *  
@@ -256,11 +285,11 @@ class mingo_criteria extends mingo_base {
   
     $command_full = $this->getCommand($command);
   
-    if(!isset($this->map_criteria[$command_full])){
-      $this->map_criteria[$command_full] = array();
+    if(!isset($this->map_operations[$command_full])){
+      $this->map_operations[$command_full] = array();
     }//if
 
-    $this->map_criteria[$command_full][$name] = $args[0];
+    $this->map_operations[$command_full][$name] = $args[0];
     
   }//method
   
@@ -280,7 +309,7 @@ class mingo_criteria extends mingo_base {
       throw new mingo_exception(sprintf('%s must have a high value, only low value given',$command));
     }//if
   
-    $this->map_criteria[$name] = array(
+    $this->map_where[$name] = array(
       $this->getCommand('gte') => $args[0],
       $this->getCommand('lte') => $args[1]
     );
@@ -339,7 +368,7 @@ class mingo_criteria extends mingo_base {
       throw new mingo_exception(sprintf('%s must have a passed in value, none given',$command));
     }//if
   
-    $this->map_criteria[$name] = $args[0];
+    $this->map_where[$name] = $args[0];
   
   }//method
   
@@ -356,11 +385,11 @@ class mingo_criteria extends mingo_base {
       throw new mingo_exception(sprintf('%s must have a passed in value, none given',$command));
     }//if
   
-    if(empty($this->map_criteria[$name])){
-      $this->map_criteria[$name] = array();
+    if(empty($this->map_where[$name])){
+      $this->map_where[$name] = array();
     }//if
     
-    $this->map_criteria[$name][] = $this->getMap($command,$args[0]);
+    $this->map_where[$name][] = $this->getMap($command,$args[0]);
   
   }//method
   
@@ -389,10 +418,9 @@ class mingo_criteria extends mingo_base {
     
     }//foreach
   
-    $this->map_criteria[$name] = $this->getMap($command,$in_list);
+    $this->map_where[$name] = $this->getMap($command,$in_list);
   
   }//method
-  
   
   private function getMap($command,$val){
     $val = $this->normalizeVal($val);

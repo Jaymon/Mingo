@@ -9,16 +9,15 @@
  ******************************************************************************/
 class cli_in
 {
-  const CMD_NONE = 0;
-  const CMD_EXIT = 1;
-  const CMD_SELECT = 2;
-
   protected $input = '';
+  
   protected $is_done = false;
   
   protected $cmd_map = array();
 
   protected $db = null;
+  
+  protected $query_list = array();
 
   /**
    *  hold the stdin resource to get user input
@@ -85,16 +84,44 @@ class cli_in
     
     $input = trim($this->input);
     $timestamp_start = microtime(true); 
+    $matched = array();
+    
+    $this->query_list[] = $input;
     
     // do we have an exit...
     if(preg_match('#^(?:exit|quit)#i',$input)){
     
       throw new cli_stop_exception();
     
-    }else if(preg_match('#^show\s+tables$#i',$input)){
+    }else if(preg_match('#^(?:help|h)$#i',$input)){
+    
+      $ret_mix = array();
+      $ret_mix[] = 'HELP - Brings up this menu';
+      $ret_mix[] = 'SHOW TABLES - show all the available Mingo tables';
+      $ret_mix[] = 'SHOW INDEXES FROM table_name - show all the indexes of "table_name"';
+      $ret_mix[] = 'DROP TABLE table_name - delete "table_name" from Mingo';
+      $ret_mix[] = 'SHOW QUERIES - Show all the queries executed on Mingo during this session.';
+      $ret_mix[] = 'SELECT ... - Follow ANSI SQL guidelines for SELECT queries. No joins are supported!';
+      
+    }else if(preg_match('#^(?:show|get)\s+tables$#i',$input)){
     
       $ret_mix = $this->db->getTables();
       
+    }else if(preg_match('#^(?:show|get)\s+index(?:es)?\s+from\s+(.+)$#i',$input,$matched)){
+    
+      $ret_mix = $this->db->getIndexes($matched[1]);
+      foreach($ret_mix as $key => $map){
+        $ret_mix[$key] = sprintf('[%s]',join(', ',array_keys($map)));
+      }//foreach
+    
+    }else if(preg_match('#^drop\s+table\s+(.+)$#i',$input,$matched)){
+    
+      $ret_mix = $this->db->killTable($matched[1]);
+    
+    }else if(preg_match('#^(?:show|get)\s+queries$#i',$input)){
+    
+      $ret_mix = $this->query_list;
+    
     }else{
     
       ///$this->parseSelect($input);
@@ -214,6 +241,7 @@ class cli_in
     
     }else{
     
+      // this maps the sql symbol to the mingo_orm method that will be used
       $symbol_list = array(
         '=' => 'isField',
         '!=' => 'notField',

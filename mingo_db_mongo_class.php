@@ -453,19 +453,26 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  array|mingo_criteria  $where_map      
    *  @return array array($where_map,$sort_map), the $where_map and $sort_map with values assured
    */
-  protected function getCriteria($where_map){
+  protected function getCriteria($where_criteria){
   
     // canary...
-    if(empty($where_map)){ return array(array(),array()); }//if
-    if(!is_array($where_map) && !is_object($where_map)){
-      throw new mingo_exception('$where_map is not an associative array or mingo_criteria instance');
+    if(empty($where_criteria)){ return array(array(),array()); }//if
+    if(!is_array($where_criteria) && !is_object($where_criteria)){
+      throw new mingo_exception('$where_criteria is not an associative array or mingo_criteria instance');
     }//if
   
-    $sort_map = array();
     
-    if($where_map instanceof mingo_criteria){
-      list($where_map,$sort_map) = $where_map->get();
-    }//if
+    $where_map = $sort_map = array();
+    
+    if($where_criteria instanceof mingo_criteria){
+      $where_map = array_merge(
+        $where_criteria->getOperations(),
+        $where_criteria->getWhere()
+      );
+      $sort_map = $where_criteria->getSort();
+    }else{
+      $where_map = $where_criteria;
+    }//if/else
   
     // assure the _id field is the right type...
     if(isset($where_map['_id'])){
@@ -482,8 +489,8 @@ class mingo_db_mongo extends mingo_db_interface {
           
           // build an in query for all the _ids...
           $c = new mingo_criteria();
-          $c->in_id($where_map['_id']);
-          list($new_where_map) = $c->get();
+          $c->inField(mingo_orm::_ID,$where_map['_id']);
+          list($new_where_map) = $c->getWhere();
           $where_map['_id'] = $new_where_map['_id'];
           
         }else{

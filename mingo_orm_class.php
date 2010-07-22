@@ -12,14 +12,7 @@
  *               using $this->schema->setInc() in the child class's __construct() method
  *    - _id = the unique id of the row, always set for both mongo and sql
  *    - updated = holds a unix timestamp of the last time the row was saved into the db, always set
- *    - created = holds a unix timestamp of when the row was created, always set
- *
- *   
- *  @todo
- *    1 - move limit and page to the schema object? I'm not sure that
- *        would really work because what if there was a field in the db that was named
- *        either "limit" or "page". Plus, having limit and page part of this class makes
- *        hasMore() and getTotal() make more sense  
+ *    - created = holds a unix timestamp of when the row was created, always set  
  *  
  *  @abstract 
  *  @version 0.4
@@ -73,16 +66,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   protected $count = 0;
   
   /**
-   *  holds this class's db access instance
-   *  
-   *  don't touch this object directly in your class (eg, $this->db), instead, always
-   *  get this by using {@link getDb()}   
-   *         
-   *  @var  mingo_db
-   */
-  protected $db = null;
-  
-  /**
    *  the internal representation of the lists that this class represents
    *  @var  array an array with each index having 'modified' and 'map' keys
    */
@@ -126,6 +109,16 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @var  mingo_criteria
    */
   protected $criteria = null;
+  
+  /**
+   *  holds this class's db access instance
+   *  
+   *  you can't touch this object directly in your class (eg, $this->db), instead, always
+   *  get this object by using {@link getDb()}   
+   *         
+   *  @var  mingo_db
+   */
+  private $db = null;
 
   /**
    *  default constructor
@@ -179,10 +172,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   protected function setMore($val){ $this->more = $val; }//method
   protected function getMore(){ return $this->more; }//method
   
-  protected function setTotal($val){ $this->total = $val; }//method
-  public function getTotal(){ return $this->total; }//method
-  public function hasTotal(){ return !empty($this->total); }//method
-  
   public function setDb($db){ $this->db = $db; }//method
   public function hasDb(){ return !empty($this->db); }//method
   
@@ -209,6 +198,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   public function setSchema($schema){ $this->schema = $schema; }//method
   public function getSchema(){ return $this->schema; }//method
   
+  protected function setCriteria($criteria){ $this->criteria = $criteria; }//method
   public function getCriteria(){ return $this->criteria; }//method
   
   public function getTable(){ return $this->table; }//method
@@ -416,6 +406,29 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
   }//method
   
+  protected function setTotal($val){ $this->total = $val; }//method
+  public function getTotal(){ return $this->total; }//method
+  public function hasTotal(){ return !empty($this->total); }//method
+  
+  /**
+   *  load the total number of rows $where_criteria touches
+   *  
+   *  this is like doing a select count(*)... sql query
+   *  
+   *  @param  mingo_criteria  $where_criteria  criteria that will restrict the count
+   *  @return integer the total rows counted
+   */
+  public function loadTotal(mingo_criteria $where_criteria = null){
+    
+    $db = $this->getDb();
+    $this->setTotal(
+      $db->getCount($this->getTable(),$this->schema,$where_criteria,$where_criteria->getBounds())
+    );
+    
+    return $this->getTotal();
+    
+  }//method
+  
   /**
    *  load the contents from the db
    *  
@@ -429,17 +442,17 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *    $instance->load($mc);
    *
    *  @param  mingo_criteria  $where_criteria  criteria for loading db rows into this object
-   *  @param  boolean $set_load_count if true, then {@link getTotal()} will return how many results
+   *  @param  boolean $set_load_total if true, then {@link getTotal()} will return how many results
    *                                  are possible (eg, if you have a limit of 10 but there are 100
    *                                  results matching $where_criteria, getTotal() will return 100      
    *  @return integer how many rows were loaded
    */
-  function load(mingo_criteria $where_criteria = null,$set_load_count = false){
+  function load(mingo_criteria $where_criteria = null,$set_load_total = false){
   
     $ret_int = 0;
     $db = $this->getDb();
     $limit = $offset = $limit_paginate = 0;
-    $this->criteria = $where_criteria;
+    $this->setCriteria($where_criteria);
   
     // figure out what criteria to use on the load...
     if(!empty($where_criteria)){
@@ -471,8 +484,11 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         $this->setMore(true);
         $ret_int--;
         
-        if($set_load_count){
-          $this->setTotal($db->getCount($this->getTable(),$this->schema,$where_criteria));
+        if($set_load_total){
+          $bounds_map = $where_criteria->getBounds();
+          $where_criteria->setBounds(0,0);
+          $this->loadTotal($where_criteria);
+          $where_criteria->setBounds($bounds_map);
         }else{
           $this->setTotal($ret_int);
         }//if/else
@@ -510,7 +526,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *    // load something using $where_criteria:
    *    $mc = new mingo_criteria();
    *    $mc->is_id('4affd9e8da7f000000003645');
-   *    $instance->loadOne($mc);
+   *    $this->loadOne($mc);
    *
    *  @param  mingo_criteria  $where_criteria  criteria for loading db rows into this object      
    *  @return boolean
@@ -524,7 +540,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     $ret_bool = false;
     $db = $this->getDb();
-    $this->criteria = $where_criteria;
+    $this->setCriteria($where_criteria);
   
     // go back to square one...
     $this->reset();
@@ -580,73 +596,76 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   /**
    *  remove all the rows in this instance from the db
    *  
+   *  @param  mingo_criteria  $where_criteria  criteria for deleting db rows   
    *  @return boolean will only return true if all the rows were successfully removed, false otherwise      
    */
-  function kill(){
+  function kill(mingo_criteria $where_criteria = null){
   
     $ret_bool = false;
     $db = $this->getDb();
   
-    if($this->hasField(self::_ID)){
+    if($where_criteria !== null){
     
-      // get all the ids...
-      $where_criteria = new mingo_criteria();
-      $where_criteria->inField(self::_ID,$this->getField(self::_ID));
-      if($db->kill($this->getTable(),$this->schema,$where_criteria)){
-        $this->reset();
-        $ret_bool = true;
-      }//if
-    
+      $ret_bool = $db->kill($this->getTable(),$this->schema,$where_criteria);
+        
     }else{
-    
-      $ret_bool = true;
-    
-      for($i = 0; $i < $this->count ;$i++){
-    
-        $where_criteria = new mingo_criteria();
-    
-        if(isset($this->list[$i]['map']['_id'])){
-        
-          $where_criteria->isField(self::_ID,$this->list[$i]['map']['_id']);
+  
+      if($this->hasField(self::_ID)){
       
-        }else{
-        
-          $where_criteria->set($this->list[$i]['map']);
-        
-        }//if/else
-        
-        // we don't want to accidently delete everything by passing in an empty where...
-        if($where_criteria->has()){
-        
-          if($db->kill($this->getTable(),$this->schema,$where_criteria)){
+        // get all the ids...
+        $where_criteria = new mingo_criteria();
+        $where_criteria->inField(self::_ID,$this->getField(self::_ID));
+        if($db->kill($this->getTable(),$this->schema,$where_criteria)){
+          $this->reset();
+          $ret_bool = true;
+        }//if
+      
+      }else{
+      
+        $ret_bool = true;
+      
+        for($i = 0; $i < $this->count ;$i++){
+      
+          if(isset($this->list[$i]['map']['_id'])){
           
-            unset($this->list[$i]);
-            $this->count--;
-          
+            $where_criteria = new mingo_criteria();
+            $where_criteria->isField(self::_ID,$this->list[$i]['map']['_id']);
+            
+            if($db->kill($this->getTable(),$this->schema,$where_criteria)){
+            
+              unset($this->list[$i]);
+              $this->count--;
+            
+            }else{
+            
+              $ret_bool = false;
+              
+            }//if/else
+        
           }else{
           
             $ret_bool = false;
             
           }//if/else
           
-        }//if
+        }//for
+      
+        if($ret_bool){
         
-      }//for
-      
-      if($ret_bool){
-      
-        // everything was successfully washed...
-        $this->reset();
-      
-      }else{
-      
-        // we had an error, something didn't get killed, compensate for that...
+          // everything was successfully washed...
+          $this->reset();
         
-        // re-do the keys...
-        $this->list = array_values($this->list);
+        }else{
+        
+          // we had an error or something didn't get killed, compensate for that...
+          
+          // re-do the keys...
+          $this->list = array_values($this->list);
+        
+        }//if/else
       
       }//if/else
-    
+      
     }//if/else
   
     return $ret_bool;
@@ -688,6 +707,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     $this->list = array();
     $this->count = 0;
     $this->setMulti(false);
+    $this->setMore(false);
+    $this->setTotal(0);
+    $this->setCriteria(null);
   
   }//method
 

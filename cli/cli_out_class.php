@@ -94,10 +94,11 @@ class cli_out
     }//if/else
     
     echo sprintf(
-      '%s %s in set (%s)%s',
+      '%s %s in set (%s)%s%s',
       $count,
       (($count > 1) || ($count < 1)) ? 'rows' : 'row',
       $this->handleRounding($this->timestamp_stop,$this->timestamp_start),
+      PHP_EOL,
       PHP_EOL
     );
     

@@ -239,8 +239,8 @@ class mingo_db {
     if(empty($where_criteria)){
       throw new mingo_exception('no $where_criteria specified');
     }else{
-      if(!$where_criteria->has()){
-        throw new mingo_exception('aborting delete because $where_criteria was empty');
+      if(!$where_criteria->hasWhere()){
+        throw new mingo_exception('aborting delete because $where_criteria had no where clause');
       }//if
     }//if/else
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
@@ -283,6 +283,14 @@ class mingo_db {
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if(!$this->isConnected()){ throw new mingo_exception('no db connection, please call connect()'); }//if
+    if(!empty($where_criteria)){
+      if(!$where_criteria->hasWhere() && $where_criteria->hasOperations()){
+        throw new mingo_exception(
+          '$where_criteria does not have a where clause but does have an operations criteria, '
+          .'that means you most likely used setField(...) when you meant isField(...)'
+        );
+      }//if
+    }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_list = array();
@@ -323,6 +331,14 @@ class mingo_db {
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if(!$this->isConnected()){ throw new mingo_exception('no db connection, please call connect()'); }//if
+    if(!empty($where_criteria)){
+      if(!$where_criteria->hasWhere() && $where_criteria->hasOperations()){
+        throw new mingo_exception(
+          '$where_criteria does not have a where clause but does have an operations criteria, '
+          .'that means you most likely used setField(...) when you meant isField(...)'
+        );
+      }//if
+    }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_map = array();
@@ -364,6 +380,14 @@ class mingo_db {
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if(!$this->isConnected()){ throw new mingo_exception('no db connection, please call connect()'); }//if
+    if(!empty($where_criteria)){
+      if(!$where_criteria->hasWhere() && $where_criteria->hasOperations()){
+        throw new mingo_exception(
+          '$where_criteria does not have a where clause but does have an operations criteria, '
+          .'that means you most likely used setField(...) when you meant isField(...)'
+        );
+      }//if
+    }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_int = 0;
@@ -410,6 +434,37 @@ class mingo_db {
     if(empty($schema)){ throw new mingo_exception('no $schema specified'); }//if
     if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
     if($this->hasDebug()){ $this->setTable($table,$schema); }//if
+  
+    // check required fields...
+    $req_field_list = array();
+    foreach($schema->getRequiredFields() as $req_field_name => $req_field_val){
+    
+      if(!array_key_exists($req_field_name,$map)){
+      
+        if($req_field_val !== null){
+        
+          $map[$req_field_name] = $req_field_val;
+          
+        }else{
+        
+          $req_field_list[] = $req_field_name;
+          
+        }//if/else
+      
+      }//if
+    
+    }//foreach
+    
+    if(!empty($req_field_list)){
+    
+      throw new DomainException(
+        sprintf(
+          'cannot set() because $map is missing required field(s): [%s]',
+          join(', ',$req_field_list)
+        )
+      );
+      
+    }//if
   
     if(empty($map['_id'])){
     

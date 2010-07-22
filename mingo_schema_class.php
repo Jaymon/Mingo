@@ -27,12 +27,20 @@ class mingo_schema extends mingo_base {
   protected $index_map = array();
   
   /**
+   *  used to set fields that should be there when the db is set
+   *     
+   *  @see  requireField()
+   *  @var  array()   
+   */        
+  protected $require_map = array();
+  
+  /**
    *  set using {@link setInc()} if you want the table to have an auto-increment field
    *  @var  array
    */        
   protected $inc_map = array();
 
-  function __construct($table){
+  public function __construct($table){
   
     $this->table = $table;
   
@@ -49,12 +57,12 @@ class mingo_schema extends mingo_base {
    *                              of either 1 (ASC) or -1 (DESC)
    *  @return boolean   
    */
-  function setIndex(){
+  public function setIndex(){
   
     $args = func_get_args();
     
     // canary...
-    if(empty($args)){ throw new mingo_exception('no fields specified for the index'); }//if
+    if(empty($args)){ throw new InvalidArgumentException('no fields specified for the index'); }//if
     
     if(is_array($args[0])){
     
@@ -86,7 +94,7 @@ class mingo_schema extends mingo_base {
       
         $field = $this->normalizeField($field);
         if($field === '_id'){
-          throw new mingo_exception('a table index cannot include the _id field');
+          throw new UnexpectedValueException('a table index cannot include the _id field');
         }//if
       
         $this->index_map[$index_name][$field] = self::INDEX_ASC;
@@ -103,8 +111,8 @@ class mingo_schema extends mingo_base {
    *     
    *  @return array
    */
-  function getIndex(){ return $this->index_map; }//method
-  function hasIndex(){ return !empty($this->index_map); }//method
+  public function getIndex(){ return $this->index_map; }//method
+  public function hasIndex(){ return !empty($this->index_map); }//method
   
   /**
    *  pass in true if this table should have an auto_increment field, if called, then
@@ -112,14 +120,35 @@ class mingo_schema extends mingo_base {
    *  
    *  @param  integer $start_count  if you want to start the field at something other than 0   
    */
-  function setInc($start_count = 0){
+  public function setInc($start_count = 0){
     $this->inc_map['field'] = 'row_id';
     $this->inc_map['start'] = $start_count;
   }//method
-  function hasInc(){ return !empty($this->inc_map); }//method
-  function getInc(){ return $this->inc_map; }//method
-  function getIncField(){ return isset($this->inc_map['field']) ? $this->inc_map['field'] : ''; }//method
-  function getIncStart(){ return isset($this->inc_map['start']) ? $this->inc_map['start'] : 0; }//method
+  public function hasInc(){ return !empty($this->inc_map); }//method
+  public function getInc(){ return $this->inc_map; }//method
+  public function getIncField(){ return isset($this->inc_map['field']) ? $this->inc_map['field'] : ''; }//method
+  public function getIncStart(){ return isset($this->inc_map['start']) ? $this->inc_map['start'] : 0; }//method
 
+  /**
+   *  set a required field
+   *  
+   *  @param  string  $name the field name
+   *  @param  mixed $default_val  if something other than null then that value will be put into the field
+   *                              and an error won't be thrown if the field isn't there      
+   */
+  public function requireField($name,$default_val = null){
+  
+    // canary...
+    if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
+    $this->required_map[$this->normalizeField($name)] = $default_val;
+    
+  }//method
+  
+  /**
+   *  return the required fields
+   *  
+   *  @return array
+   */
+  public function getRequiredFields(){ return $this->required_map; }//method
 
 }//class     

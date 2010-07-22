@@ -239,19 +239,63 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $ret_list = array();
     $id_list = array();
     $order_map = array();
+    $list = array();
     $sort_query = '';
-    $run_main_query = true;
     
-    if(($where_criteria instanceof mingo_criteria) && $where_criteria->has()){
+    if(($where_criteria instanceof mingo_criteria) && ($where_criteria->hasWhere() || $where_criteria->hasSort())){
       
       // first get the criteria info...
-      list($where_map,$sort_map) = $where_criteria->get();
+      $where_map = $where_criteria->getWhere();
+      $sort_map = $where_criteria->getSort();
+      
       list($where_query,$val_list,$sort_query) = $this->getCriteria($where_criteria);
       
       // now, find the right index table to select from...
       $index_table = $this->getIndexTable($table,$where_criteria,$schema);
-
-      if(!empty($index_table)){
+      
+      if(empty($index_table)){
+        
+        $is_valid = empty($where_map) 
+          || ((count($where_map) === 1) && (isset($where_map['_id']) || isset($where_map['row_id'])));
+        
+        if($is_valid){
+        
+          if(!empty($sort_map) && ((count($sort_map) > 1) || !isset($sort_map['row_id']))){
+            throw new mingo_exception(
+              'you can only sort by "row_id" when selecting on nothing, "_id," or "row_id"'
+            );
+          }//if
+        
+          if(isset($where_map['_id'])){
+            
+            // it is a _id query, so the only sort can be row_id...
+            $id_list = $val_list;
+            
+          }else{
+          
+            // you can directly select on the table using "row_id" also...
+            $query = $this->getSelectQuery(
+              $table,
+              '*',
+              $where_query,
+              $sort_query,
+              $limit
+            );
+            
+            $list = $this->getQuery($query,$val_list);
+            $sort_query = '';
+          
+          }//if/else
+          
+        }else{
+        
+          throw new mingo_exception(
+            sprintf('could not match fields: [%s] with an index table',join(',',array_keys($where_map)))
+          );
+        
+        }//if/else
+         
+      }else{
         
         $query = $this->getSelectQuery(
           $index_table,
@@ -260,14 +304,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
           $sort_query,
           $limit
         );
+        
         $row_list = $this->getQuery($query,$val_list);
         $sort_query = ''; // clear it so it isn't used in the second query
         
-        if(empty($row_list)){
-        
-          $run_main_query = false;
-        
-        }else{
+        if(!empty($row_list)){
           
           // build the id list...
           foreach($row_list as $key => $row){
@@ -278,32 +319,24 @@ abstract class mingo_db_sql extends mingo_db_interface {
           }//foreach
           
         }//if
-         
-      }else{
-        
-        if((count($where_map) === 1) && isset($where_map['_id'])){
-          
-          // it is a _id query, so the only sort can be row_id...
-          $id_list = $val_list;
-          if(!empty($sort_map) && ((count($sort_map) > 1) || !isset($sort_map['row_id']))){
-            throw new mingo_exception(
-              sprintf('you can only sort by "row_id" when directly selecting on table: %s',$table)
-            );
-          }//if
-          
-        }else{
-        
-          throw new mingo_exception(
-            sprintf('could not match fields: [%s] with an index table',join(',',array_keys($where_map)))
-          );
-        
-        }//if/else
       
       }//if/else
       
-    }//if
+    }else{
     
-    if($run_main_query){
+      // we're selecting raw, so just load results with no WHERE...
+      $query = $this->getSelectQuery(
+        $table,
+        '*',
+        '',
+        '',
+        $limit
+      );
+      $list = $this->getQuery($query,array());
+    
+    }//if/else
+    
+    if(!empty($id_list)){
       
       $query = $this->getSelectQuery(
         $table,
@@ -314,6 +347,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
       );
       
       $list = $this->getQuery($query,$id_list);
+      
+    }//if
+    
+    if(!empty($list)){
+    
       foreach($list as $map){
       
         $ret_map = $this->getMap($map['body']);
@@ -339,7 +377,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
       if(!empty($order_map)){
         ksort($ret_list);
       }//if
-      
+    
     }//if
 
     return $ret_list;
@@ -375,36 +413,20 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $ret_int = 0;
     $result = array();
     
-    if(($where_criteria instanceof mingo_criteria) && $where_criteria->has()){
+    if(($where_criteria instanceof mingo_criteria) && $where_criteria->hasWhere()){
       
-      // first get the maps...
-      list($where_map,$sort_map) = $where_criteria->get();
+      $where_map = $where_criteria->getWhere();
+      
       list($where_query,$val_list,$sort_query) = $this->getCriteria($where_criteria);
       $index_table = $this->getIndexTable($table,$where_criteria,$schema);
 
-      if(!empty($index_table)){
+      if(empty($index_table)){
+    
+        $is_valid = empty($where_map) 
+          || ((count($where_map) === 1) && (isset($where_map['_id']) || isset($where_map['row_id'])));
         
-        $query = $this->getSelectQuery($index_table,'count(*)',$where_query,'',$limit);
-        $result = $this->getQuery($query,$val_list);
+        if($is_valid){
         
-      }else{
-      
-        if((count($where_map) === 1) && isset($where_map['_id'])){
-          
-          $where_query = '';
-          if(is_array($where_map['_id'])){
-          
-            $where_query = sprintf(
-              'WHERE _id IN (%s)',
-              join(',',array_fill(0,count($where_map['_id']),'?'))
-            );
-            
-          }else{
-          
-            $where_query = 'WHERE _id=?';
-          
-          }//if/else
-          
           $query = $this->getSelectQuery($table,'count(*)',$where_query,'',$limit);
           $result = $this->getQuery($query,$val_list);
           
@@ -415,7 +437,12 @@ abstract class mingo_db_sql extends mingo_db_interface {
           );
         
         }//if/else
-      
+        
+      }else{
+        
+        $query = $this->getSelectQuery($index_table,'count(*)',$where_query,'',$limit);
+        $result = $this->getQuery($query,$val_list);
+        
       }//if/else
       
     }//if
@@ -727,8 +754,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
             row_id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
             _id VARCHAR(24) NOT NULL,
             body LONGBLOB,
-            UNIQUE KEY (_id),
-            KEY (_id)
+            UNIQUE KEY (_id)
         ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
         
         $ret_bool = $this->getQuery($query);
@@ -941,21 +967,50 @@ abstract class mingo_db_sql extends mingo_db_interface {
       
         $query = sprintf('SHOW INDEX FROM %s',$table_name);
         $index_list = $this->getQuery($query);
-        $ret_map = array();
-        foreach($index_list as $index_map){
         
-          if($index_map['Seq_in_index'] == 1){
+        $ret_map = array();
+        $table_index_list = array();
+        $last_i = count($index_list) - 1;
+        
+        foreach($index_list as $i => $index_map){
+        
+          if($index_map['Seq_in_index'] > 1){
           
-            if(!empty($ret_map)){
+            $ret_map[$index_map['Column_name']] = 1;
+            
+          }else{
+          
+            $ret_map = array();
+            $ret_map[$index_map['Column_name']] = 1;
+          
+          }//if/else
+          
+          $next_i = $i + 1;
+          $have_index = ($next_i > $last_i) || ($index_list[$next_i]['Seq_in_index'] == 1);
+          if($have_index){
+          
+            // all this is to account for duplicate indexes but also for different tables (ie,
+            // tables might have the same index (eg, _id), but we don't want to include
+            // any duplicate index more than once, since multiple tables might have the same
+            // duplicate indexes)...
+            $table_index_list[] = $ret_map;
+            $keys = array_keys($table_index_list,$ret_map,true);
+            if(empty($keys) || (count($keys) != 2)){
               if(!in_array($ret_map,$ret_list,true)){
                 $ret_list[] = $ret_map;
               }//if
-              $ret_map = array();
-            }//if
-          
-          }//if
-          
-          $ret_map[$index_map['Column_name']] = 1;
+            }else{
+              $keys = array_keys($ret_list,$ret_map,true);
+              if(count($keys) < 2){
+                $ret_list[] = $ret_map;
+              }//if
+            }//if/else
+            
+            $ret_map = array();
+              
+          }else{
+            $ret_map[$index_map['Column_name']] = 1;
+          }//if/else
         
         }//foreach
         
@@ -1136,8 +1191,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
     $ret_str = '';
   
-    // we're interested in the where part of the criteria...
-    list($where_map,$sort_map) = $where_criteria->get();
+    $where_map = $where_criteria->getWhere();
+    $sort_map = $where_criteria->getSort();
     
     $field_list = array_keys($where_map);
     if(empty($field_list) && !empty($sort_map)){ $field_list = array_keys($sort_map); }//if
@@ -1309,7 +1364,10 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
     $ret_where = $ret_sort = '';
   
-    list($criteria_where,$criteria_sort) = $where_criteria->get();
+    $criteria_where = $where_criteria->getWhere();
+    $criteria_sort = $where_criteria->getSort();
+    
+    
     $command_symbol = $where_criteria->getCommandSymbol();
   
     foreach($criteria_where as $name => $map){
