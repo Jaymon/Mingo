@@ -18,8 +18,9 @@ class cli
       // do some hackish stuff to decide if the first argv needs to be stripped...
       $bt = debug_backtrace();
       if(!empty($bt[0]['file'])){
-        $file = basename($bt[0]['file']);
-        if($argv[0] == $file){
+        $file_path = $bt[0]['file'];
+        $file_name = basename($bt[0]['file']);
+        if(($argv[0] == $file_path) || ($argv[0] == $file_name)){
           $argv = array_slice($argv,1);
         }//if
       }//if
