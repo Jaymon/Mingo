@@ -32,7 +32,7 @@ class mingo_schema extends mingo_base {
    *  @see  requireField()
    *  @var  array()   
    */        
-  protected $require_map = array();
+  protected $required_map = array();
   
   /**
    *  set using {@link setInc()} if you want the table to have an auto-increment field

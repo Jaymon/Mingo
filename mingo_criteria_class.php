@@ -207,7 +207,7 @@ class mingo_criteria extends mingo_base {
    *  
    *  @param  integer
    */
-  public function setPage($val){ $this->$this->map_bounds['page'] = (int)$val; }//method
+  public function setPage($val){ $this->map_bounds['page'] = (int)$val; }//method
   public function getPage(){ return empty($this->map_bounds['page']) ? 0 : $this->map_bounds['page']; }//method
   public function hasPage(){ return !empty($this->map_bounds['page']); }//method
   
