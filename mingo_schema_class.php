@@ -52,9 +52,10 @@ class mingo_schema extends mingo_base {
    *  @param  string|array  $field,...
    *                          1 - pass in a bunch of strings, each one representing
    *                              a field name: setIndex('field_1','field_2',...);
-   *                          2 - pass in one array with this structure: array('field_name' => direction,...)
-   *                              where the field's name is the key and the value is an int direction
-   *                              of either 1 (ASC) or -1 (DESC)
+   *                          2 - pass in an array with this structure: array('field_name' => direction,...)
+   *                              where the field's name is the key and the value is usually a direction
+   *                              of either 1 (ASC) or -1 (DESC), or some other direction that the chosen 
+   *                              interface can accept   
    *  @return boolean   
    */
   public function setIndex(){
@@ -64,43 +65,40 @@ class mingo_schema extends mingo_base {
     // canary...
     if(empty($args)){ throw new InvalidArgumentException('no fields specified for the index'); }//if
     
-    if(is_array($args[0])){
+    $field_list = array();
+    $index_map = array();
     
-      $field_list = array();
-      $index_map = array();
-      foreach($args[0] as $field => $direction){
+    foreach($args as $field){
+    
+      if(is_array($field)){
+      
+        foreach($field as $field_name => $direction){
+        
+          $field_name = $this->normalizeField($field_name);
+          $index_map[$field_name] = $direction;
+          $field_list[] = $field_name;
+        
+        }//foreach
+      
+      }else{
       
         $field = $this->normalizeField($field);
-        $index_map[$field] = ($direction >= 0) ? self::INDEX_ASC : self::INDEX_DESC;
+        $index_map[$field] = self::INDEX_ASC;
         $field_list[] = $field;
       
-      }//foreach
+      }//if/else
     
-      if(!empty($index_map)){
-      
-        // index is in the form: array('field_name' => direction,...)
-        $index_name = sprintf('i%s',md5(join(',',$field_list)));
-        $this->index_map[$index_name] = $index_map;
-        
-      }//if
-      
-    }else{
-      
-      // save the index...
-      $index_name = sprintf('i%s',md5(join(',',$args)));
-      $this->index_map[$index_name] = array();
-      
-      foreach($args as $field){
-      
-        $field = $this->normalizeField($field);
-        if($field === '_id'){
-          throw new UnexpectedValueException('a table index cannot include the _id field');
-        }//if
-      
-        $this->index_map[$index_name][$field] = self::INDEX_ASC;
-      }//foreach
-      
-    }//if/else
+    }//foreach
+    
+    // canary...
+    if(isset($index_map[mingo_orm::_ID])){
+      throw new UnexpectedValueException(
+        sprintf('a table index cannot include the %s field',mingo_orm::_ID)
+      );
+    }//if
+    
+    $index_name = sprintf('i%s',md5(join(',',$field_list)));
+    $this->index_map[$index_name] = $index_map;
     
     return true;
   

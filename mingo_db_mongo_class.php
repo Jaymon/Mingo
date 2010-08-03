@@ -33,7 +33,7 @@ class mingo_db_mongo extends mingo_db_interface {
   /**
    *  connect to the mongo db
    *    
-   *  @param  string  $db the db to use
+   *  @param  string  $db_name  the db to use
    *  @param  string  $host the host to use. if you want a specific port, 
    *                        attach it to host (eg, localhost:27017 or example.com:27017)            
    *  @param  string  $username the username to use
@@ -41,9 +41,14 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($db,$host,$username,$password){
+  function connect($db_name,$host,$username,$password){
     
     if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
+    
+    $this->con_map['db_name'] = $db_name;
+    $this->con_map['host'] = $host;
+    $this->con_map['username'] = $username;
+    $this->con_map['password'] = $password;
     
     try{
       
@@ -70,7 +75,7 @@ class mingo_db_mongo extends mingo_db_interface {
     
     // load up the inc info table...
     $this->inc_map['table'] = sprintf('%s_inc',__CLASS__);
-    $this->inc_map['map'] = $this->getOne($this->inc_map['table']);
+    $this->inc_map['map'] = $this->getOne($this->inc_map['table'],new mingo_schema($this->inc_map['table']));
     
     return $this->con_map['connected'];
   
@@ -87,7 +92,7 @@ class mingo_db_mongo extends mingo_db_interface {
   function getTables($table = ''){
   
     $ret_list = array();
-    $db_name = sprintf('%s.',$this->getDb());
+    $db_name = sprintf('%s.',$this->con_map['db_name']);
   
     $table_list = $this->con_db->listCollections();
     foreach($table_list as $table){
@@ -405,7 +410,8 @@ class mingo_db_mongo extends mingo_db_interface {
       
         foreach($schema->getIndex() as $index_map){
         
-          $this->setIndex($$table,$index_map);
+          $this->setIndex($table,$index_map);
+          
         
         }//foreach
       
@@ -430,6 +436,12 @@ class mingo_db_mongo extends mingo_db_interface {
     return in_array($table,$table_list,true);
     
   }//method
+  
+  /**
+   *  this doesn't do anything except return false since Mongo pretty much adds tables and
+   *  indexes if they don't already exist. It's needed for interface compatibility though
+   */
+  public function handleException(Exception $e,$table,mingo_schema $schema){ return false; }//method
   
   /**
    *  this loads the table so operations can be performed on it
@@ -505,12 +517,6 @@ class mingo_db_mongo extends mingo_db_interface {
     return array($where_map,$sort_map);
       
   }//method
-  
-  /**
-   *  this doesn't do anything except return false since Mongo pretty much adds tables and
-   *  indexes if they don't already exist. It's needed for interface compatibility though
-   */
-  protected function handleException(Exception $e,$table,mingo_schema $schema){ return false; }//method
   
   /**
    *  set up an auto increment field for a table

@@ -32,10 +32,10 @@ class mingo_db {
    */
   private static $instance = null;
   
-  function __construct($db_interface = '',$db = '',$host = '',$username = '',$password = ''){
+  function __construct($db_interface = '',$db_name = '',$host = '',$username = '',$password = ''){
   
     $this->setInterface($db_interface);
-    $this->setDb($db);
+    $this->setDbName($db_name);
     $this->setHost($host);
     
     $this->setUsername($username);
@@ -47,7 +47,7 @@ class mingo_db {
    *  connect to the db
    *  
    *  @param  string $db_interface  the name of the class that extends mingo_db_interface that will be used   
-   *  @param  string  $db the db to use, defaults to {@link getDb()}
+   *  @param  string  $db_name  the db to use, defaults to {@link getDbName()}
    *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
    *                        port, attach it to host (eg, localhost:27017 or example.com:27017)            
    *  @param  string  $username the username to use, defaults to {@link getUsername()}
@@ -55,7 +55,7 @@ class mingo_db {
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($db_interface = '',$db = '',$host = '',$username = '',$password = ''){
+  function connect($db_interface = '',$db_name = '',$host = '',$username = '',$password = ''){
   
     // set all the connection variables...
     if(empty($db_interface)){
@@ -70,14 +70,14 @@ class mingo_db {
       $this->setInterface($db_interface);
     }//if/else
     
-    if(empty($db)){
-      if($this->hasDb()){
-        $db = $this->getDb();
+    if(empty($db_name)){
+      if($this->hasDbName()){
+        $db_name = $this->getDbName();
       }else{
-        throw new mingo_exception('no $db specified');
+        throw new mingo_exception('no $db_name specified');
       }//if/else
     }else{
-      $this->setDb($db);
+      $this->setDbName($db_name);
     }//if/else
     
     if(empty($host)){
@@ -135,7 +135,7 @@ class mingo_db {
       
       // actually connect to the db...
       $this->con_map['connected'] = $this->con_db->connect(
-        $db,
+        $db_name,
         $host,
         $username,
         $password
@@ -167,7 +167,7 @@ class mingo_db {
           join(',',$con_map_msg)
         );
         
-        $e = new mingo_exception(join("\r\n",$e_msg),$e->getCode(),$e);
+        $e = new mingo_exception(join(PHP_EOL,$e_msg),$e->getCode(),$e);
         
       }//if
     
@@ -193,14 +193,21 @@ class mingo_db {
     return self::$instance;
   }//method
 
+  /**
+   *  get the interface instance that this class created when {@link connect()} was called
+   *  
+   *  @return mingo_db_interface
+   */
+  function getDb(){ return $this->con_db; }//method
+
   function setInterface($val){ $this->con_map['interface'] = $val; }//method
   function getInterface(){ return $this->hasInterface() ? $this->con_map['interface'] : ''; }//method
   function hasInterface(){ return !empty($this->con_map['interface']); }//method
   function isInterface($val){ return ((string)$this->getInterface() === (string)$val); }//method
   
-  function setDb($val){ $this->con_map['db'] = $val; }//method
-  function getDb(){ return $this->hasDb() ? $this->con_map['db'] : ''; }//method
-  function hasDb(){ return !empty($this->con_map['db']); }//method
+  function setDbName($val){ $this->con_map['db_name'] = $val; }//method
+  function getDbHame(){ return $this->hasDbName() ? $this->con_map['db_name'] : ''; }//method
+  function hasDbName(){ return !empty($this->con_map['db_name']); }//method
 
   function setHost($val){ $this->con_map['host'] = $val; }//method
   function getHost(){ return $this->hasHost() ? $this->con_map['host'] : ''; }//method

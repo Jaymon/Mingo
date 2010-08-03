@@ -70,15 +70,15 @@ abstract class mingo_db_interface {
    *  connect to the db
    *  
    *  @param  integer $type one of the self::TYPE_* constants   
-   *  @param  string  $db the db to use, defaults to {@link getDb()}
-   *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
-   *                        port, attach it to host (eg, localhost:27017 or example.com:27017)            
-   *  @param  string  $username the username to use, defaults to {@link getUsername()}
-   *  @param  string  $password the password to use, defaults to {@link getPassword()}   
+   *  @param  string  $db_name  the db to use
+   *  @param  string  $host the host to use. If you want a specific port, attach it to 
+   *                        host (eg, localhost:27017 or example.com:27017)            
+   *  @param  string  $username the username to use
+   *  @param  string  $password the password to use
    *  @return boolean
    *  @throws mingo_exception   
    */
-  abstract public function connect($db,$host,$username,$password);
+  abstract public function connect($db_name,$host,$username,$password);
   
   /**
    *  delete the records that match $where_criteria in $table

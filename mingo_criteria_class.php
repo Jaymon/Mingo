@@ -389,7 +389,7 @@ class mingo_criteria extends mingo_base {
       $this->map_where[$name] = array();
     }//if
     
-    $this->map_where[$name][] = $this->getMap($command,$args[0]);
+    $this->map_where[$name] = $this->getMap($command,$args[0]);
   
   }//method
   

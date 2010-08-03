@@ -322,8 +322,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     $ret_bool = true;
     $now = time();
     $db = $this->getDb();
-    
-    
+
     foreach(array_keys($this->list) as $key){
     
       // only try and save if it has changes...
@@ -1074,8 +1073,24 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @return the names of all the variables that should be serialized      
    */
   function __sleep(){
+    
     $this->setDb(null);
-    return array_keys(get_object_vars($this));
+    
+    $object_var_map = get_object_vars($this);
+    
+    // get rid of any private variables since if you serialize the child it can't see them...
+    // that's what ""db" returned as member variable from __sleep() but does not exist" warnings
+    // are
+    $reflection_this = new ReflectionClass(__CLASS__);
+    $private_property_list = $reflection_this->getProperties(ReflectionProperty::IS_PRIVATE);
+    foreach($private_property_list as $property){
+      unset($object_var_map[$property->getName()]);
+    }//foreach
+    
+    unset($object_var_map['db']);
+    
+    return array_keys($object_var_map);
+    
   }//method
   
   /**

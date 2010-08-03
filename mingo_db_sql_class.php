@@ -67,14 +67,14 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  connect to the db
    *  
    *  @param  integer $type one of the self::TYPE_* constants   
-   *  @param  string  $db the db to use
+   *  @param  string  $db_name  the db to use
    *  @param  string  $host the host to use               
    *  @param  string  $username the username to use
    *  @param  string  $password the password to use   
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($db,$host,$username,$password){
+  function connect($db_name,$host,$username,$password){
 
     $this->con_map['pdo_options'] = array(
       PDO::ERRMODE_EXCEPTION => true,
@@ -89,13 +89,13 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
       if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
       
-      $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db,self::CHARSET);
+      $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db_name,self::CHARSET);
       // http://stackoverflow.com/questions/1566602/is-set-character-set-utf8-necessary
       $query_charset = sprintf('SET NAMES %s',self::CHARSET); // another: 'SET CHARACTER SET UTF8';
     
     }else if($this->isSqlite()){
     
-      $dsn = sprintf('sqlite:%s',$db);
+      $dsn = sprintf('sqlite:%s',$db_name);
       
       // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html only good on db creation
       // http://stackoverflow.com/questions/263056/how-to-change-character-encoding-of-a-pdo-sqlite-connection-in-php
@@ -305,20 +305,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
           $limit
         );
         
-        $row_list = $this->getQuery($query,$val_list);
         $sort_query = ''; // clear it so it isn't used in the second query
         
-        if(!empty($row_list)){
-          
-          // build the id list...
-          foreach($row_list as $key => $row){
-            if(isset($row['_id'])){
-              $order_map[$row['_id']] = $key;
-              $id_list[] = $row['_id'];
-            }//if
-          }//foreach
-          
-        }//if
+        $stmt_handler = $this->getStatement($query,$val_list);
+        $id_list = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
+        if(!empty($id_list)){ $order_map = array_flip($id_list); }//if
       
       }//if/else
       
@@ -329,7 +320,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         $table,
         '*',
         '',
-        '',
+        $sort_query,
         $limit
       );
       $list = $this->getQuery($query,array());
@@ -865,17 +856,50 @@ abstract class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
-   *  prepares and executes the query and returns the result
+   *  executes the query and returns the result
+   *     
+   *  @see  getStatement()   
    *  @param  string  $query  the query to prepare and run
    *  @param  array $val_list the values list for the query, if the query has ?'s then 
-   *                          the values should be in this array
-   *  @param  mingo_schema  $schema the table schema, this doesn't need to be passed in
-   *                                but might help if an error is encountered           
+   *                          the values should be in this array           
    *  @return mixed array of results if select query, last id if insert, update
    */
-  function getQuery($query,$val_list = array(),mingo_schema $schema = null){
+  function getQuery($query,$val_list = array()){
   
     $ret_mixed = false;
+  
+    // prepare the statement and run the query...
+    // http://us2.php.net/manual/en/function.PDO-prepare.php
+    $stmt_handler = $this->getStatement($query,$val_list);
+
+    if(preg_match('#^(?:select|show|pragma)#iu',$query)){
+
+      // certain queries should always return an array...
+      $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
+      
+    }else{
+    
+      // all other queries should return whether they were successful, which if no
+      // exception was thrown, they were...
+      $ret_mixed = true;
+      
+    }//if/else
+    
+    $stmt_handler->closeCursor();
+
+    return $ret_mixed;
+  
+  }//method
+  
+  /**
+   *  prepares and executes the query and returns the PDOStatement instance
+   *  
+   *  @param  string  $query  the query to prepare and run
+   *  @param  array $val_list the values list for the query, if the query has ?'s then 
+   *                          the values should be in this array      
+   *  @return PDOStatement
+   */
+  public function getStatement($query,$val_list = array()){
   
     $query = trim($query);
   
@@ -901,23 +925,17 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
     // execute the query...
     $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
-    if($is_success){
 
-      if(preg_match('#^(?:select|show|pragma)#iu',$query)){
-
-        // a select statement should always return an array...
-        $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
-        
-      }else{
-      
-        // all other queries should return whether they were successful...
-        $ret_mixed = $is_success;
-        
-      }//if/else
-      
-    }else{
+    if(!$is_success){
     
       $err_map = $stmt_handler->errorInfo();
+      
+      $stmt_handler->closeCursor();
+      
+      // we use the string version of the error code ($err_map[0]) because that is 
+      // what handleException expects because that is what a PDOException would have
+      // but we can't use PDOException because it won't take a string for the code,
+      // no idea why PHP gets away with that natively 
       throw new mingo_exception(
         sprintf('query "%s" failed execution with error: %s',
           $query,
@@ -925,10 +943,10 @@ abstract class mingo_db_sql extends mingo_db_interface {
         ),
         $err_map[0]
       );
-      
-    }//if/else
-
-    return $ret_mixed;
+    
+    }//if
+  
+    return $stmt_handler;
   
   }//method
   
