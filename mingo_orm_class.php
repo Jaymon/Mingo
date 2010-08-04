@@ -20,7 +20,7 @@
  *  @since 11-14-09
  *  @package mingo 
  ******************************************************************************/
-abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable {
+abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Countable,Serializable {
 
   /**
    *  every row that has, or will be, saved into the db will carry an _id
@@ -1065,31 +1065,42 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  close the db connection so we don't run afoul of anything when serializing this
    *  class   
    *  
-   *  http://www.php.net/manual/en/language.oop5.magic.php#language.oop5.magic.sleep
+   *  @note if your child class has private variables it will have to overload this
+   *        method to save those private variables, just keep that in mind   
+   *      
+   *  required method for Serializable interface, I chose this over __sleep() because
+   *  I was having a private variable problem.   
+   *      
+   *  http://www.php.net/manual/en/class.serializable.php   
    *  
-   *  @note if this method isn't good enough, try the serializable interface:
-   *    http://www.php.net/manual/en/class.serializable.php   
-   *  
-   *  @return the names of all the variables that should be serialized      
+   *  @return the properties of this class serialized      
    */
-  function __sleep(){
-    
+  public function serialize(){
+  
     $this->setDb(null);
+    $property_map = get_object_vars($this);
+    return serialize($property_map);
+  
+  }//method
+  
+  /**
+   *  unserialize and restore property values
+   *
+   *  @note if your child class has private variables it will have to overload this
+   *        method to restore those private variables   
+   *      
+   *  required method for Serializable interface:
+   *  http://www.php.net/manual/en/class.serializable.php   
+   */
+  public function unserialize($serialized){
+  
+    $property_map = unserialize($serialized);
     
-    $object_var_map = get_object_vars($this);
+    foreach($property_map as $property_name => $property_val){
     
-    // get rid of any private variables since if you serialize the child it can't see them...
-    // that's what ""db" returned as member variable from __sleep() but does not exist" warnings
-    // are
-    $reflection_this = new ReflectionClass(__CLASS__);
-    $private_property_list = $reflection_this->getProperties(ReflectionProperty::IS_PRIVATE);
-    foreach($private_property_list as $property){
-      unset($object_var_map[$property->getName()]);
+      $this->{$property_name} = $property_val;
+    
     }//foreach
-    
-    unset($object_var_map['db']);
-    
-    return array_keys($object_var_map);
     
   }//method
   

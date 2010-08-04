@@ -265,7 +265,7 @@ class mingo_criteria extends mingo_base {
   }//method
   
   public function hasBounds(){
-    return empty($this->map_bounds) ? true : (!$this->hasLimit() && !$this->hasPage());
+    return !empty($this->map_bounds);
   }//method
   
   /**
