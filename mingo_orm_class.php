@@ -200,6 +200,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
   protected function setCriteria($criteria){ $this->criteria = $criteria; }//method
   public function getCriteria(){ return $this->criteria; }//method
+  public function hasCriteria(){ return !empty($this->criteria); }//method
   
   public function getTable(){ return $this->table; }//method
   

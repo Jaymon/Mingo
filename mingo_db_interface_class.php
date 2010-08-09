@@ -43,7 +43,7 @@ abstract class mingo_db_interface {
   
   /**
    *  holds the actual db connection, established by calling {@link connect()}
-   *  @var  MongoDb
+   *  @var  mixed an instance of whatever backend this interface will use
    */
   protected $con_db = null;
   
