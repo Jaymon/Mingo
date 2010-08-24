@@ -395,6 +395,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       $this->list[$this->count]['map'] = $map;
       $this->list[$this->count]['modified'] = $is_modified;
       $this->count++;
+      
+      // make sure the orm now knows it represents multiple rows...
+      if($this->count > 1){ $this->setMulti(true); }//if
     
     }else{
     
