@@ -46,21 +46,20 @@ class cli_in
   
     $line = rtrim(fgets($this->stdin));
     $this->append($line);
-  
+    
   }//method
   
   protected function append($line){
   
-    if(!empty($line)){
+    if(!empty($line)){ 
     
       // decide if this is the end of the command...
       $end_of_line_count = 0;
       $line = preg_replace('#(\;|\\[gG])$#','',$line,1,$end_of_line_count);
       $this->setDone($end_of_line_count > 0);
+      $this->input .= sprintf('%s%s',$line,PHP_EOL);
       
     }//if
-    
-    $this->input .= sprintf('%s%s',$line,PHP_EOL);
   
   }//method
   
@@ -185,9 +184,14 @@ class cli_in
           $schema = new mingo_schema($table);
           foreach($this->db->getIndexes($table) as $index_map){
             
-            if((count($index_map) === 1) && isset($index_map[mingo_orm::_ID])){ continue; }//if
+            // the _id can't be in the index...
+            if(isset($index_map[mingo_orm::_ID])){
+              unset($index_map[mingo_orm::_ID]);
+            }//if
             
-            $schema->setIndex($index_map);
+            if(!empty($index_map)){
+              $schema->setIndex($index_map);
+            }//if
             
           }//method
           

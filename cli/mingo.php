@@ -3,7 +3,9 @@
 
 // http://php.net/manual/en/features.commandline.php
 
-include('E:\mis documentos\Projects\_SVN_lib\out_class.php');
+// personal debugging stuff, ignore...
+$out_path = 'C:\Projects\Plancast\_active\lib\out_class.php';
+if(is_file($out_path)){ include($out_path); }//if
 
 // set up directories and autoloader...
 $cli_basepath = dirname(__FILE__);
@@ -77,7 +79,7 @@ try{
   // get input from the user...
   while(true){
     
-    echo $cli_in->hasInput() ? '> ' : 'mingo> ';
+    echo $cli_in->hasInput() ? '    -> ' : 'mingo> ';
     
     // get a line and append it to the total inputted command...
     $cli_in->getLine();
@@ -100,6 +102,8 @@ try{
       
       }catch(Exception $e){
       
+        out::e($e->getTraceAsString());
+        
         echo sprintf('ERROR: %s',$e->getMessage());
         echo PHP_EOL;
       

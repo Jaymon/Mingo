@@ -141,9 +141,11 @@ class cli_out
         
       }else{
       
-        $ret_str .= sprintf('%s%s',$this->handleDefaultVal($val),PHP_EOL);
+        $ret_str .= $this->handleDefaultVal($val);
         
       }//if/else if/else
+      
+      $ret_str .= PHP_EOL;
       
     }//foreach
 
