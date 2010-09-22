@@ -183,11 +183,20 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   public function getDb(){
     
     if($this->db === null){
-      $this->setDb(mingo_db::getInstance());
+    
+      // get all the names of this class and all parents in order to find the right instance...
+      $class = get_class($this);
+      $parent_list = array();
+      // via: http://us2.php.net/manual/en/function.get-parent-class.php#57548
+      for($parent_list[] = $class; $class = get_parent_class($class); $parent_list[] = $class);
+    
+      $this->setDb(mingo_db::getInstance($parent_list));
       
       if(empty($this->db)){
         throw new UnexpectedValueException('a valid mingo_db instance could not be found');
       }//if
+      
+      if(!$this->db->isConnected()){ $this->db->connect(); }//if
       
     }//if
     

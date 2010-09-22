@@ -4,13 +4,17 @@
  *  handle mingo db connections transparently between the different interfaces, this
  *  class is used to establish the singleton, and then allow the map to interact
  *  with the db layer.
+ *  
+ *  the nice thing about this layer is that it handles all the error checking before
+ *  passing anything to the interface, this allows interface developers to focus on the
+ *  meat of their interface instead of worrying about error handling    
  *
- *  @version 0.3
+ *  @version 0.4
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-08-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_db {
+final class mingo_db {
 
   /**
    *  holds all the connection information this class used
@@ -27,27 +31,18 @@ class mingo_db {
   
   /**
    *  used by {@link getInstance()} to keep a singleton object, the {@link getInstance()} 
-   *  method should be the only place this object is ever messed with so if you want to touch it, DON'T!  
-   *  @var mingo_db
+   *  method should be the only place this is ever messed with so if you want to touch it, DON'T!  
+   *  @var array  an array of mingo_db instances
    */
-  private static $instance = null;
+  private static $instance_map = array();
   
-  function __construct($db_interface = '',$db_name = '',$host = '',$username = '',$password = ''){
-  
-    $this->setInterface($db_interface);
-    $this->setDbName($db_name);
-    $this->setHost($host);
-    
-    $this->setUsername($username);
-    $this->setPassword($password);
-
-  }//method
+  public function __construct(){}//method
   
   /**
    *  connect to the db
    *  
    *  @param  string $db_interface  the name of the class that extends mingo_db_interface that will be used   
-   *  @param  string  $db_name  the db to use, defaults to {@link getDbName()}
+   *  @param  string  $db_name  the db to use, defaults to {@link getName()}
    *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
    *                        port, attach it to host (eg, localhost:27017 or example.com:27017)            
    *  @param  string  $username the username to use, defaults to {@link getUsername()}
@@ -55,7 +50,7 @@ class mingo_db {
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($db_interface = '',$db_name = '',$host = '',$username = '',$password = ''){
+  public function connect($db_interface = '',$db_name = '',$host = '',$username = '',$password = ''){
   
     // set all the connection variables...
     if(empty($db_interface)){
@@ -71,13 +66,13 @@ class mingo_db {
     }//if/else
     
     if(empty($db_name)){
-      if($this->hasDbName()){
-        $db_name = $this->getDbName();
+      if($this->hasName()){
+        $db_name = $this->getName();
       }else{
         throw new mingo_exception('no $db_name specified');
       }//if/else
     }else{
-      $this->setDbName($db_name);
+      $this->setName($db_name);
     }//if/else
     
     if(empty($host)){
@@ -180,17 +175,45 @@ class mingo_db {
   }//method
   
   /**
-   *  forces dbal to follow the singelton pattern 
+   *  forces class to follow the singelton pattern 
    *  
    *  {@link http://en.wikipedia.org/wiki/Singleton_pattern}
    *  and keeps all db classes to one instance, {@link $instance} should only 
    *  be messed with in this function
-   *     
+   *   
+   *  @param  string|array  $class_list return an instance for the given class, if you pass in
+   *                                    an array then it would usually be a list of the class and
+   *                                    all its parents so inheritance can be respected and a child
+   *                                    will receive the right instance if it inherits from a defined 
+   *                                    parent         
    *  @return mingo_db  null on failure
    */
-  static function getInstance(){
-    if(self::$instance === null){ self::$instance = new self; }//if
-    return self::$instance;
+  public static function getInstance($class_list = array()){
+  
+    // canary...
+    if(empty($class_list)){
+      $class_list = array('mingo_orm');
+    }else{
+      $class_list = (array)$class_list;
+    }//if/else
+    
+    $ret_instance = null;
+    
+    // look for a matching instance for the classes...
+    foreach($class_list as $class){
+      if(!empty(self::$instance_map[$class])){
+        $ret_instance = self::$instance_map[$class];
+      }//if
+    }//foreach
+  
+    // if we couldn't find a match, create a new entry...
+    if($ret_instance === null){
+      self::$instance_map[$class_list[0]] = new self;
+      $ret_instance = self::$instance_map[$class_list[0]];
+    }//if
+    
+    return $ret_instance;
+    
   }//method
 
   /**
@@ -198,37 +221,37 @@ class mingo_db {
    *  
    *  @return mingo_db_interface
    */
-  function getDb(){ return $this->con_db; }//method
+  public function getDb(){ return $this->con_db; }//method
 
-  function setInterface($val){ $this->con_map['interface'] = $val; }//method
-  function getInterface(){ return $this->hasInterface() ? $this->con_map['interface'] : ''; }//method
-  function hasInterface(){ return !empty($this->con_map['interface']); }//method
-  function isInterface($val){ return ((string)$this->getInterface() === (string)$val); }//method
+  public function setInterface($val){ $this->con_map['interface'] = $val; }//method
+  public function getInterface(){ return $this->hasInterface() ? $this->con_map['interface'] : ''; }//method
+  public function hasInterface(){ return !empty($this->con_map['interface']); }//method
+  public function isInterface($val){ return ((string)$this->getInterface() === (string)$val); }//method
   
-  function setDbName($val){ $this->con_map['db_name'] = $val; }//method
-  function getDbHame(){ return $this->hasDbName() ? $this->con_map['db_name'] : ''; }//method
-  function hasDbName(){ return !empty($this->con_map['db_name']); }//method
+  public function setName($val){ $this->con_map['name'] = $val; }//method
+  public function getName(){ return $this->hasName() ? $this->con_map['name'] : ''; }//method
+  public function hasName(){ return !empty($this->con_map['name']); }//method
 
-  function setHost($val){ $this->con_map['host'] = $val; }//method
-  function getHost(){ return $this->hasHost() ? $this->con_map['host'] : ''; }//method
-  function hasHost(){ return !empty($this->con_map['host']); }//method
+  public function setHost($val){ $this->con_map['host'] = $val; }//method
+  public function getHost(){ return $this->hasHost() ? $this->con_map['host'] : ''; }//method
+  public function hasHost(){ return !empty($this->con_map['host']); }//method
   
-  function setUsername($val){ $this->con_map['username'] = $val; }//method
-  function getUsername(){ return $this->hasUsername() ? $this->con_map['username'] : ''; }//method
-  function hasUsername(){ return !empty($this->con_map['username']); }//method
+  public function setUsername($val){ $this->con_map['username'] = $val; }//method
+  public function getUsername(){ return $this->hasUsername() ? $this->con_map['username'] : ''; }//method
+  public function hasUsername(){ return !empty($this->con_map['username']); }//method
   
-  function setPassword($val){ $this->con_map['password'] = $val; }//method
-  function getPassword(){ return $this->hasPassword() ? $this->con_map['password'] : ''; }//method
-  function hasPassword(){ return !empty($this->con_map['password']); }//method
+  public function setPassword($val){ $this->con_map['password'] = $val; }//method
+  public function getPassword(){ return $this->hasPassword() ? $this->con_map['password'] : ''; }//method
+  public function hasPassword(){ return !empty($this->con_map['password']); }//method
   
-  function setDebug($val){
+  public function setDebug($val){
     $this->con_map['debug'] = $val;
     if($this->con_db !== null){ $this->con_db->setDebug($val); }//if
   }//method
-  function getDebug(){ return $this->hasDebug(); }//method
-  function hasDebug(){ return !empty($this->con_map['debug']); }//method
+  public function getDebug(){ return $this->hasDebug(); }//method
+  public function hasDebug(){ return !empty($this->con_map['debug']); }//method
   
-  function isConnected(){ return !empty($this->con_map['connected']); }//method
+  public function isConnected(){ return !empty($this->con_map['connected']); }//method
   
   /**
    *  delete the records that match $where_criteria in $table
@@ -238,7 +261,7 @@ class mingo_db {
    *  @param  mingo_criteria $where_criteria
    *  @return boolean
    */
-  function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
+  public function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
@@ -285,7 +308,7 @@ class mingo_db {
    *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
    *  @return array
    */
-  function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = 0){
+  public function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = 0){
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
@@ -333,7 +356,7 @@ class mingo_db {
    *  @param  mingo_criteria  $where_criteria
    *  @return array
    */
-  function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+  public function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
@@ -382,7 +405,7 @@ class mingo_db {
    *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
    *  @return integer the count   
    */
-  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = 0){
+  public function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = 0){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
@@ -433,7 +456,7 @@ class mingo_db {
    *     
    *  @throws mingo_exception on any failure               
    */
-  function set($table,$map,mingo_schema $schema){
+  public function set($table,$map,mingo_schema $schema){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
@@ -528,7 +551,7 @@ class mingo_db {
    *  @param  string  $table  the table to delete from the db
    *  @return boolean
    */
-  function killTable($table){
+  public function killTable($table){
     
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
@@ -557,7 +580,7 @@ class mingo_db {
    *
    *  @return array a list of table names
    */
-  function getTables(){
+  public function getTables(){
   
     if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
     
@@ -614,7 +637,7 @@ class mingo_db {
    *  @param  mingo_schema  a schema object that defines indexes, etc. for this 
    *  @return boolean
    */
-  function setTable($table,mingo_schema $schema){
+  public function setTable($table,mingo_schema $schema){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
@@ -645,7 +668,7 @@ class mingo_db {
    *  @param  string  $table  the table to check
    *  @return boolean
    */
-  function hasTable($table){
+  public function hasTable($table){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table given'); }//if
@@ -677,7 +700,7 @@ class mingo_db {
    *  
    *  @return array a list of queries executed on the db using the db_interface
    */
-  function getQueries(){ return $this->con_db->getQueries(); }//method
+  public function getQueries(){ return $this->con_db->getQueries(); }//method
   
   /**
    *  set the limit/page
@@ -713,10 +736,10 @@ class mingo_db {
    *  class   
    *  
    *  http://www.php.net/manual/en/language.oop5.magic.php#language.oop5.magic.sleep
-   *  
+   *        
    *  @return the names of all the variables that should be serialized      
    */
-  function __sleep(){
+  public function __sleep(){
     $this->con_db = null;
     $this->con_map['connected'] = false;
     return array_keys(get_object_vars($this));

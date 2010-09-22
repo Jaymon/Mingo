@@ -51,7 +51,7 @@ class cli_in
   
   protected function append($line){
   
-    if(!empty($line)){ 
+    if(!empty($line)){
     
       // decide if this is the end of the command...
       $end_of_line_count = 0;
