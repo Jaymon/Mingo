@@ -56,12 +56,12 @@ class mingo_db_mongo extends mingo_db_interface {
       if(!empty($username) && !empty($password)){
         
         $this->con_map['connection'] = new MongoAuth($host);
-        $this->con_db = $this->con_map['connection']->login($db,$username,$password);
+        $this->con_db = $this->con_map['connection']->login($db_name,$username,$password);
   
       }else{
       
         $this->con_map['connection'] = new Mongo($host);
-        $this->con_db = $this->con_map['connection']->selectDB($db);
+        $this->con_db = $this->con_map['connection']->selectDB($db_name);
         
       }//if/else
       
@@ -72,10 +72,6 @@ class mingo_db_mongo extends mingo_db_interface {
     }//try/catch
   
     $this->con_map['connected'] = true;
-    
-    // load up the inc info table...
-    $this->inc_map['table'] = sprintf('%s_inc',__CLASS__);
-    $this->inc_map['map'] = $this->getOne($this->inc_map['table'],new mingo_schema($this->inc_map['table']));
     
     return $this->con_map['connected'];
   
@@ -215,6 +211,11 @@ class mingo_db_mongo extends mingo_db_interface {
     $db_table = $this->getTable($table);
     list($map) = $this->getCriteria($map);
     
+    /*
+    // load up the inc info table...
+    $this->inc_map['table'] = sprintf('%s_inc',__CLASS__);
+    $this->inc_map['map'] = $this->getOne($this->inc_map['table'],new mingo_schema($this->inc_map['table']));
+    
     // see if this table has auto_increment stuff...
     if(isset($this->inc_map['map'][$table])){
     
@@ -259,7 +260,7 @@ class mingo_db_mongo extends mingo_db_interface {
       
       $map[$inc_field] = ($inc_row[$table] + 1);
   
-    }//if
+    }//if */
     
     $db_table->insert($map);
     
