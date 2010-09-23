@@ -306,6 +306,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         );
         
         $sort_query = ''; // clear it so it isn't used in the second query
+        $limit = array();
         
         $stmt_handler = $this->getStatement($query,$val_list);
         $id_list = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);

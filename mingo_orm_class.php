@@ -461,6 +461,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    */
   function load(mingo_criteria $where_criteria = null,$set_load_total = false){
   
+    // go back to square one...
+    $this->reset();
+  
     $ret_int = 0;
     $db = $this->getDb();
     $limit = $offset = $limit_paginate = 0;
@@ -472,9 +475,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       list($limit,$offset,$limit_paginate) = $where_criteria->getBounds();
     
     }//if
-    
-    // go back to square one...
-    $this->reset();
     
     // get stuff from the db...
     $list = $db->get(
@@ -545,17 +545,12 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    */
   function loadOne(mingo_criteria $where_criteria){
   
-    // canary...
-    if(empty($where_criteria)){
-      throw new InvalidArgumentException('$where_criteria cannot be empty');
-    }//if
+    // go back to square one...
+    $this->reset();
   
     $ret_bool = false;
     $db = $this->getDb();
     $this->setCriteria($where_criteria);
-  
-    // go back to square one...
-    $this->reset();
     
     // get stuff from the db...
     $map = $db->getOne(
