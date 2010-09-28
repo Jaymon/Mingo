@@ -17,6 +17,7 @@ class MingoCliTask extends sfBaseTask
       new sfCommandOption('application', null, sfCommandOption::PARAMETER_REQUIRED, 'The application name, usually something like "frontend" or "backend"','backend'),
       new sfCommandOption('env', null, sfCommandOption::PARAMETER_REQUIRED, 'The environment to use, usually something like "dev"', null),
       new sfCommandOption('connection', null, sfCommandOption::PARAMETER_REQUIRED, 'The connection name, does not usually need to be messed with', 'mingo')
+      new sfCommandOption('server', null, sfCommandOption::PARAMETER_REQUIRED, 'The connection you want to use', 'mingo_orm')
     ));
  
     $this->namespace = 'mingo';
@@ -32,7 +33,8 @@ class MingoCliTask extends sfBaseTask
   {
     // initialize the database connection
     $db_manager = new sfDatabaseManager($this->configuration);
-    $db = $db_manager->getDatabase($options['connection'] ? $options['connection'] : null)->getConnection();
+    $connection_map = $db_manager->getDatabase($options['connection'] ? $options['connection'] : null)->getConnection();
+    $db = $connection_map[$options['server']];
     
     $mingo_lib_path = realpath(
       join(
@@ -56,7 +58,7 @@ class MingoCliTask extends sfBaseTask
     );
     
     $command = sprintf(
-      'php "%s" --interface=%s --db=%s --host=%s --username=%s --password="%s"',
+      'php "%s" --interface=%s --name=%s --host=%s --username=%s --password="%s"',
       $mingo_exe,
       $db->getInterface(),
       $db->getDb(),

@@ -203,6 +203,7 @@ final class mingo_db {
     foreach($class_list as $class){
       if(!empty(self::$instance_map[$class])){
         $ret_instance = self::$instance_map[$class];
+        break;
       }//if
     }//foreach
   
@@ -700,7 +701,14 @@ final class mingo_db {
    *  
    *  @return array a list of queries executed on the db using the db_interface
    */
-  public function getQueries(){ return $this->con_db->getQueries(); }//method
+  public function getQueries(){
+    
+    // canary...
+    if(!$this->isConnected()){ return array(); }//if
+    
+    return $this->con_db->getQueries();
+    
+  }//method
   
   /**
    *  set the limit/page

@@ -49,7 +49,7 @@ include(join(DIRECTORY_SEPARATOR,array('SQL','Parser.php')));
 
 $required_argv_map = array(
   'interface' => null, // the interface to use to access mingo data
-  'db' => null, // the database name
+  'name' => null, // the database name
   'host' => '', // the host where the database is hosted
   'username' => '', // the username
   'password' => '', // the password
@@ -66,7 +66,7 @@ try{
   $db = mingo_db::getInstance();
   $db->connect(
     $argv_map['interface'],
-    $argv_map['db'],
+    $argv_map['name'],
     $argv_map['host'],
     $argv_map['username'],
     $argv_map['password']
@@ -102,7 +102,7 @@ try{
       
       }catch(Exception $e){
       
-        out::e($e->getTraceAsString());
+        ///out::e($e->getTraceAsString());
         
         echo sprintf('ERROR: %s',$e->getMessage());
         echo PHP_EOL;

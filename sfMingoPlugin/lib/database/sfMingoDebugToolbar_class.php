@@ -12,11 +12,9 @@
  ******************************************************************************/
 class sfMingoDebugToolbar extends sfWebDebugPanel
 {
-  public function getTitle()
-  {
-    $db_manager = sfContext::getInstance()->getDatabaseManager();
-    $db = $db_manager->getDatabase('mingo')->getConnection();
-    $query_list = $db->getQueries();
+  public function getTitle(){
+  
+    $query_list = $this->getQueries();
   
     return sprintf(
       '<img src="%s/database.png" alt="Mingo queries" /> Mingo (%s)',
@@ -25,21 +23,23 @@ class sfMingoDebugToolbar extends sfWebDebugPanel
     ); 
   }
  
-  public function getPanelTitle()
-  {
+  public function getPanelTitle(){
     return 'Mingo Queries';
   }
  
-  public function getPanelContent()
-  {
-    $db_manager = sfContext::getInstance()->getDatabaseManager();
-    $db = $db_manager->getDatabase('mingo')->getConnection();
-    $query_list = $db->getQueries();
+  public function getPanelContent(){
+  
+    $query_list = $this->getQueries();
     
     $ret_lines = array();
-    foreach($query_list as $query)
-    {
+    foreach($query_list as $query){
+    
+      if(is_array($query)){
+        $query = json_encode($query);
+      }//if
+      
       $ret_lines[] = sprintf('<li>%s</li>',$query);
+      
     }//method
    
     return sprintf(
@@ -49,9 +49,30 @@ class sfMingoDebugToolbar extends sfWebDebugPanel
     
   }//method
   
-  static public function listenToAddPanelEvent(sfEvent $event)
-  {
+  static public function listenToAddPanelEvent(sfEvent $event){
     $event->getSubject()->setPanel('mingo', new self($event->getSubject()));
-  }
+  }//method
+  
+  /**
+   *  get all the queries from all the mingo connections
+   *  
+   *  @since  9-27-10   
+   *  @return array
+   */
+  protected function getQueries(){
+  
+    $ret_list = array();
+  
+    $db_manager = sfContext::getInstance()->getDatabaseManager();
+    $connection_map = $db_manager->getDatabase('mingo')->getConnection();
+    foreach($connection_map as $key => $db){
+    
+      $ret_list = array_merge($ret_list,$db->getQueries());
+      
+    }//foreach
+  
+    return $ret_list;
+  
+  }//method
   
 }//class

@@ -6,7 +6,7 @@
  *  this class is instantiated in sfDatabaseManager::loadConfiguration() and can be
  *  retrieved by calling:  sfDatabaseManager::getDatabase('mingo')
  *  
- *  @version 0.1
+ *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 1-6-10
  *  @package mingo
@@ -15,40 +15,62 @@
 class sfMingoDatabase extends sfDatabase {
 
   /**
-   * Connects to the database.
+   *  gets the mingo dbs ready to be connected, mingo will take care of the actual connecting
+   *  on demand   
    *
-   * @throws <b>sfDatabaseException</b> If a connection could not be created
+   *  @throws <b>sfDatabaseException</b> If a connection could not be created
+   * 
+   *  @return array a map with the key being the name of the connection, and the value being
+   *                the actual connection         
    */
   function connect(){
 
     // canary...
-    if($this->connection !== null){ return $this->connection; }//if
+    if(!empty($this->connection)){ return $this->connection; }//if
     
     $timer = null;
     $debug = sfConfig::get('sf_debug');
-    if($debug){ $timer = sfTimerManager::getTimer('Connect "Mingo"'); }//if
+    if($debug){ $timer = sfTimerManager::getTimer('Prepare "Mingo"'); }//if
   
-    // get an instance...
-    $this->connection = mingo_db::getInstance();
-    
-    // set debugging based on the project's overall debugging...
-    $configuration = sfProjectConfiguration::getActive();
-    if($configuration instanceof sfProjectConfiguration){
-    
-      $this->connection->setDebug($configuration->isDebug()); // activate mingo agile mode
-    
-    }//if
+    $this->connection = array();
     
     try{
-    
-      // actually connect to the db...
-      $this->connection->connect(
-        $this->parameterHolder->get('interface',''),
-        $this->parameterHolder->get('dbname',''),
-        $this->parameterHolder->get('host',''),
-        $this->parameterHolder->get('username',''),
-        $this->parameterHolder->get('password','')
-      );
+      
+      // iterate through all the servers that should be connection ready
+      $server_list = $this->parameterHolder->get('servers',array());
+      foreach($server_list as $name => $server_map){
+      
+        // canary, interface has to exist...
+        if(empty($server_map['interface'])){ 
+          throw new UnexpectedValueException(
+            sprintf('Server namespace "%s" does not have an interface key!',$name)
+          );
+        }//if
+        
+        $this->connection[$name] = mingo_db::getInstance($name);
+        $this->connection[$name]->setDebug($debug);
+        
+        $this->connection[$name]->setInterface($server_map['interface']);
+        
+        // set all the other optional connection params...
+        if(isset($server_map['name'])){
+          $this->connection[$name]->setName($server_map['name']);
+        }//if
+        if(isset($server_map['host'])){
+          $this->connection[$name]->setHost($server_map['host']);
+        }//if
+        if(isset($server_map['username'])){
+          $this->connection[$name]->setUsername($server_map['username']);
+        }//if
+        if(isset($server_map['password'])){
+          $this->connection[$name]->setPassword($server_map['password']);
+        }//if
+        
+        // we don't connect here, connection will happen when the server is actually
+        // needed, this way we don't waste time connecting to a server that isn't
+        // needed for this request
+      
+      }//foreach
       
     }catch(Exception $e){
     
@@ -107,19 +129,6 @@ class sfMingoDatabase extends sfDatabase {
    *
    * @throws <b>sfDatabaseException</b> If an error occurs while shutting down this database
    */
-  function shutdown()
-  {
-    /*
-    // http://stackoverflow.com/questions/2400665/symfony-log-custom-propel-query
-    // doesn't seem to work though, that might be because shutdown isn't called fast enough
-    $db = mingo_db::getInstance();
-    $queries = $db->getQueries();
-    foreach($queries as $query)
-    {
-      sfContext::getInstance()->getLogger()->info(sprintf("{sfCreole} executeQuery(): [x.xx ms] %s", $query));
-    }//foreach
-    */
-  
-  }//method
+  function shutdown(){}//method
   
 }//class     
