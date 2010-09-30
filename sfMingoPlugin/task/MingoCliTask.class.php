@@ -16,7 +16,7 @@ class MingoCliTask extends sfBaseTask
     $this->addOptions(array(
       new sfCommandOption('application', null, sfCommandOption::PARAMETER_REQUIRED, 'The application name, usually something like "frontend" or "backend"','backend'),
       new sfCommandOption('env', null, sfCommandOption::PARAMETER_REQUIRED, 'The environment to use, usually something like "dev"', null),
-      new sfCommandOption('connection', null, sfCommandOption::PARAMETER_REQUIRED, 'The connection name, does not usually need to be messed with', 'mingo')
+      new sfCommandOption('connection', null, sfCommandOption::PARAMETER_REQUIRED, 'The connection name, does not usually need to be messed with', 'mingo'),
       new sfCommandOption('server', null, sfCommandOption::PARAMETER_REQUIRED, 'The connection you want to use', 'mingo_orm')
     ));
  
