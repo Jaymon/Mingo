@@ -6,16 +6,16 @@
  *  @subpackage task
  *  @author     Jay Marcyes
  ******************************************************************************/
-class MingoCliTask extends sfBaseTask
-{
+class MingoCliTask extends sfBaseTask {
+
   /**
    * @see sfTask
    */
-  protected function configure()
-  {
+  protected function configure(){
+  
     $this->addOptions(array(
-      new sfCommandOption('application', null, sfCommandOption::PARAMETER_REQUIRED, 'The application name, usually something like "frontend" or "backend"','backend'),
-      new sfCommandOption('env', null, sfCommandOption::PARAMETER_REQUIRED, 'The environment to use, usually something like "dev"', null),
+      new sfCommandOption('application', null, sfCommandOption::PARAMETER_REQUIRED, 'The application name, usually something like "frontend" or "backend"','frontend'),
+      new sfCommandOption('env', null, sfCommandOption::PARAMETER_REQUIRED, 'The environment to use, usually something like "dev"',null),
       new sfCommandOption('connection', null, sfCommandOption::PARAMETER_REQUIRED, 'The connection name, does not usually need to be messed with', 'mingo'),
       new sfCommandOption('server', null, sfCommandOption::PARAMETER_REQUIRED, 'The connection you want to use', 'mingo_orm')
     ));
@@ -29,8 +29,13 @@ class MingoCliTask extends sfBaseTask
   /**
    * @see sfTask
    */
-  protected function execute($arguments = array(), $options = array())
-  {
+  protected function execute($arguments = array(), $options = array()){
+    
+    // canary...
+    if(empty($options['env'])){
+      throw new InvalidArgumentException('You need to pass in --env="..." option!');
+    }//if
+  
     // initialize the database connection
     $db_manager = new sfDatabaseManager($this->configuration);
     $connection_map = $db_manager->getDatabase($options['connection'] ? $options['connection'] : null)->getConnection();
@@ -46,26 +51,26 @@ class MingoCliTask extends sfBaseTask
       )
     );
     
-    $mingo_exe = realpath(
-      join(
-        DIRECTORY_SEPARATOR,
-        array(
-          $mingo_lib_path,
-          'cli',
-          'mingo.php'
-        )
+    $mingo_cli = join(
+      DIRECTORY_SEPARATOR,
+      array(
+        $mingo_lib_path,
+        'cli',
+        'mingo.php'
       )
     );
     
     $command = sprintf(
-      'php "%s" --interface=%s --name=%s --host=%s --username=%s --password="%s"',
-      $mingo_exe,
+      'php "%s" --interface=%s --name=%s --host="%s" --username="%s" --password="%s"',
+      $mingo_cli,
       $db->getInterface(),
-      $db->getDb(),
+      $db->getName(),
       $db->getHost(),
       $db->getUsername(),
       $db->getPassword()
     );
+    
+    echo sprintf('Running: %s',$command),PHP_EOL;
     
     passthru($command);
     
