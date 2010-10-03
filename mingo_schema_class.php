@@ -4,7 +4,7 @@
  *  allows you to define some stuff about how a mingo_orm should be set up (eg, indexes
  *  and the like)  
  *
- *  @version 0.1
+ *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-18-09
  *  @package mingo 
@@ -33,12 +33,6 @@ class mingo_schema extends mingo_base {
    *  @var  array()   
    */        
   protected $required_map = array();
-  
-  /**
-   *  set using {@link setInc()} if you want the table to have an auto-increment field
-   *  @var  array
-   */        
-  protected $inc_map = array();
 
   public function __construct($table){
   
@@ -112,21 +106,6 @@ class mingo_schema extends mingo_base {
   public function getIndex(){ return $this->index_map; }//method
   public function hasIndex(){ return !empty($this->index_map); }//method
   
-  /**
-   *  pass in true if this table should have an auto_increment field, if called, then
-   *  a row_id will be added to every row. To index it you would have to use setIndex('row_id');   
-   *  
-   *  @param  integer $start_count  if you want to start the field at something other than 0   
-   */
-  public function setInc($start_count = 0){
-    $this->inc_map['field'] = 'row_id';
-    $this->inc_map['start'] = $start_count;
-  }//method
-  public function hasInc(){ return !empty($this->inc_map); }//method
-  public function getInc(){ return $this->inc_map; }//method
-  public function getIncField(){ return isset($this->inc_map['field']) ? $this->inc_map['field'] : ''; }//method
-  public function getIncStart(){ return isset($this->inc_map['start']) ? $this->inc_map['start'] : 0; }//method
-
   /**
    *  set a required field
    *  
