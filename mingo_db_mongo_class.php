@@ -16,19 +16,7 @@
  ******************************************************************************/
 class mingo_db_mongo extends mingo_db_interface {
 
-  /**
-   *  holds auto increment information
-   *  
-   *  @see  setInc(), update(), insert()      
-   *  @var  array
-   */
-  private $inc_map = array();
-  
-  protected function start(){
-
-    $this->inc_map['table'] = array();
-  
-  }//method
+  protected function start(){}//method
   
   /**
    *  connect to the mongo db
@@ -210,58 +198,6 @@ class mingo_db_mongo extends mingo_db_interface {
     
     $db_table = $this->getTable($table);
     list($map) = $this->getCriteria($map);
-    
-    /*
-    // load up the inc info table...
-    $this->inc_map['table'] = sprintf('%s_inc',__CLASS__);
-    $this->inc_map['map'] = $this->getOne($this->inc_map['table'],new mingo_schema($this->inc_map['table']));
-    
-    // see if this table has auto_increment stuff...
-    if(isset($this->inc_map['map'][$table])){
-    
-      // @todo  I'm pretty sure this doesn't work anymore, the ->update() code on line ~233 has
-      // the wrong parameters and I don't have time to fix it
-      throw new RuntimeException('the auto-increment stuff has not been tested in a while and I am
-      pretty sure it no longer works, so please do not use it right now, unless you want to debug it');
-      
-      // increment the table's unique id...
-      $inc_field = $this->inc_map['map'][sprintf('%s_field',$table)];
-      $inc_table = $this->getTable($this->inc_map['table']);
-      $bump_inc_where_map = $inc_where_map = array('_id' => $this->inc_map['map']['_id']);
-      $inc_max = 100; // only try to auto-increment 100 times before failure
-      $inc_count = 0;
-      $c = new mingo_criteria();
-      $c->incField($table,1);
-      
-      // we are going to try and get an increment, we do this in a loop to make sure
-      // we get a real increment since mongo doesn't lock anything
-      do{
-      
-        try{
-        
-          $inc_bool = true;
-          $inc_row = $this->getOne($inc_table,$inc_where_map);
-          $bump_inc_where_map['inc_version'] = $inc_row['inc_version'];
-          $c->setField('inc_version',microtime(true));
-          
-          $this->update($inc_table,$c,$bump_inc_where_map);
-          
-        }catch(mingo_exception $e){
-          
-          if($inc_count++ > $inc_max){
-            throw new mingo_exception('tried to auto increment too many times');
-          }//if
-           
-          $inc_bool = false;
-          
-        }//try/catch
-        
-      }while(!$inc_bool);
-      
-      $map[$inc_field] = ($inc_row[$table] + 1);
-  
-    }//if */
-    
     $db_table->insert($map);
     
     // $error_map has keys: [err], [n], and [ok]...
@@ -517,71 +453,6 @@ class mingo_db_mongo extends mingo_db_interface {
     
     return array($where_map,$sort_map);
       
-  }//method
-  
-  /**
-   *  set up an auto increment field for a table
-   *  
-   *  since mongo doesn't natively support auto_increment fields, we do kind of a
-   *  hack by creating a distributing table that will distribute the next value
-   *  for the increment field on an insert. The one row in the table gets loaded 
-   *  on every {@link connnect()} call, so you only really need to call this method
-   *  when you are installing, or updating
-   *  
-   *  @link http://groups.google.com/group/mongodb-user/browse_thread/thread/c2c263c3e9a56a17
-   *    I got the idea to use a version field from this link
-   *  
-   *  @link http://groups.google.com/group/mongodb-user/browse_thread/thread/c2c263c3e9a56a17/4946f83c8f31e9a0?lnk=gst&q=%24inc#4946f83c8f31e9a0         
-   *      
-   *  @param  string  $table  the table you want to add the auto_increment field to
-   *  @param  string  $name the name of the field that will be auto_incremented from now on
-   *  @param  integer $start_count  what the start value should be   
-   *  @return boolean
-   */
-  private function setInc($table,$name = 'id',$start_count = 0){
-  
-    // canary...
-    if(empty($table)){ return false; }//if
-    if($table instanceof MongoCollection){ $table = $table->getName(); }//if
-    if(empty($name)){ $name = 'id'; }//if
-    
-    $inc_table = $this->getTable($this->inc_map['table']);
-    $inc_map = $inc_table->findOne();
-    $new_table = false;
-    if(empty($inc_map)){
-    
-      $inc_map['inc_version'] = microtime(true);
-      $inc_map[$table] = $start_count;
-      $inc_map[sprintf('%s_field',$table)] = $name;
-      $inc_table->insert($inc_map);
-      $new_table = true;
-      
-    }else{
-    
-      if(!isset($inc_map[$table])){
-        
-        $inc_map[$table] = $start_count;
-        $inc_map[sprintf('%s_field',$table)] = $name;
-        $this->update($inc_table,$inc_map);
-        $new_table = true;
-        
-      }//if
-    
-    }//if/else
-    
-    // add an index on the increment field if first time we've seen the table...
-    if($new_table){
-    
-      $db_table = $this->getTable($table);
-      $db_table->ensureIndex(array($name => 1));
-    
-    }//if
-    
-    //update the inc map table...
-    $this->inc_map['map'] = $inc_map;
-    
-    return true;
-  
   }//method
   
 }//class     
