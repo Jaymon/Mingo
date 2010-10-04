@@ -15,7 +15,7 @@
  *    - created = holds a unix timestamp of when the row was created, always set  
  *  
  *  @abstract 
- *  @version 0.4
+ *  @version 0.5
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
@@ -784,9 +784,8 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
       $callback = $method_map[$command];
     
-      if(array_key_exists($field,get_object_vars($this))){
-      
-        // @note  we use array_key_exists to compensate for null values which would cause isset to fail
+      // we use array_key_exists to compensate for null values which would cause isset to fail...
+      if(is_string($field) && array_key_exists($field,get_object_vars($this))){
       
         throw new mingo_exception(sprintf('a field cannot have this name: %s',$field));
       
@@ -798,6 +797,92 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       }//if/else
     
     }//if
+  
+  }//method
+  
+  /**
+   *  this allows for retrieving into a value in one swoop 
+   *  
+   *  @example  
+   *    $this->setFoo(array('bar' => 'che')); // foo now is an array with one key, bar   
+   *    $this->getField(array('foo','bar')); // would return 'che'
+   *    $this->getFoo(); // would return array('bar' => 'che')       
+   *
+   *  @since  10-3-10   
+   *  @param  array|string  $name the field name
+   *  @param  boolean $create true to have the keys created if they don't exist (handy for set*)
+   *  @param  mixed $default_val  if the key doesn't exist, set it to this
+   *  @return array array($found_list,$ref_list) the found list is a list of booleans, true if
+   *                that index had a value, false if not, and $ref_list is a reference to the value
+   *                at whatever depth
+   */
+  private function handleDepth($name,$create = false,$default_val = null){
+  
+    $ret_mixed = array();
+    $ret_found = array();
+    $is_name_list = is_array($name);
+    $max_j = count($name) - 1;
+  
+    for($i = 0; $i < $this->count ;$i++){
+  
+      $ret_mixed[$i] = &$this->list[$i]['map'];
+      $ret_found[$i] = false;
+  
+      if($is_name_list){
+      
+        $j = 0;
+      
+        foreach($name as $n)
+        {
+          if(isset($ret_mixed[$i][$n])){
+            
+            if(($j >= $max_j) || (($j < $max_j) && is_array($ret_mixed[$i][$n]))){
+            
+              $ret_mixed[$i] = &$ret_mixed[$i][$n];
+              $ret_found[$i] = true;
+            
+            }else{
+              throw new UnexpectedValueException(
+                sprintf('Burrowing into [%s] and %s is not an array',join(',',$name),$n)
+              );
+            }//if/else
+            
+          }else{
+          
+            if($create){
+            
+              if($j < $max_j){
+              
+                $ret_mixed[$i][$n] = array();
+              
+              }else{
+              
+                $ret_mixed[$i][$n] = $default_val;
+              
+              }//if/else
+              
+              $ret_mixed[$i] = &$ret_mixed[$i][$n];
+              $ret_found[$i] = true;
+              
+            }else{
+              $ret_mixed[$i] = null;
+              $ret_found[$i] = false;
+              break;
+            }//if/else
+          
+          }//if/else
+          
+          $j++;
+          
+        }//foreach
+      
+      }else{
+        $ret_found[$i] = &$this->list[$i]['map'][$name];
+      }//if/else
+      
+    }//for
+  
+    return array($ret_found,$ret_mixed);
   
   }//method
   
@@ -816,11 +901,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     $args[0] = $this->normalizeVal($args[0]);
     
+    list($found_list,$ref_list) = $this->handleDepth($name,true);
     for($i = 0; $i < $this->count ;$i++){
-    
-      $this->list[$i]['modified'] = true;
-      $this->list[$i]['map'][$name] = $args[0];
-      
+      $ref_list[$i] = $args[0];
     }//for
   
     return true;
@@ -844,13 +927,14 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     $ret_list = array();
     
-    for($i = 0; $i < $this->count ;$i++){
-    
-      $ret_list[] = isset($this->list[$i]['map'][$name]) 
-      ? $this->list[$i]['map'][$name] 
-      : $args[0];
-      
-    }//for
+    list($found_list,$ref_list) = $this->handleDepth($name);
+    foreach($ref_list as $key => $ref){
+      if(empty($found_list[$key])){
+        $ret_list[] = $args[0];
+      }else{
+        $ret_list[] = $ref;
+      }//if/else
+    }//foreach
     
     // check for just one index and just return that value if found...
     return ($this->isMulti()) ? $ret_list : $ret_list[0];
@@ -871,14 +955,13 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     $ret_bool = true;
   
-    for($i = 0; $i < $this->count ;$i++){
-    
-      if(empty($this->list[$i]['map'][$name])){
+    list($found_list,$ref_list) = $this->handleDepth($name);
+    foreach($ref_list as $key => $ref){
+      if(empty($ref)){
         $ret_bool = false;
         break;
       }//if
-      
-    }//for
+    }//foreach
   
     return $ret_bool;
     
@@ -897,15 +980,14 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     if(!$this->hasCount()){ return false; }//if
   
     $ret_bool = true;
-  
-    for($i = 0; $i < $this->count ;$i++){
     
-      if(!isset($this->list[$i]['map'][$name])){
+    list($found_list,$ref_list) = $this->handleDepth($name);
+    foreach($found_list as $key => $found){
+      if(empty($found)){
         $ret_bool = false;
         break;
       }//if
-      
-    }//for
+    }//foreach
   
     return $ret_bool;
   
@@ -984,15 +1066,12 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    */
   private function handleKill($name,$args){
   
+    list($found_list,$ref_list) = $this->handleDepth($name);
     for($i = 0; $i < $this->count ;$i++){
-    
-      if(isset($this->list[$i]['map'][$name])){
-        $this->list[$i]['modified'] = true;
-        unset($this->list[$i]['map'][$name]);
-      }//if
-      
+      $this->list[$i]['modified'] = true;
+      unset($ref_list[$i]);
     }//for
-  
+    
     return true;
   
   }//method
@@ -1010,15 +1089,10 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     if(!isset($args[0])){ throw new mingo_exception(sprintf('no $count specified to bump %s',$name)); }//if
     if(empty($this->list)){ $this->append(array()); }//if
     
+    list($found_list,$ref_list) = $this->handleDepth($name,true,0);
     for($i = 0; $i < $this->count ;$i++){
-    
-      if(!isset($this->list[$i]['map'][$name])){
-        $this->list[$i]['map'][$name] = 0;
-      }//if
-      
       $this->list[$i]['modified'] = true;
-      $this->list[$i]['map'][$name] += $args[0];
-    
+      $ref_list[$i] += $args[0];
     }//for
     
     return true;

@@ -4,7 +4,7 @@
  *  the base class for some of the public facing mingo classes, the idea is to massage 
  *  user given input to make it consistent across all the classes  
  *   
- *  @version 0.1
+ *  @version 0.2
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-17-09
  *  @package mingo 
@@ -32,7 +32,7 @@ class mingo_base {
    *  make the field name consistent
    *  
    *  @param  string  $field  the field name
-   *  @return string  the $field, normalized
+   *  @return string|array  the $field, normalized
    */
   protected function normalizeField($field){
     
@@ -41,7 +41,24 @@ class mingo_base {
       throw new mingo_exception(sprintf('an all numeric $field like %s is not allowed',$field));
     }//if
     
-    return mb_strtolower((string)$field);
+    $ret_mix = null;
+    
+    if(is_array($field)){
+    
+      $ret_mix = array();
+    
+      foreach($field as $key => $f){
+        $ret_mix[$key] = mb_strtolower((string)$f);
+      }//foreach
+    
+    }else{
+    
+      $ret_mix = mb_strtolower((string)$field);
+      
+    }//if/else
+    
+    return $ret_mix;
+    
   }//method
 
   /**

@@ -335,13 +335,6 @@ class mingo_db_mongo extends mingo_db_interface {
     
     if(!empty($schema)){
       
-      // create an auto increment key if defined...
-      if($schema->hasInc()){
-      
-        $this->setInc($table,$schema->getIncField(),$schema->getIncStart());
-        
-      }//if
-      
       // add all the indexes for this table...
       if($schema->hasIndex()){
       
