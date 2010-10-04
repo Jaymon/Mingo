@@ -825,15 +825,16 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     for($i = 0; $i < $this->count ;$i++){
   
-      $ret_mixed[$i] = &$this->list[$i]['map'];
+      $ret_mixed[$i] = $default_val;
       $ret_found[$i] = false;
   
       if($is_name_list){
       
+        $ret_mixed[$i] = &$this->list[$i]['map'];
         $j = 0;
       
-        foreach($name as $n)
-        {
+        foreach($name as $n){
+        
           if(isset($ret_mixed[$i][$n])){
             
             if(($j >= $max_j) || (($j < $max_j) && is_array($ret_mixed[$i][$n]))){
@@ -842,9 +843,11 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
               $ret_found[$i] = true;
             
             }else{
+            
               throw new UnexpectedValueException(
                 sprintf('Burrowing into [%s] and %s is not an array',join(',',$name),$n)
               );
+              
             }//if/else
             
           }else{
@@ -865,9 +868,12 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
               $ret_found[$i] = true;
               
             }else{
+            
+              unset($ret_mixed[$i]); // get rid of the reference so we can set an actual value
               $ret_mixed[$i] = null;
               $ret_found[$i] = false;
               break;
+              
             }//if/else
           
           }//if/else
@@ -877,11 +883,29 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         }//foreach
       
       }else{
-        $ret_found[$i] = &$this->list[$i]['map'][$name];
+
+        if(isset($this->list[$i]['map'][$name])){
+        
+          $ret_mixed[$i] = &$this->list[$i]['map'][$name];
+          $ret_found[$i] = true;
+        
+        }else{
+
+          if($create){
+            $this->list[$i]['map'][$name] = $default_val;
+            $ret_mixed[$i] = &$this->list[$i]['map'][$name];
+            $ret_found[$i] = true;
+          }else{
+            $ret_mixed[$i] = null;
+            $ret_found[$i] = false;
+          }//if/else
+          
+        }//if/else
+          
       }//if/else
       
     }//for
-  
+ 
     return array($ret_found,$ret_mixed);
   
   }//method
@@ -904,6 +928,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     list($found_list,$ref_list) = $this->handleDepth($name,true);
     for($i = 0; $i < $this->count ;$i++){
       $ref_list[$i] = $args[0];
+      $this->list[$i]['modified'] = true;
     }//for
   
     return true;
@@ -982,6 +1007,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     $ret_bool = true;
     
     list($found_list,$ref_list) = $this->handleDepth($name);
+    
     foreach($found_list as $key => $found){
       if(empty($found)){
         $ret_bool = false;
@@ -1069,7 +1095,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     list($found_list,$ref_list) = $this->handleDepth($name);
     for($i = 0; $i < $this->count ;$i++){
       $this->list[$i]['modified'] = true;
-      unset($ref_list[$i]);
+      $ref_list[$i] = null;
     }//for
     
     return true;
