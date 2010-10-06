@@ -776,6 +776,14 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     list($command,$field,$args) = $this->splitMethod($method,$args);
     
+    
+    $this->handleCall($command,$field,$args);
+    
+    
+    
+    return;
+    
+    
     if(empty($method_map[$command])){
     
       throw new mingo_exception(sprintf('could not find a match for $method %s with command: %s',$method,$command));
@@ -816,123 +824,149 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *                that index had a value, false if not, and $ref_list is a reference to the value
    *                at whatever depth
    */
-  private function handleDepth($name,$create = false,$default_val = null){
+  private function handleCall($command,$field_list,$args){
   
-    $ret_mixed = array();
-    $ret_found = array();
-    $is_name_list = is_array($name);
-    $max_j = count($name) - 1;
+    $ret_mixed = null;
   
-    for($i = 0; $i < $this->count ;$i++){
-  
-      $ret_mixed[$i] = $default_val;
-      $ret_found[$i] = false;
-  
-      if($is_name_list){
+    // canary, do the pre check stuff for each command to make sure we have what we need...
+    switch($command){
+    
+      case 'set':
+      case 'bump':
       
-        $ret_mixed[$i] = &$this->list[$i]['map'];
-        $j = 0;
-      
-        foreach($name as $n){
+        // canary...
+        if(!array_key_exists(0,$args)){
+          throw new InvalidArgumentException(
+            sprintf('you need to pass in an argument for %s',$command)
+          );
+        }//if
         
-          if(isset($ret_mixed[$i][$n])){
+        // set up...
+        if(empty($this->list)){ $this->append(array()); }//if
+        $ret_mixed = false;
+        break;
+    
+      // just establish that these exist...
+      case 'kill':
+        break;
+    
+      default:
             
-            if(($j >= $max_j) || (($j < $max_j) && is_array($ret_mixed[$i][$n]))){
-            
-              $ret_mixed[$i] = &$ret_mixed[$i][$n];
-              $ret_found[$i] = true;
-            
-            }else{
-            
-              throw new UnexpectedValueException(
-                sprintf('Burrowing into [%s] and %s is not an array',join(',',$name),$n)
-              );
-              
-            }//if/else
-            
-          }else{
+        throw new BadMethodCallException(
+          sprintf('could not find a match for command: %s',$command)
+        );
+        break;
+    
+    }//switch
+  
+    // canary...
+    if(!is_array($field_list)){
+      $field_list = (array)$field_list;
+    }//if
+  
+    $ret_val_list = array();
+    $ret_found_list = array();
+    $field_last_i = count($field_list) - 1;
+  
+    for($list_i = 0; $list_i < $this->count ;$list_i++){
+  
+      ///$ret_mixed[$i] = $default_val;
+      ///$ret_found[$i] = false;
+  
+      $field_i = 0;
+      $field_ref = &$this->list[$list_i]['map'];
+
+      foreach($field_list as $field){
+      
+        if($field_i < $field_last_i){
+        
+          // do iterative things because we haven't reached our final destination yet
+        
+          switch($command){
           
-            if($create){
+            case 'set':
+            case 'bump':
             
-              if($j < $max_j){
+              if(isset($field_ref[$field])){
               
-                $ret_mixed[$i][$n] = array();
+                if(!is_array($field_ref[$field])){
+                
+                  throw new DomainException(
+                    sprintf('Burrowing into [%s] failed because %s is not an array',join(',',$field_list),$field)
+                  );
+                
+                }//if
               
               }else{
               
-                $ret_mixed[$i][$n] = $default_val;
+                $field_ref[$field] = array();
               
               }//if/else
-              
-              $ret_mixed[$i] = &$ret_mixed[$i][$n];
-              $ret_found[$i] = true;
-              
-            }else{
             
-              unset($ret_mixed[$i]); // get rid of the reference so we can set an actual value
-              $ret_mixed[$i] = null;
-              $ret_found[$i] = false;
+              $field_ref = &$field_ref[$field];
+            
               break;
               
-            }//if/else
+            case 'kill':
           
-          }//if/else
-          
-          $j++;
-          
-        }//foreach
-      
-      }else{
+              if(isset($field_ref[$field])){
+                $field_ref = &$field_ref[$field];
+              }else{
+                // this field doesn't exist, so kill can just move on to the next list map...
+                break 2;
+              }//if/else
+            
+              break;
+              
+          }//switch
 
-        if(isset($this->list[$i]['map'][$name])){
-        
-          $ret_mixed[$i] = &$this->list[$i]['map'][$name];
-          $ret_found[$i] = true;
-        
         }else{
-
-          if($create){
-            $this->list[$i]['map'][$name] = $default_val;
-            $ret_mixed[$i] = &$this->list[$i]['map'][$name];
-            $ret_found[$i] = true;
-          }else{
-            $ret_mixed[$i] = null;
-            $ret_found[$i] = false;
-          }//if/else
+        
+          // we've reached our final destination, so do final things...
+        
+          switch($command){
           
+            case 'set':
+            
+              $this->list[$list_i]['modified'] = true;
+              $field_ref[$field] = $args[0];
+              $ret_mixed= true;
+              break;
+              
+            case 'bump':
+            
+              $this->list[$list_i]['modified'] = true;
+              
+              if(!isset($field_ref[$field])){
+                $field_ref[$field] = 0;
+              }//if
+              
+              $field_ref[$field] += (int)$args[0];
+              $ret_mixed= true;
+              break;
+              
+            case 'kill':
+            
+              $this->list[$list_i]['modified'] = true;
+              if(isset($field_ref[$field])){
+                unset($field_ref[$field]);
+              }//if
+            
+              $ret_mixed = true;
+              break;
+          
+          }//switch
+        
         }//if/else
-          
-      }//if/else
+        
+        $field_i++;
+        
+      }//foreach
       
     }//for
- 
-    return array($ret_found,$ret_mixed);
-  
-  }//method
-  
-  /**
-   *  internally handles all the set* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to set
-   *  @param  array $args the passed in value, only index 0 is used
-   *  @return boolean
-   */
-  private function handleSet($name,$args){
-  
-    // canary...
-    if(!isset($args[0])){ return null; }//if
-    if(empty($this->list)){ $this->append(array()); }//if
     
-    $args[0] = $this->normalizeVal($args[0]);
-    
-    list($found_list,$ref_list) = $this->handleDepth($name,true);
-    for($i = 0; $i < $this->count ;$i++){
-      $ref_list[$i] = $args[0];
-      $this->list[$i]['modified'] = true;
-    }//for
+    return $ret_mixed;
   
-    return true;
-    
   }//method
   
   /**
@@ -1080,48 +1114,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     }//foreach
     
     return $ret_bool;
-    
-  }//method
-  
-  /**
-   *  internally handles all the kill* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to unset
-   *  @param  array $args the passed in value
-   *  @return boolean true if the $name exists, false otherwise
-   */
-  private function handleKill($name,$args){
-  
-    list($found_list,$ref_list) = $this->handleDepth($name);
-    for($i = 0; $i < $this->count ;$i++){
-      $this->list[$i]['modified'] = true;
-      $ref_list[$i] = null;
-    }//for
-    
-    return true;
-  
-  }//method
-  
-  /**
-   *  internally handles all the bump* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to get
-   *  @param  array $args the passed in value
-   *  @return boolean true if the $name exists, false otherwise
-   */
-  private function handleBump($name,$args){
-    
-    // canary...
-    if(!isset($args[0])){ throw new mingo_exception(sprintf('no $count specified to bump %s',$name)); }//if
-    if(empty($this->list)){ $this->append(array()); }//if
-    
-    list($found_list,$ref_list) = $this->handleDepth($name,true,0);
-    for($i = 0; $i < $this->count ;$i++){
-      $this->list[$i]['modified'] = true;
-      $ref_list[$i] += $args[0];
-    }//for
-    
-    return true;
     
   }//method
   
