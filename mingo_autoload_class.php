@@ -10,9 +10,14 @@
  ******************************************************************************/
 
 // personal debugging stuff, ignore..
-///$out_path = 'E:\Projects\sandbox\out\git_repo\out_class.php';
-$out_path = 'C:\Projects\Plancast\_active\lib\out_class.php';
-if(is_file($out_path)){ include($out_path); }//if
+$out_path_list = array(
+  'out_class.php',
+  'C:\Projects\Plancast\_active\lib\out_class.php',
+  'E:\Projects\sandbox\out\git_repo\out_class.php'
+);
+foreach($out_path_list as $out_path){
+  if(is_file($out_path)){ include($out_path); break; }//if
+}//foreach
 
 class mingo_autoload {
 

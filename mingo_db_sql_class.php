@@ -11,7 +11,8 @@
  *    - extend PDO to do this http://us2.php.net/manual/en/pdo.begintransaction.php#81022
  *      for better transaction support   
  *  
- *  @version 0.5
+ *  @abstract 
+ *  @version 0.6
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-12-09
  *  @package mingo 
@@ -78,7 +79,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
 
     $this->con_map['pdo_options'] = array(
       PDO::ERRMODE_EXCEPTION => true,
-      PDO::ATTR_PERSISTENT => true,
+      // only reference I can find of the exit code 1 error is here:
+      // http://bugs.php.net/bug.php?id=43199 but persistent connections is what 
+      // is causing it, a quick performance testing showed no real difference in
+      // connection time on or off, so the quick fix is just to disable it...
+      ///PDO::ATTR_PERSISTENT => true, 
       PDO::ATTR_EMULATE_PREPARES => true,
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
     );
