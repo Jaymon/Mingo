@@ -10,7 +10,8 @@
  ******************************************************************************/
 
 // personal debugging stuff, ignore..
-$out_path = 'E:\Projects\sandbox\out\git_repo\out_class.php';
+///$out_path = 'E:\Projects\sandbox\out\git_repo\out_class.php';
+$out_path = 'C:\Projects\Plancast\_active\lib\out_class.php';
 if(is_file($out_path)){ include($out_path); }//if
 
 class mingo_autoload {

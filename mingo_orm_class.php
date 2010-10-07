@@ -15,7 +15,7 @@
  *    - created = holds a unix timestamp of when the row was created, always set  
  *  
  *  @abstract 
- *  @version 0.5
+ *  @version 0.6
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
@@ -756,73 +756,52 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  
    *  @example  if you want to see if a field has atleast one matching value
    *              $this->inFoo('bar'); // true if field foo contains bar atleast once   
-   *                       
+   *
+   *  @example  you can also reach into arrays...
+   *              $this->setFoo(array('bar' => 'che')); // foo now is an array with one key, bar   
+   *              $this->getField(array('foo','bar')); // would return 'che'
+   *              $this->getFoo(); // would return array('bar' => 'che')
+   *                             
    *  @param  string  $method the method that was called
    *  @param  array $args the arguments passed to the function
    *  @return mixed
    */      
   function __call($method,$args){
     
-    $method_map = array(
-      'set' => 'handleSet',
-      'get' => 'handleGet',
-      'has' => 'handleHas',
-      'is' => 'handleIs',
-      'exists' => 'handleExists',
-      'kill' => 'handleKill',
-      'in' => 'handleIn',
-      'bump' => 'handleBump'
-    );
-    
     list($command,$field,$args) = $this->splitMethod($method,$args);
     
-    
-    $this->handleCall($command,$field,$args);
-    
-    
-    
-    return;
-    
-    
-    if(empty($method_map[$command])){
-    
-      throw new mingo_exception(sprintf('could not find a match for $method %s with command: %s',$method,$command));
-    
-    }else{
-    
-      $callback = $method_map[$command];
-    
-      // we use array_key_exists to compensate for null values which would cause isset to fail...
-      if(is_string($field) && array_key_exists($field,get_object_vars($this))){
-      
-        throw new mingo_exception(sprintf('a field cannot have this name: %s',$field));
-      
-      }else{
-    
-        $ret_mix = $this->{$callback}($field,$args);
-        return $ret_mix;
-        
-      }//if/else
-    
+    // canary...
+    if(empty($field)){
+      throw new BadMethodCallException('field cannot be empty');
     }//if
+    
+    if(is_string($field) && array_key_exists($field,get_object_vars($this))){
+      throw new BadMethodCallException(sprintf('a field cannot have this name: %s',$field));
+    }//if
+    
+    $ret_mixed = $this->handleCall($command,$field,$args);
+    
+    // format the return value...
+    if(!$this->isMulti()){
+      
+      if(is_array($ret_mixed) && !empty($ret_mixed)){
+        $ret_mixed = $ret_mixed[0];
+      }//if
+      
+    }//if
+    
+    return $ret_mixed;
   
   }//method
   
   /**
-   *  this allows for retrieving into a value in one swoop 
+   *  handle the meet of __call()
    *  
-   *  @example  
-   *    $this->setFoo(array('bar' => 'che')); // foo now is an array with one key, bar   
-   *    $this->getField(array('foo','bar')); // would return 'che'
-   *    $this->getFoo(); // would return array('bar' => 'che')       
-   *
-   *  @since  10-3-10   
-   *  @param  array|string  $name the field name
-   *  @param  boolean $create true to have the keys created if they don't exist (handy for set*)
-   *  @param  mixed $default_val  if the key doesn't exist, set it to this
-   *  @return array array($found_list,$ref_list) the found list is a list of booleans, true if
-   *                that index had a value, false if not, and $ref_list is a reference to the value
-   *                at whatever depth
+   *  @since  10-5-10   
+   *  @param  string  $command  the command that will be executed
+   *  @param  array|string  $field_list the field to be retrieved   
+   *  @param  array $args the arguments passed into the __call method
+   *  @return mixed depending on the $command, something is returned
    */
   private function handleCall($command,$field_list,$args){
   
@@ -830,6 +809,23 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     // canary, do the pre check stuff for each command to make sure we have what we need...
     switch($command){
+    
+      case 'get':
+      
+        // canary...
+        if(!isset($args[0])){ $args[0] = null; }//if
+        if(!$this->hasCount()){ return $this->isMulti() ? array() : $args[0]; }//if
+        
+        $ret_mixed = array();
+        
+        break;
+    
+      case 'has':
+      case 'exists':
+      
+        if(!$this->hasCount()){ return false; }//if
+        $ret_mixed = true;
+        break;
     
       case 'set':
       case 'bump':
@@ -848,6 +844,24 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
       // just establish that these exist...
       case 'kill':
+        break;
+    
+      case 'is':
+      
+        if(empty($args)){
+          throw new BadMethodCallException('method had no arguments passed in, so no compare can be made');
+        }//if
+        if(!$this->hasCount()){ return false; }//if
+        $ret_mixed = true;
+        break;
+      
+      case 'in':
+      
+        if(empty($args)){
+          throw new BadMethodCallException('method had no arguments passed in, so no compare can be made');
+        }//if
+        if(!$this->hasCount()){ return false; }//if
+        $ret_mixed = false;
         break;
     
       default:
@@ -880,7 +894,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       
         if($field_i < $field_last_i){
         
-          // do iterative things because we haven't reached our final destination yet
+          // do iterative things because we haven't reached our final destination yet...
         
           switch($command){
           
@@ -906,13 +920,19 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
               $field_ref = &$field_ref[$field];
             
               break;
-              
+            
+            case 'get':
             case 'kill':
+            case 'has':
+            case 'exists':
+            case 'is':
+            case 'in':
           
               if(isset($field_ref[$field])){
                 $field_ref = &$field_ref[$field];
               }else{
                 // this field doesn't exist, so kill can just move on to the next list map...
+                unset($field_ref);
                 break 2;
               }//if/else
             
@@ -926,9 +946,29 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         
           switch($command){
           
+            case 'get':
+            
+              if(isset($field_ref[$field])){
+                $ret_mixed[] = $field_ref[$field];
+              }else{
+                $ret_mixed[] = $args[0];
+              }//if/else
+            
+              break;
+          
+            case 'has':
+            
+              if(empty($field_ref[$field])){
+                $ret_mixed = false;
+                break 3; // we're done, no need to go through any more rows
+              }//if
+            
+              break;
+          
             case 'set':
             
               $this->list[$list_i]['modified'] = true;
+              
               $field_ref[$field] = $args[0];
               $ret_mixed= true;
               break;
@@ -945,6 +985,47 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
               $ret_mixed= true;
               break;
               
+            case 'is':
+            
+              if(!isset($field_ref[$field]) || !in_array($field_ref[$field],$args,true)){
+                $ret_mixed = false;
+                break 3;
+              }//if
+            
+              break;
+              
+            case 'in':
+            
+              if(array_key_exists($field,$field_ref)){
+              
+                $key = array_search($field_ref[$field],$args,true);
+                if($key !== false){
+                
+                  unset($args[$key]);
+                
+                }//if
+              
+              }//if
+              
+              if(empty($args)){
+                $ret_mixed = true;
+                break 3;
+              }//if
+            
+              break;
+              
+            case 'exists':
+            
+              // note would it be better to check if array and do array_key_exists here?
+              // isset() catches everything but null values
+            
+              if(!isset($field_ref[$field])){
+                $ret_mixed = false;
+                break 3; // we're done, no need to go through any more rows
+              }//if
+            
+              break;
+            
             case 'kill':
             
               $this->list[$list_i]['modified'] = true;
@@ -967,154 +1048,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     return $ret_mixed;
   
-  }//method
-  
-  /**
-   *  internally handles all the get* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to get
-   *  @param  array $args the passed in value
-   *  @return mixed whatever value is found, otherwise $args[0] (default_val), if there is
-   *                only one row (ie $this->isCount(1) is true) then just that value is returned
-   *                otherwise an array of values are returned      
-   */
-  private function handleGet($name,$args = array()){
-  
-    // canary...
-    if(!isset($args[0])){ $args[0] = null; }//if
-    if(!$this->hasCount()){ return $this->isMulti() ? array() : $args[0]; }//if
-    
-    $ret_list = array();
-    
-    list($found_list,$ref_list) = $this->handleDepth($name);
-    foreach($ref_list as $key => $ref){
-      if(empty($found_list[$key])){
-        $ret_list[] = $args[0];
-      }else{
-        $ret_list[] = $ref;
-      }//if/else
-    }//foreach
-    
-    // check for just one index and just return that value if found...
-    return ($this->isMulti()) ? $ret_list : $ret_list[0];
-  
-  }//method
-  
-  /**
-   *  internally handles all the has* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to get
-   *  @param  array $args the passed in value
-   *  @return boolean true if the $name exists and is non-empty, false otherwise
-   */
-  private function handleHas($name,$args = array()){
-    
-    // canary...
-    if(!$this->hasCount()){ return false; }//if
-    
-    $ret_bool = true;
-  
-    list($found_list,$ref_list) = $this->handleDepth($name);
-    foreach($ref_list as $key => $ref){
-      if(empty($ref)){
-        $ret_bool = false;
-        break;
-      }//if
-    }//foreach
-  
-    return $ret_bool;
-    
-  }//method
-  
-  /**
-   *  internally handles all the exists* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to get
-   *  @param  array $args the passed in value
-   *  @return boolean true if the $name exists, false otherwise
-   */
-  private function handleExists($name,$args = array()){
-  
-    // canary...
-    if(!$this->hasCount()){ return false; }//if
-  
-    $ret_bool = true;
-    
-    list($found_list,$ref_list) = $this->handleDepth($name);
-    
-    foreach($found_list as $key => $found){
-      if(empty($found)){
-        $ret_bool = false;
-        break;
-      }//if
-    }//foreach
-  
-    return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  internally handles all the is* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to get
-   *  @param  array $args the passed in value
-   *  @return boolean true if the $name exists and is the value found in $args, false otherwise
-   */
-  private function handleIs($name,$args){
-    
-    // canary...
-    if(!$this->hasCount()){ return false; }//if
-    // make sure the $name is present in all the maps, otherwise it fails...
-    if(!$this->handleExists($name)){ return false; }//if
-    
-    $ret_bool = true;
-    $multi_orig = $this->isMulti();
-    $this->setMulti(true);
-    $get_list = $this->handleGet($name);
-    $this->setMulti($multi_orig);
-    
-    foreach($get_list as $val){
-    
-      if(!in_array($val,$args,true)){
-        $ret_bool = false;
-        break;
-      }//if
-    
-    }//foreach
-    
-    return $ret_bool;
-    
-  }//method
-  
-  /**
-   *  internally handles all the in* functions of this class
-   *  
-   *  @param  string  $name the name of the index in the current map to get
-   *  @param  array $args the passed in value
-   *  @return boolean true if the $name exists and is the value found in $args, false otherwise
-   */
-  private function handleIn($name,$args){
-    
-    // canary...
-    if(!$this->hasCount()){ return false; }//if
-    
-    $ret_bool = true;
-    $multi_orig = $this->isMulti();
-    $this->setMulti(true);
-    $get_list = $this->handleGet($name);
-    $this->setMulti($multi_orig);
-    
-    foreach($args as $arg){
-      
-      if(!in_array($arg,$get_list,true)){
-        $ret_bool = false;
-        break;
-      }//if
-      
-    }//foreach
-    
-    return $ret_bool;
-    
   }//method
   
   /**#@+
@@ -1144,21 +1077,21 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       $this->append($val);
     }else{
       // they specified the key, so this will work on the internal objects...
-      $this->__call(sprintf('set%s',ucfirst($key)),array($val));
+      $this->setField($key,array($val));
     }//if/else
   }//method
   /**
    *  Return a value given it's key e.g. echo $A['title'];
    */
-  function offsetGet($key){ return $this->__call(sprintf('get%s',ucfirst($key)),array()); }//method
+  function offsetGet($key){ return $this->getField($key,null); }//method
   /**
    *  Unset a value by it's key e.g. unset($A['title']);
    */
-  function offsetUnset($key){ return $this->__call(sprintf('kill%s',ucfirst($key))); }//method
+  function offsetUnset($key){ return $this->killField($key); }//method
   /**
    *  Check value exists, given it's key e.g. isset($A['title'])
    */
-  function offsetExists($key){  return $this->__call(sprintf('exists%s',ucfirst($key))); }//method
+  function offsetExists($key){  return $this->existsField($key); }//method
   /**#@-*/
   
   /**

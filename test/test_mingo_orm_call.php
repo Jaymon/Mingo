@@ -2,7 +2,7 @@
 
 require('mingo_test_class.php');
 
-class test_orm_call extends mingo_test {
+class test_mingo_orm_call extends mingo_test {
 
   /**
    * @dataProvider  getSetVal
@@ -162,6 +162,148 @@ class test_orm_call extends mingo_test {
   }//method
   
   /**
+   * @dataProvider  getOrm
+   */
+  public function testGet($t){
+  
+    $foo = $t->getFoo();
+    $this->assertNotEmpty($foo);
+    
+    $bar = $t->getField(array('bar','baz'));
+    $this->assertNotEmpty($bar);
+    
+    $bar = $t->getField('bar');
+    $this->assertTrue(is_array($bar));
+    
+    $fake = $t->getField('blah_blah_blah',0);
+    $this->assertSame(0,$fake);
+    
+    $fake = $t->getField('blah_blah_blah');
+    $this->assertNull($fake);
+  
+    $fake = $t->getField('blah_blah_blah','blah_blah_blah');
+    $this->assertSame('blah_blah_blah',$fake);
+    
+    $t2 = $this->getOrm(); $t2 = $t2[0][0];
+    $t->append($t2);
+    
+    $foo = $t->getFoo();
+    $this->assertTrue(is_array($foo));
+    $this->assertEquals(2,count($foo));
+    
+    $t->append(array());
+    $foo = $t->getFoo('adsfsdf');
+    $this->assertTrue(is_array($foo));
+    $this->assertEquals(3,count($foo));
+    $this->assertSame('adsfsdf',$foo[2]);
+  
+  }//method
+  
+  /**
+   * @dataProvider  getOrm
+   */
+  public function testHas($t){
+  
+    $this->assertTrue($t->hasFoo());
+    $this->assertTrue($t->hasBar());
+    $this->assertTrue($t->hasField(array('bar','baz')));
+    
+    $this->assertFalse($t->hasField('blah_blah_blah'));
+  
+    $t2 = $this->getOrm(); $t2 = $t2[0][0];
+    $t->append($t2);
+    
+    $this->assertTrue($t->hasFoo());
+    $this->assertTrue($t->hasBar());
+    $this->assertTrue($t->hasField(array('bar','baz')));
+    
+    $t->setFoo(0);
+    $this->assertFalse($t->hasFoo());
+    
+    $t->append(array());
+    $this->assertFalse($t->hasFoo());
+  
+  }//method
+  
+  /**
+   * @dataProvider  getOrm
+   */
+  public function testExists($t){
+  
+    $this->assertTrue($t->existsFoo());
+    $this->assertTrue($t->existsBar());
+    $this->assertTrue($t->existsField(array('bar','baz')));
+    
+    $this->assertFalse($t->existsField('blah_blah_blah'));
+    
+    $t->setFoo(0);
+    $this->assertTrue($t->existsFoo());
+  
+    $t2 = $this->getOrm(); $t2 = $t2[0][0];
+    $t->append($t2);
+    
+    $this->assertTrue($t->existsFoo());
+    $this->assertTrue($t->existsBar());
+    $this->assertTrue($t->existsField(array('bar','baz')));
+    
+    $t->append(array());
+    $this->assertFalse($t->existsFoo());
+  
+  }//method
+  
+  public function testIs(){
+  
+    $t = new test_orm();
+    
+    $t->setFoo(1);
+    
+    $this->assertTrue($t->isFoo(1));
+    $this->assertFalse($t->isFoo(2));
+  
+    $t->setField(array('bar','baz'),3);
+    $this->assertTrue($t->isField(array('bar','baz'),3));
+    $this->assertFalse($t->isField(array('bar','baz'),2));
+  
+    $t->append(array('foo' => 1));
+    $this->assertTrue($t->isFoo(1));
+    $this->assertFalse($t->isFoo(2));
+    
+    $t->append(array('foo' => 2));
+    $this->assertFalse($t->isFoo(1));
+    $this->assertFalse($t->isFoo(2));
+  
+  }//method
+  
+  public function testIn(){
+  
+    $t = new test_orm();
+    
+    $t->setFoo(1);
+    
+    $this->assertTrue($t->inFoo(1));
+    $this->assertFalse($t->inFoo(2));
+  
+    $t->setField(array('bar','baz'),3);
+    $this->assertTrue($t->inField(array('bar','baz'),3));
+    $this->assertFalse($t->inField(array('bar','baz'),2));
+    $this->assertFalse($t->inField(array('bar','baz'),1,2));
+  
+    $t->append(array('foo' => 4)); // foo: 1,4
+    $this->assertTrue($t->inFoo(1));
+    $this->assertFalse($t->inFoo(2));
+    $this->assertTrue($t->inFoo(1,4));
+    $this->assertFalse($t->inFoo(1,2));
+    
+    $t->append(array('foo' => 2));  // foo: 1,4,2
+    $this->assertTrue($t->inFoo(1));
+    $this->assertTrue($t->inFoo(2));
+    $this->assertTrue($t->inFoo(1,4,2));
+    $this->assertFalse($t->inFoo(3));
+    $this->assertFalse($t->inFoo(1,4,3));
+  
+  }//method
+  
+  /**
    *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
    *
    */        
@@ -170,26 +312,6 @@ class test_orm_call extends mingo_test {
       array(rand(0,PHP_INT_MAX),md5(microtime(true)))
     );
   }//method
-  
-  /**
-   *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
-   */        
-  public function getOrm(){
-    
-    $t = new test_orm();
-    $t->append(
-      array(
-        'foo' => rand(0,PHP_INT_MAX),
-        'bar' => array(
-          'baz' => md5(microtime(true))
-        )
-      ),
-      false
-    );
-    
-    return array(
-      array($t)
-    );
-  }//method
 
 }//class
+

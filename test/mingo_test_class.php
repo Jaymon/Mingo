@@ -15,4 +15,25 @@ mingo_autoload::register();
 
 class mingo_test extends PHPUnit_Framework_TestCase {
 
+  /**
+   *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
+   */        
+  public function getOrm(){
+    
+    $t = new test_orm();
+    $t->append(
+      array(
+        'foo' => rand(0,PHP_INT_MAX),
+        'bar' => array(
+          'baz' => md5(microtime(true))
+        )
+      ),
+      false
+    );
+    
+    return array(
+      array($t)
+    );
+  }//method
+
 }//class
