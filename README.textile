@@ -77,7 +77,15 @@ foreach($user_load as $u){
 }//foreach
 </pre>
 
-this is just a basic example, but it shows you the initial power of Mingo. each class extended from <code>mingo_orm</code> has many built in functions to make doing things easy, you just saw the set* and get* functions, but you also have has* functions to make sure a field exists and is non-empty (eg, <code>$user->hasPassword()</code> to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, <code>$user->bumpView($count)</code> where $count=1). And is* functions to see if a field contains a value (eg, <code>$user->isUsername('tester')</code>).
+this is just a basic example, but it shows you the initial power of Mingo. each class extended from <code>mingo_orm</code> has many built in functions to make doing things easy, you just saw the set* and get* functions, but you also have has* functions to make sure a field exists and is non-empty (eg, <code>$user->hasPassword()</code> to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, <code>$user->bumpView($count)</code> where $count=1). And is* functions to see if a field contains a value (eg, <code>$user->isUsername('tester')</code>). You can also reach into arrays with all the methods:
+
+<pre>
+$user = new user();
+$user->setField('attributes',array('foo' => 1,'bar' => 2));
+$user->getField(array('attributes','foo')); // 1
+$user->isField(array('attributes','foo'),1); // true
+</pre>
+
 
 On top of that, the load() function takes a <code>mingo_criteria</code> instance to make loading from the db painless. For example, to load all users with certain usernames, you could:
 
