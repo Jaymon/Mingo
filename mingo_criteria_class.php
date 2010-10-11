@@ -168,7 +168,7 @@ class mingo_criteria extends mingo_base {
   public function setWhere($map){
     // canary...
     if(empty($map)){ $map = array(); }//if
-    if(!is_array($map)){ throw new mingo_exception('$map isn\'t an array'); }//if
+    if(!is_array($map)){ throw new UnexpectedValueException('$map isn\'t an array'); }//if
     
     return $this->map_where = $map;
   }//method
@@ -178,7 +178,7 @@ class mingo_criteria extends mingo_base {
   public function setSort($map){
     // canary...
     if(empty($map)){ $map = array(); }//if
-    if(!is_array($map)){ throw new mingo_exception('$map isn\'t an array'); }//if
+    if(!is_array($map)){ throw new UnexpectedValueException('$map isn\'t an array'); }//if
     
     return $this->map_sort = $map;
   }//method

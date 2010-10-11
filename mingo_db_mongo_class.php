@@ -29,35 +29,28 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @return boolean
    *  @throws mingo_exception   
    */
-  function connect($db_name,$host,$username,$password){
+  public function connect($db_name,$host,$username,$password){
     
-    if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
+    // canary, make sure certain things exist...
+    if(empty($host)){ throw new UnexpectedValueException('$host cannot be empty'); }//if
     
     $this->con_map['db_name'] = $db_name;
     $this->con_map['host'] = $host;
     $this->con_map['username'] = $username;
     $this->con_map['password'] = $password;
     
-    try{
+    // do the connecting...
+    if(!empty($username) && !empty($password)){
       
-      // do the connecting...
-      if(!empty($username) && !empty($password)){
-        
-        $this->con_map['connection'] = new MongoAuth($host);
-        $this->con_db = $this->con_map['connection']->login($db_name,$username,$password);
-  
-      }else{
-      
-        $this->con_map['connection'] = new Mongo($host);
-        $this->con_db = $this->con_map['connection']->selectDB($db_name);
-        
-      }//if/else
-      
-    }catch(MongoConnectionException $e){
+      $this->con_map['connection'] = new MongoAuth($host);
+      $this->con_db = $this->con_map['connection']->login($db_name,$username,$password);
+
+    }else{
     
-      throw new mingo_exception(sprintf('trouble finding connection: %s',$e->getMessage()));
+      $this->con_map['connection'] = new Mongo($host);
+      $this->con_db = $this->con_map['connection']->selectDB($db_name);
       
-    }//try/catch
+    }//if/else
   
     $this->con_map['connected'] = true;
     
@@ -73,7 +66,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string  $table  doesn't do anything, just here for abstract signature match   
    *  @return array a list of table names
    */
-  function getTables($table = ''){
+  public function getTables($table = ''){
   
     $ret_list = array();
     $db_name = sprintf('%s.',$this->con_map['db_name']);
@@ -93,27 +86,69 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string  $table
    *  @param  mingo_schema  $schema the table schema   
    *  @param  mingo_criteria  $where_criteria
-   *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
+   *  @param  array $limit  array($limit,$offset)
    *  @return integer the count
    */
-  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
+  public function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
   
     $ret_int = 0;
     $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_criteria);
-    if(empty($where_map)){
-      $ret_int = $table->count();
-    }else{
-      $cursor = $table->find($where_map);
-      
-      // do the limit stuff...
-      if(!empty($limit[0])){ $cursor->limit($limit[0]); }//if
-      if(!empty($limit[1])){ $cursor->skip($limit[1]); }//if
-      
+    
+    if($where_criteria->hasWhere()){
+    
+      $cursor = $this->getCursor($table,$where_criteria,$limit);
       $ret_int = $cursor->count();
+    
+    }else{
+    
+      $ret_int = $table->count();
+    
     }//if/else
+    
     return $ret_int;
   
+  }//method
+  
+  /**
+   *  get a list of rows matching $where_map
+   *  
+   *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
+   *  @param  mingo_criteria  $where_map
+   *  @param  array $limit  array($limit,$offset)   
+   *  @return array   
+   */
+  public function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
+    
+    $table = $this->getTable($table);
+    $cursor = $this->getCursor($table,$where_criteria,$limit);
+   
+    ///while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
+    return array_values(iterator_to_array($cursor));
+
+  }//method
+  
+  /**
+   *  get the first found row in $table according to $where_map find criteria
+   *  
+   *  @param  string  $table
+   *  @param  mingo_schema  $schema the table schema   
+   *  @param  mingo_criteria  $where_criteria
+   *  @return array
+   */
+  public function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+    
+    $list = $this->get($table,$schema,$where_criteria,array(1,0));
+    return empty($list[0]) ? array() : $list[0];
+    
+    /**
+    using the findOne it doesn't look like you can sort it, which would be nice...    
+    $table = $this->getTable($table);
+    list($where_map,$sort_map) = $this->getCriteria($where_criteria);
+    $ret_map = $table->findOne($where_map);
+    return empty($ret_map) ? array() : $ret_map;
+    */
+
   }//method
   
   /**
@@ -131,80 +166,35 @@ class mingo_db_mongo extends mingo_db_interface {
   
     $table = $this->getTable($table);
     list($where_map) = $this->getCriteria($where_criteria);
-    return $table->remove($where_map);
-  
-  }//method
-  
-  /**
-   *  get a list of rows matching $where_map
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema   
-   *  @param  mingo_criteria  $where_map
-   *  @param  array $limit  array($limit,$offset)   
-   *  @return array   
-   */
-  function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
     
-    $ret_list = array();
-    $table = $this->getTable($table);
-    list($where_map,$sort_map) = $this->getCriteria($where_criteria);
+    $ret_mixed = $table->remove($where_map);
+    if(is_array($ret_mixed)){
+      $ret_mixed = $ret_mixed['ok'];
+    }//if
     
-    $cursor = $table->find($where_map);
-    
-    // @todo  right here you can call $cursor->count() to get how many rows were found
+    return $ret_mixed;
   
-    // do the sort stuff...
-    if(!empty($sort_map)){ $cursor->sort($sort_map); }//if
-  
-    // do the limit stuff...
-    if(!empty($limit[0])){ $cursor->limit($limit[0]); }//if
-    if(!empty($limit[1])){ $cursor->skip($limit[1]); }//if
-  
-    // @note  a MongoCursorException can be thrown if skip is larger than the results that can be returned... 
-    while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
-      
-    return $ret_list;
-
-  }//method
-  
-  /**
-   *  get the first found row in $table according to $where_map find criteria
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema   
-   *  @param  mingo_criteria  $where_criteria
-   *  @return array
-   */
-  function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
-    
-    $table = $this->getTable($table);
-    list($where_map) = $this->getCriteria($where_criteria);
-    $ret_map = $table->findOne($where_map);
-    return empty($ret_map) ? array() : $ret_map;
-
   }//method
   
   /**
    *  insert $map into $table
    *  
    *  @param  string  $table  the table name
-   *  @param  array|mingo_criteria  $map  the key/value map that will be added to $table
-   *  @return array the $map that was just saved
-   *  @param  mingo_schema  $schema the table schema   
-   *  @throws mingo_exception on any failure               
+   *  @param  array $map  the key/value map that will be added to $table
+   *  @param  mingo_schema  $schema the table schema
+   *  @return array the $map that was just saved              
    */
-  function insert($table,$map,mingo_schema $schema){
+  public function insert($table,array $map,mingo_schema $schema){
     
     $db_table = $this->getTable($table);
-    list($map) = $this->getCriteria($map);
+    $map = $this->getMap($map);
+    
     $db_table->insert($map);
     
     // $error_map has keys: [err], [n], and [ok]...
     $error_map = $this->con_db->lastError();
-    if(empty($error_map['err'])){
-    }else{
-      throw new mingo_exception(sprintf('insert failed with message: %s',$error_map['err']));
+    if(!empty($error_map['err'])){
+      throw new MongoException(sprintf('insert failed with message: %s',$error_map['err']));
     }//if/else
     
     return $map;
@@ -220,36 +210,27 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  mingo_schema  $schema the table schema      
    *  @return array the $map that was just saved with _id set
    *     
-   *  @throws mingo_exception on any failure
+   *  @throws MongoException on any failure
    */
-  function update($table,$_id,$map,mingo_schema $schema){
+  public function update($table,$_id,array $map,mingo_schema $schema){
     
-    $ret_id = null;
     $table = $this->getTable($table);
-    list($map) = $this->getCriteria($map);
-    list($where_map) = $this->getCriteria(array('_id' => $_id));
+    $map = $this->getMap($map);
+    $where_criteria = new mingo_criteria();
+    $where_criteria->is_id($_id);
     
     // always returns true, annoying...
-    $table->update($where_map,$map);
+    $table->update($where_criteria->getWhere(),$map);
     
     // $error_map has keys: [err], [updatedExisting], [n], [ok]...
-    $error_map = $this->con_db->lastError();
-    if(empty($error_map['updatedExisting'])){
-      throw new mingo_exception(sprintf('update failed with message: %s',$error_map['err']));
+    $err_map = $this->con_db->lastError();
+    if(empty($err_map['updatedExisting'])){
+    
+      throw new MongoException(sprintf('update failed with message: %s',$err_map['err']));
+      
     }else{
     
-      if(empty($ret_id)){
-        if(isset($where_map['_id'])){
-          $ret_id = $where_map['_id'];
-        }//if
-      }//if
-      if(empty($ret_id)){
-      
-        // @todo - need to load this map to get the id, but I have no idea how to do that.
-      
-      }else{
-        $map['_id'] = $ret_id;
-      }//if
+      $map['_id'] = $_id;
       
     }//if/else
     
@@ -266,7 +247,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  array $map  usually something like array('field_name' => 1)
    *  @return boolean
    */
-  function setIndex($table,$map){
+  public function setIndex($table,array $map){
     
     // canary...
     if(empty($map)){ throw new mingo_exception('no $map given'); }//if
@@ -286,8 +267,17 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   public function getIndexes($table){
   
+    $ret_list = array();
     $table = $this->getTable($table);
-    return $table->getIndexInfo();
+    $index_list = $table->getIndexInfo();
+    
+    foreach($index_list as $index_map){
+    
+      $ret_list[$index_map['name']] = $index_map['key'];
+    
+    }//foreach
+    
+    return $ret_list;
   
   }//method
   
@@ -297,7 +287,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string  $table  the table to delete from the db
    *  @return boolean
    */
-  function killTable($table){
+  public function killTable($table){
     
     // canary...
     if(!$this->hasTable($table)){ return true; }//if
@@ -310,7 +300,7 @@ class mingo_db_mongo extends mingo_db_interface {
 
     if(empty($drop['ok'])){
     
-      throw new mingo_exception($drop['msg']);
+      throw new UnexpectedValueException($drop['msg']);
     
     }else{
     
@@ -329,7 +319,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  mingo_schema  a schema object that defines indexes, etc. for this   
    *  @return boolean
    */
-  function setTable($table,mingo_schema $schema){
+  public function setTable($table,mingo_schema $schema){
   
     $this->con_db->createCollection($table);
     
@@ -359,7 +349,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string  $table  the table to check
    *  @return boolean
    */
-  function hasTable($table){
+  public function hasTable($table){
 
     // get all the tables currently in the db...
     $table_list = $this->getTables();
@@ -382,8 +372,8 @@ class mingo_db_mongo extends mingo_db_interface {
   protected function getTable($table){
   
     // canary...
-    if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
-    if(empty($table)){ throw new mingo_exception('no $table given'); }//if
+    if(!$this->isConnected()){ throw new UnexpectedValueException('no db connection found'); }//if
+    if(empty($table)){ throw new InvalidArgumentException('no $table given'); }//if
     
     return ($table instanceof MongoCollection) ? $table : $this->con_db->selectCollection($table);
   
@@ -392,60 +382,69 @@ class mingo_db_mongo extends mingo_db_interface {
   /**
    *  assures a $where_map contains the right information to make a call against a table
    *  
-   *  @param  array|mingo_criteria  $where_map      
-   *  @return array array($where_map,$sort_map), the $where_map and $sort_map with values assured
+   *  @param  mingo_criteria  $where_criteria
+   *  @return array array($where_map,$sort_map), the $where_map and $sort_map are arrays 
+   *                with their values assured
    */
-  protected function getCriteria($where_criteria){
+  protected function getCriteria(mingo_criteria $where_criteria){
   
-    // canary...
-    if(empty($where_criteria)){ return array(array(),array()); }//if
-    if(!is_array($where_criteria) && !is_object($where_criteria)){
-      throw new mingo_exception('$where_criteria is not an associative array or mingo_criteria instance');
-    }//if
+    return array($where_criteria->getWhere(),$where_criteria->getSort());
+      
+  }//method
   
+  /**
+   *  convert the $map passed into insert/delete into a proerly formatted map for mongo
+   *    
+   *  @since  10-11-10    
+   *  @param  array|mingo_criteria  $map
+   *  @return array      
+   */
+  protected function getMap($map){
+  
+    $ret_map = array();
+  
+    if($map instanceof mingo_criteria){
     
-    $where_map = $sort_map = array();
-    
-    if($where_criteria instanceof mingo_criteria){
-      $where_map = array_merge(
+      $ret_map = array_merge(
         $where_criteria->getOperations(),
         $where_criteria->getWhere()
       );
-      $sort_map = $where_criteria->getSort();
+      
     }else{
-      $where_map = $where_criteria;
+    
+      $ret_map = $map;
+      
     }//if/else
   
-    // assure the _id field is the right type...
-    if(isset($where_map['_id'])){
-      if(!($where_map['_id'] instanceof MongoId)){
-      
-        if(is_array($where_map['_id'])){
-        
-          // make sure the whole list contains the right id type...
-          foreach($where_map['_id'] as $key => $id){
-            if(!($id instanceof MongoId)){
-              $where_map['_id'][$key] = new MongoId($id);
-            }//if
-          }//foreach
-          
-          // build an in query for all the _ids...
-          $c = new mingo_criteria();
-          $c->inField(mingo_orm::_ID,$where_map['_id']);
-          list($new_where_map) = $c->getWhere();
-          $where_map['_id'] = $new_where_map['_id'];
-          
-        }else{
-      
-          $where_map['_id'] = new MongoId($where_map['_id']);  
-        
-        }//if/else
-      
-      }//if
-    }//if
+    return $ret_map;
+  
+  }//method
+  
+  /**
+   *  get a Mongo cursor from a mingo_criteria
+   *
+   *  @since  10-11-10   
+   *  @param  MongoCollection $table   
+   *  @param  mingo_criteria  $where_criteria
+   *  @param  array $limit  array($limit,$offset)   
+   *  @return MongoCursor
+   */
+  protected function getCursor(MongoCollection $table,mingo_criteria $where_criteria,$limit){
+  
+    list($where_map,$sort_map) = $this->getCriteria($where_criteria);
     
-    return array($where_map,$sort_map);
-      
+    $cursor = $table->find($where_map);
+    
+    // do the sort stuff...
+    // @note  a MongoCursorException can be thrown if skip is larger than the results that can be returned...
+    if(!empty($sort_map)){ $cursor->sort($sort_map); }//if
+  
+    // do the limit stuff...
+    if(!empty($limit[0])){ $cursor->limit($limit[0]); }//if
+    if(!empty($limit[1])){ $cursor->skip($limit[1]); }//if
+  
+    return $cursor;
+  
   }//method
   
 }//class     

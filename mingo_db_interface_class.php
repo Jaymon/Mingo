@@ -134,7 +134,7 @@ abstract class mingo_db_interface {
    *  @return array the $map that was just saved, with the _id set
    *  @throws mingo_exception on any failure               
    */
-  abstract public function insert($table,$map,mingo_schema $schema);
+  abstract public function insert($table,array $map,mingo_schema $schema);
   
   /**
    *  update $map from $table using $_id
@@ -147,7 +147,7 @@ abstract class mingo_db_interface {
    *     
    *  @throws mingo_exception on any failure
    */
-  abstract public function update($table,$_id,$map,mingo_schema $schema);
+  abstract public function update($table,$_id,array $map,mingo_schema $schema);
   
   /**
    *  adds an index to $table
@@ -157,7 +157,7 @@ abstract class mingo_db_interface {
    *                      but it's the same way to keep compatibility with Mongo   
    *  @return boolean
    */
-  abstract public function setIndex($table,$map);
+  abstract public function setIndex($table,array $map);
   
   /**
    *  get all the indexes of $table
@@ -229,7 +229,7 @@ abstract class mingo_db_interface {
    *  @param  mingo_criteria  $where_criteria
    *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
    */
-  abstract protected function getCriteria($where_criteria);
+  abstract protected function getCriteria(mingo_criteria $where_criteria);
   
   /**
    *  turn debugging on or off

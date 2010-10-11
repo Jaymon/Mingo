@@ -301,6 +301,28 @@ final class mingo_db {
   }//method
   
   /**
+   *  allows a raw query to be run on the interface
+   *  
+   *  all this method does is pull out any passed in args, and pass them as a list
+   *  to the interface's getQuery() method.   
+   *      
+   *  It is not recommended that you use this because it is up to the interface 
+   *  to decide what params need to be passed in and how they are formatted, so it
+   *  locks you into the interface, however, sometimes you just have to run custom
+   *  queries on your backend, and this allows you to do that.
+   *  
+   *  @since  10-8-10   
+   *  @param  mixed $args,... as many or as few as you want, it is up to the interface to error check
+   *  @return mixed whatever the interface chooses to return
+   */
+  public function getQuery()
+  {
+    $args = func_get_args();
+    return $this->con_db->getQuery($args);
+  
+  }//method
+  
+  /**
    *  get a list of rows matching $where_criteria
    *  
    *  @param  string  $table

@@ -466,7 +466,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  mingo_schema  $schema the table schema   
    *  @throws mingo_exception on any failure               
    */
-  function insert($table,$map,mingo_schema $schema){
+  function insert($table,array $map,mingo_schema $schema){
     
     // insert into the main table, _id and body are all we care about...
     $field_map = array();
@@ -528,7 +528,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *     
    *  @throws mingo_exception on any failure
    */
-  function update($table,$_id,$map,mingo_schema $schema){
+  function update($table,$_id,array $map,mingo_schema $schema){
     
     try{
     
@@ -579,7 +579,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *                      but it's the same way to keep compatibility with Mongo   
    *  @return boolean
    */
-  function setIndex($table,$map){
+  function setIndex($table,array $map){
     
     // ALTER TABLE table_name`ADD|DROP [FULLTEXT] INDEX(column_name,...);
     // http://www.w3schools.com/sql/sql_alter.asp
@@ -1379,7 +1379,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  mingo_criteria  $where_criteria   
    *  @return array an array map with 'where_str', 'where_val', and 'sort_str' keys set      
    */
-  protected function getCriteria($where_criteria){
+  protected function getCriteria(mingo_criteria $where_criteria){
   
     $ret_map = array();
     $ret_map['where_str'] = ''; $ret_map[0] = &$ret_map['where_str'];
