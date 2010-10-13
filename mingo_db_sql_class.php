@@ -79,14 +79,13 @@ abstract class mingo_db_sql extends mingo_db_interface {
 
     $this->con_map['pdo_options'] = array(
       PDO::ERRMODE_EXCEPTION => true,
-      // only reference I can find of the exit code 1 error is here:
-      // http://bugs.php.net/bug.php?id=43199 but persistent connections is what 
-      // is causing it, a quick performance testing showed no real difference in
-      // connection time on or off, so the quick fix is just to disable it...
-      ///PDO::ATTR_PERSISTENT => true, 
+      // references I can find of the exit code 1 error is here:
+      // http://bugs.php.net/bug.php?id=43199
+      // it's this bug: http://bugs.php.net/42643 and it only affects CLI on <=5.2.4...
+      PDO::ATTR_PERSISTENT => (strncasecmp(PHP_SAPI, 'cli', 3) === 0) ? false : true, 
       PDO::ATTR_EMULATE_PREPARES => true,
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-    );
+    ); 
 
     $dsn = '';
     $query_charset = '';
