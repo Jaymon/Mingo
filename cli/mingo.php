@@ -3,47 +3,17 @@
 
 // http://php.net/manual/en/features.commandline.php
 
-// personal debugging stuff, ignore...
-$out_path = 'C:\Projects\Plancast\_active\lib\out_class.php';
-if(is_file($out_path)){ include($out_path); }//if
-
-// set up directories and autoloader...
-$cli_basepath = dirname(__FILE__);
-$mingo_basepath = realpath(sprintf('%s%s..',$cli_basepath,DIRECTORY_SEPARATOR));
-set_include_path(
-  get_include_path()
-  .PATH_SEPARATOR.
-  $cli_basepath
-  .PATH_SEPARATOR.
-  $mingo_basepath
+// declare a mingo autoloader we can use...
+include(
+  join(
+    DIRECTORY_SEPARATOR,
+    array(
+      join(DIRECTORY_SEPARATOR,array(dirname(__FILE__),'..')),
+      'mingo_autoload_class.php'
+    )
+  )
 );
-function __autoload($class_name){
-  
-  $path_list = explode(PATH_SEPARATOR,get_include_path());
-  
-  $class_postfix_list = array('','_class','.class');
-  
-  foreach($path_list as $path){
-  
-    foreach($class_postfix_list as $class_postfix){
-    
-      $class_path = join(DIRECTORY_SEPARATOR,array($path,sprintf('%s%s.php',$class_name,$class_postfix)));
-    
-      if(file_exists($class_path)){
-      
-        include($class_path);
-        return true;
-      
-      }//if
-      
-    }//foreach
-  
-  }//foreach
-  
-  ///include(sprintf('%s_class.php',$class_name));
-  return false;
-  
-}//method
+mingo_autoload::register();
 
 include(join(DIRECTORY_SEPARATOR,array('SQL','Parser.php')));
 
