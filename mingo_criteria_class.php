@@ -422,12 +422,12 @@ class mingo_criteria extends mingo_base {
   
   }//method
   
-  private function getMap($command,$val){
+  protected function getMap($command,$val){
     $val = $this->normalizeVal($val);
     return array($this->getCommand($command) => $val);
   }//method
   
-  private function getCommand($command){
+  protected function getCommand($command){
     return sprintf('%s%s',$this->command_symbol,$command);
   }//method
 

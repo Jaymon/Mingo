@@ -1,1 +1,1 @@
-phpunit --include-path "E:\Projects\sandbox\mingo" %*
+phpunit --tap --include-path "E:\Projects\sandbox\mingo" %*

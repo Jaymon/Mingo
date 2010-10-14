@@ -308,11 +308,23 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       
     }else{
     
+      $ret_mix = array();
       $total_args = func_num_args();
+      
       if($total_args > 1){
-        foreach($args as $arg){ $ret_mix[] = $this->list[$args[0]]['map']; }//foreach
+      
+        foreach($args as $arg){
+          if(isset($this->list[$arg])){
+            $ret_mix[] = $this->list[$arg]['map'];
+          }//if
+        }//foreach
+        
       }else{
-        $ret_mix = $this->list[$args[0]]['map'];
+        
+        if(isset($this->list[$args[0]])){
+          $ret_mix = $this->list[$args[0]]['map'];
+        }//if
+        
       }//if
     
     }//if/else

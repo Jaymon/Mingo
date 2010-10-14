@@ -7,19 +7,18 @@ class test_mingo_db_sqlite extends test_mingo_db_interface {
   /**
    *  @return string  the database name
    */
-  protected function getDbName(){
+  public function getDbName(){
     
     return sprintf(
       '%s.sqlite',
-      join(DIRECTORY_SEPARATOR,array(dirname(__FILE__),__CLASS__))
+      join(DIRECTORY_SEPARATOR,array(sys_get_temp_dir(),__CLASS__))
     );
     
   }//method
 
-  protected function getDb(){
+  public function getDbInterface(){
   
-    $db = new mingo_db_sqlite();
-    return $db;
+    return 'mingo_db_sqlite';
   
   }//method
   

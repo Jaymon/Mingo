@@ -3,33 +3,41 @@
 require_once('mingo_test_class.php');
 
 abstract class test_mingo_db_interface extends mingo_test {
-
-  /**
-   *  this should create a mingo_db_interface object, connect it, then return it
-   *  
-   *  @return mingo_db_interface
-   */
-  abstract protected function getDb();
+  
+  abstract public function getDbInterface();
   
   /**
    *  @return string  the host string (something like server:port
    */
-  protected function getDbHost(){ return ''; }//method
+  public function getDbHost(){ return ''; }//method
   
   /**
    *  @return string  the username used to connect
    */
-  protected function getDbUsername(){ return ''; }//method
+  public function getDbUsername(){ return ''; }//method
   
   /**
    *  @return string  the password used to connect
    */
-  protected function getDbPassword(){ return ''; }//method
+  public function getDbPassword(){ return ''; }//method
 
   /**
    *  @return string  the database name
    */
-  protected function getDbName(){ return __CLASS__; }//method
+  public function getDbName(){ return __CLASS__; }//method
+  
+  /**
+   *  this should create a mingo_db_interface object, then return it
+   *  
+   *  @return mingo_db_interface
+   */
+  public function getDb(){
+  
+    $interface = $this->getDbInterface();
+    $db = new $interface();
+    return $db;
+  
+  }//method
 
   ///public function setUp(){}//method
 

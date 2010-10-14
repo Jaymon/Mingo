@@ -7,12 +7,11 @@ class test_mingo_db_mongo extends test_mingo_db_interface {
   /**
    *  @return string  the host string (something like server:port
    */
-  protected function getDbHost(){ return 'localhost:27017'; }//method
+  public function getDbHost(){ return 'localhost:27017'; }//method
 
-  protected function getDb(){
+  public function getDbInterface(){
   
-    $db = new mingo_db_mongo();
-    return $db;
+    return 'mingo_db_mongo';
   
   }//method
 
