@@ -27,6 +27,13 @@ class mingo_schema extends mingo_base {
   protected $index_map = array();
   
   /**
+   *  hold a spatial index field name if defined
+   *  
+   *  @var  string
+   */
+  protected $spatial_field_name = '';
+  
+  /**
    *  used to set fields that should be there when the db is set
    *     
    *  @see  requireField()
@@ -105,6 +112,48 @@ class mingo_schema extends mingo_base {
    */
   public function getIndex(){ return $this->index_map; }//method
   public function hasIndex(){ return !empty($this->index_map); }//method
+  
+  /**
+   *  set an index on the table this schema represents
+   *
+   *  @param  string  $name the field name the spatial index will be set on   
+   *  @return boolean   
+   */
+  public function setSpatial($name){
+  
+    // canary...
+    if(empty($name)){ throw new InvalidArgumentException('no field $name specified'); }//if
+    
+    $name = $this->normalizeField($name);
+    
+    // canary, certain field names are reserved...
+    $invalid_field_list = array(
+      mingo_orm::_ID,
+      mingo_orm::ROW_ID,
+      mingo_orm::CREATED,
+      mingo_orm::UPDATED
+    );
+    
+    foreach($invalid_field_list as $invalid_name){
+    
+      if($name === $invalid_name){
+      
+        throw new UnexpectedValueException(
+          sprintf('a spatial index cannot be set on the %s field',$invalid_name)
+        );
+      
+      }//if
+      
+    }//foreach
+    
+    $this->spatial_field_name = $name;
+    
+    return true;
+  
+  }//method
+  
+  public function getSpatial(){ return $this->spatial_field_name; }//method
+  public function hasSpatial(){ return !empty($this->spatial_field_name); }//method
   
   /**
    *  set a required field
