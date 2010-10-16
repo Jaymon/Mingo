@@ -70,24 +70,31 @@ class test_mingo_schema extends mingo_test {
   
   public function testSpatial(){
   
-    $arg_list = array(
-      'Foo',
-      'bar',
-      'Baz'
+   $arg_list = array(
+      0 => array('foo','bar'),
+      1 => array('foo',array('bar' => -1)),
+      2 => array('foo',array('bar' => 1)),
+      3 => array('foo'),
+      4 => array('foo','bar','baz')
     );
     
     $expected_list = array(
-      'foo',
-      'bar',
-      'baz'
+      0 => array('foo' => '2d','bar' => 1),
+      1 => array('foo' => '2d','bar' => -1),
+      2 => array('foo' => '2d','bar' => 1),
+      3 => array('foo' => '2d'),
+      4 => array('foo' => '2d','bar' => 1,'baz' => 1)
     );
   
-    foreach($arg_list as $key => $name){
+    foreach($arg_list as $key => $args){
     
       $schema = new mingo_schema('table');
-      $schema->setSpatial($name);
-      $this->assertSame($expected_list[$key],$schema->getSpatial());
+      $ret_bool = call_user_func_array(array($schema,'setSpatial'),$args);
+      $this->assertTrue($ret_bool);
       
+      $index = $schema->getSpatial();
+      $this->assertSame($expected_list[$key],$index);
+    
     }//foreach
     
     $schema = new mingo_schema('table');
@@ -96,6 +103,13 @@ class test_mingo_schema extends mingo_test {
     
       $schema->setSpatial(mingo_orm::_ID);
       $this->fail('tried setting an invalid field and an exception was not thrown');
+      
+    }catch(exception $e){}//try/catch
+    
+    try{
+    
+      $schema->setSpatial(array('foo' => 1));
+      $this->fail('tried an array for point and no exception was thrown');
       
     }catch(exception $e){}//try/catch
     

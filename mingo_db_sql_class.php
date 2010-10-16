@@ -65,6 +65,13 @@ abstract class mingo_db_sql extends mingo_db_interface {
   );
   
   /**
+   *
+   *  @see  setTable()
+   */        
+  abstract protected function createTable($table,mingo_schema $schema);
+  
+  
+  /**
    *  connect to the db
    *  
    *  @param  integer $type one of the self::TYPE_* constants   
@@ -106,7 +113,9 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     }else{
     
-      throw new mingo_exception('Unsupported db type, check the mingo_db::TYPE_* constants for supported db types');
+      throw new mingo_exception(
+        sprintf('Unsupported db type, check the %s::TYPE_* constants for supported db types',__CLASS__)
+      );
     
     }//if/else
     
@@ -571,49 +580,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
-   *  adds an index to $table
-   *  
-   *  @param  string  $table  the table to add the index to
-   *  @param  array $map  usually something like array('field_name' => 1), this isn't need for sql
-   *                      but it's the same way to keep compatibility with Mongo   
-   *  @return boolean
-   */
-  function setIndex($table,array $map){
-    
-    // ALTER TABLE table_name`ADD|DROP [FULLTEXT] INDEX(column_name,...);
-    // http://www.w3schools.com/sql/sql_alter.asp
-    //
-    // good info on indexes: http://www.mysqlperformanceblog.com/2006/08/17/duplicate-indexes-and-redundant-indexes/
-    //  and: http://www.xaprb.com/blog/2006/08/28/how-to-find-duplicate-and-redundant-indexes-in-mysql/
-    //  http://www.sql-server-performance.com/tips/optimizing_indexes_general_p2.aspx
-    //  http://www.sql-server-performance.com/articles/per/index_not_equal_p1.aspx
-    //  http://www.databasejournal.com/features/mysql/article.php/1382791
-    //  Error 1170 when trying to create an index, means you are creating an unlimited index:
-    //    http://www.mydigitallife.info/2007/07/09/mysql-error-1170-42000-blobtext-column-used-in-key-specification-without-a-key-length/
-    // you can see indexes on the table using this: SHOW INDEX FROM ‘table’
-    //
-    // SQLite has a different index creation syntax...
-    //  http://www.sqlite.org/lang_createindex.html create index [if not exists] name ON table_name (col_one[,col...])
-    // Mysql syntax...
-    //  http://dev.mysql.com/doc/refman/5.0/en/alter-table.html
-    
-    // the order bit is ignored for sql, so we just need the keys...
-    $field_list = array_keys($map);
-    $field_list_str = join(',',$field_list);
-    $index_name = 'i'.md5($field_list_str);
-    
-    if($this->isSqlite()){
-      $query = sprintf('CREATE INDEX IF NOT EXISTS %s ON %s (%s)',$index_name,$table,$field_list_str);
-    }else if($this->isMysql()){
-      $query = sprintf('ALTER TABLE %s ADD INDEX %s (%s)',$table,$index_name,$field_list_str);
-    }//if/else
-    
-    return $this->getQuery($query);
-  
-  }//method
-  
-  
-  /**
    *  deletes a table
    *  
    *  @param  string  $table  the table to delete from the db
@@ -744,45 +710,39 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     if(!$ret_bool){
     
-      if($this->isMysql()){
-        
-        $query = sprintf('CREATE TABLE %s (
-            row_id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            _id VARCHAR(24) NOT NULL,
-            body LONGBLOB,
-            UNIQUE KEY (_id)
-        ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
-        
-        $ret_bool = $this->getQuery($query);
-        
-      }else if($this->isSqlite()){
-      
-        $query = sprintf('CREATE TABLE %s (
-            row_id INTEGER NOT NULL PRIMARY KEY ASC,
-            _id VARCHAR(24) COLLATE NOCASE NOT NULL,
-            body BLOB
-        )',$table);
-      
-        $ret_bool = $this->getQuery($query);
-        if($ret_bool){
-        
-          // add the index for _id to the table...
-          $this->setIndex($table,array('_id' => 1));
-        
-        }//if
-      
-      }//if/else if
+      $ret_bool = $this->createTable($table,mingo_schema $schema);
       
     }//if
     
     if($ret_bool){
       
       // add all the indexes for this table...
-      if($schema->hasIndex()){
+      if($schema->hasIndexes()){
       
-        foreach($schema->getIndex() as $index_map){
+        $engine = self::ENGINE;
+      
+        // error checking for spatial...
+        if($schema->hasSpatial()){
+        
+          if($this->isMysql()){
+          
+            $engine = 'MyISAM'; // spatial can only be on MyISAM tables
+          
+          }else if($this->isSqlite()){
+          
+            throw new RuntimeException('spatial indexes are currently unsupported on %s',$this->getType());
+          
+          }//if/else if
+        
+        
+        }//if
+      
+        foreach($schema->getIndexes() as $index_map){
         
           $printf_vars = array();
+          
+          list($field_list,$field_list_str,$index_table) = $this->getIndexInfo($index_map);
+          
           $field_list = array_keys($index_map);
           $field_list_str = join(',',$field_list);
           $index_table = sprintf('%s_%s',$table,md5($field_list_str));
@@ -1308,7 +1268,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $field_val_str = join(',',array_fill(0,count($field_list) + 1,'?'));
     $val_list = array();
   
-    $query = 'INSERT INTO %s (%s) VALUES (%s)';
+    ///$query = 'INSERT INTO %s (%s) VALUES (%s)';
     $query = sprintf('INSERT INTO %s (%s) VALUES (%s)',$index_table,$field_name_str,$field_val_str);
     
     foreach($index_map as $field => $order){
@@ -1325,6 +1285,21 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $val_list[] = $_id;
     
     return $this->getQuery($query,$val_list);
+  
+  }//method
+  
+  /**
+   *  get info about the index
+   *  
+   *  @param  array $index_map
+   *  @return array  array($field_list,$field_list_str,$index_table);
+   */
+  protected function getIndexInfo($index_map){
+          
+    $field_list = array_keys($index_map);
+    $field_list_str = join(',',$field_list);
+    $index_table = sprintf('%s_%s',$table,md5($field_list_str));
+    return array($field_list,$field_list_str,$index_table);
   
   }//method
   

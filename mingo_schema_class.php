@@ -29,9 +29,10 @@ class mingo_schema extends mingo_base {
   /**
    *  hold a spatial index field name if defined
    *  
-   *  @var  string
+   *  @since  10-15-10   
+   *  @var  array
    */
-  protected $spatial_field_name = '';
+  protected $spatial_index = array();
   
   /**
    *  used to set fields that should be there when the db is set
@@ -45,6 +46,26 @@ class mingo_schema extends mingo_base {
   
     $this->table = $table;
   
+  }//method
+
+  /**
+   *  get all the indexes (of any type) this schema contains
+   *
+   *  @since  10-15-10   
+   *  @return array   
+   */
+  public function getIndexes(){
+    return array_merge($this->getIndex(),$this->getSpatial());
+  }//method
+
+  /**
+   *  true if this schema has indexes of any type
+   *  
+   *  @since  10-15-10   
+   *  @return boolean
+   */
+  public function hasIndexes(){
+    return $this->hasIndex() || $this->hasSpatial();
   }//method
 
   /**
@@ -67,29 +88,7 @@ class mingo_schema extends mingo_base {
     if(empty($args)){ throw new InvalidArgumentException('no fields specified for the index'); }//if
     
     $field_list = array();
-    $index_map = array();
-    
-    foreach($args as $field){
-    
-      if(is_array($field)){
-      
-        foreach($field as $field_name => $direction){
-        
-          $field_name = $this->normalizeField($field_name);
-          $index_map[$field_name] = $direction;
-          $field_list[] = $field_name;
-        
-        }//foreach
-      
-      }else{
-      
-        $field = $this->normalizeField($field);
-        $index_map[$field] = self::INDEX_ASC;
-        $field_list[] = $field;
-      
-      }//if/else
-    
-    }//foreach
+    $index_map = $this->normalizeIndex($args);
     
     // canary...
     if(isset($index_map[mingo_orm::_ID])){
@@ -98,7 +97,7 @@ class mingo_schema extends mingo_base {
       );
     }//if
     
-    $index_name = sprintf('i%s',md5(join(',',$field_list)));
+    $index_name = sprintf('i%s',md5(join(',',array_keys($index_map))));
     $this->index_map[$index_name] = $index_map;
     
     return true;
@@ -114,18 +113,26 @@ class mingo_schema extends mingo_base {
   public function hasIndex(){ return !empty($this->index_map); }//method
   
   /**
-   *  set an index on the table this schema represents
+   *  set a spatial index for this schema, this has the same argument list as {@link setIndex()}
+   *  except the first argument has to be a field name (string) that will be the point   
    *
-   *  @param  string  $name the field name the spatial index will be set on   
-   *  @return boolean   
+   *  @see  setIndex()      
    */
-  public function setSpatial($name){
+  public function setSpatial(){
+  
+    $args = func_get_args();
   
     // canary...
-    if(empty($name)){ throw new InvalidArgumentException('no field $name specified'); }//if
+    if(empty($args)){ throw new InvalidArgumentException('no fields specified for the index'); }//if
+    if($this->hasSpatial()){
+      throw new OverflowException('only one spatial index per table is allowed');
+    }//if
+    if(!is_string($args[0])){
+      throw new UnexpectedValueException('the first arg for a spatial index must be a field name (string)');
+    }//if
     
-    $name = $this->normalizeField($name);
-    
+    $args[0] = $this->normalizeField($args[0]);
+  
     // canary, certain field names are reserved...
     $invalid_field_list = array(
       mingo_orm::_ID,
@@ -136,7 +143,7 @@ class mingo_schema extends mingo_base {
     
     foreach($invalid_field_list as $invalid_name){
     
-      if($name === $invalid_name){
+      if($args[0] === $invalid_name){
       
         throw new UnexpectedValueException(
           sprintf('a spatial index cannot be set on the %s field',$invalid_name)
@@ -146,14 +153,14 @@ class mingo_schema extends mingo_base {
       
     }//foreach
     
-    $this->spatial_field_name = $name;
-    
+    $args[0] = array($args[0] => '2d');
+    $this->spatial_index = $this->normalizeIndex($args);
     return true;
   
   }//method
   
-  public function getSpatial(){ return $this->spatial_field_name; }//method
-  public function hasSpatial(){ return !empty($this->spatial_field_name); }//method
+  public function getSpatial(){ return $this->spatial_index; }//method
+  public function hasSpatial(){ return !empty($this->spatial_index); }//method
   
   /**
    *  set a required field
@@ -176,5 +183,39 @@ class mingo_schema extends mingo_base {
    *  @return array
    */
   public function getRequiredFields(){ return $this->required_map; }//method
+  
+  /**
+   *  normalizes all the index fields
+   *  
+   *  @param  array $field_list these are the fields that will be in the index
+   *  @return array an array with field name keys and type values
+   */
+  protected function normalizeIndex($field_list){
+  
+    $index_map = array();
+    
+    foreach($field_list as $field){
+    
+      if(is_array($field)){
+      
+        foreach($field as $field_name => $type){
+        
+          $field_name = $this->normalizeField($field_name);
+          $index_map[$field_name] = $type;
+        
+        }//foreach
+      
+      }else{
+      
+        $field = $this->normalizeField($field);
+        $index_map[$field] = self::INDEX_ASC;
+      
+      }//if/else
+    
+    }//foreach
+  
+    return $index_map;
+  
+  }//method
 
 }//class     
