@@ -154,10 +154,11 @@ abstract class mingo_db_interface {
    *  
    *  @param  string  $table  the table to add the index to
    *  @param  array $map  usually something like array('field_name' => 1), this isn't need for sql
-   *                      but it's the same way to keep compatibility with Mongo   
+   *                      but it's the same way to keep compatibility with Mongo
+   *  @param  mingo_schema  $schema the table schema      
    *  @return boolean
    */
-  abstract public function setIndex($table,array $map);
+  abstract public function setIndex($table,array $index_map,mingo_schema $schema);
   
   /**
    *  get all the indexes of $table
@@ -268,6 +269,57 @@ abstract class mingo_db_interface {
    *  @return array a list of queries executed by this db interface instance
    */
   public function getQueries(){ return $this->query_list; }//method
+  
+  /**
+   *  returns true if the passed in $index_type is spatial
+   *  
+   *  @since  10-18-10
+   *  @param  string  $index_type
+   *  @return boolean
+   */
+  protected function isSpatialIndexType($index_type){
+    return $index_type === mingo_schema::INDEX_SPATIAL;
+  }//method
+  
+  /**
+   *  get a bounding box for a given $point using $miles
+   *  
+   *  the bounding box will basically be $miles from $point in any direction
+   *  
+   *  links that helped me calculate miles to a point:
+   *  http://mathforum.org/library/drmath/view/55461.html
+   *  http://wiki.answers.com/Q/How_many_miles_are_in_a_degree_of_longitude_or_latitude
+   *  http://answers.yahoo.com/question/index?qid=20070911165150AAQGeJc              
+   *  
+   *  @since  8-19-10   
+   *  @param  integer $miles  how many miles we want to go in any direction from $point
+   *  @param  array $point  see {@link assurePoint()} for description
+   *  @return array basically 4 points: array($point_a,$point_b,$point_c,$point_d)
+   */              
+  protected function getSpatialBoundingBox($miles,$point){
+  
+    // canary...
+    if(empty($miles)){ throw UnexpectedValueException('$miles should not be empty'); }//if
+  
+    list($latitude,$longitude) = $point;
+  
+    $latitude_miles = 69; // 1 degree of latitude, this is approximate but it's close enough
+    $latitude_bounding = ($miles / $latitude_miles);
+    
+    // get the longitude bounding using cosine...
+    $longitude_percentage = abs(cos($latitude * (pi()/180)));
+    $longitude_miles = $latitude_miles * $longitude_percentage;
+    $longitude_bounding = ($miles / $longitude_miles);
+    
+    // create a bounding rectangle...
+    $point_a = array($latitude - $latitude_bounding,$longitude - $longitude_bounding); 
+    $point_b = array($latitude - $latitude_bounding,$longitude + $longitude_bounding); 
+    $point_c = array($latitude + $latitude_bounding,$longitude + $longitude_bounding); 
+    $point_d = array($latitude + $latitude_bounding,$longitude - $longitude_bounding);
+    
+    return array($point_a,$point_b,$point_c,$point_d);
+    
+  }//method
   
   /**
    *  generates a 24 character unique id for the _id of an inserted row

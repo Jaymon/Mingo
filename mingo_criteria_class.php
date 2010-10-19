@@ -93,6 +93,7 @@ class mingo_criteria extends mingo_base {
     'lt' => array('set' => 'handleVal'), // <
     'lte' => array('set' => 'handleVal'), // <=
     'between' => array('set' => 'handleBetween'),
+    'near' => array('set' => 'handleSpatial'), // spatial
     // these are the sort map commands...
     'sort' => array('set' => 'handleSort'),
     'asc' => array('set' => 'handleSortAsc'),
@@ -138,7 +139,7 @@ class mingo_criteria extends mingo_base {
     
     }else{
     
-      throw new mingo_exception(sprintf('unknown command: %s',$command));
+      throw new BadMethodCallException(sprintf('unknown command: %s',$command));
     
     }//if/else
   
@@ -290,6 +291,44 @@ class mingo_criteria extends mingo_base {
     }//if
 
     $this->map_operations[$command_full][$name] = $args[0];
+    
+  }//method
+  
+  /**
+   *  handle a spatial call
+   *  
+   *  the form is taken from: http://www.mongodb.org/display/DOCS/Geospatial+Indexing
+   *           
+   *  @since  10-18-10
+   *  @param  string  $name the field name
+   *  @param  array $args should have 2 indexes: point and distance
+   */
+  protected function handleSpatial($command,$name,$args){
+  
+    // canary...
+    if(empty($args)){
+      throw new UnexpectedValueException(sprintf('%s must have a point and distance. None given',$command));
+    }//if
+    if(!is_array($args[0])){
+      throw new InvalidArgumentException(
+        sprintf('%s - the first argument must be an array($lat,$long), %s given',$command,gettype($args[0]))
+      );
+    }else{
+      if(!isset($args[0][0])){
+        throw new UnexpectedValueException('no latitude given');
+      }//if
+      if(!isset($args[0][1])){
+        throw new UnexpectedValueException('no longitude given');
+      }//if
+    }//if/else
+    if(!isset($args[1])){
+      throw new InvalidArgumentException('no distance specified');
+    }//if
+  
+    $this->map_where[$name] = array(
+      $this->getCommand('near') => $args[0],
+      $this->getCommand('maxDistance') => $args[1]
+    );
     
   }//method
   

@@ -13,6 +13,7 @@ class mingo_schema extends mingo_base {
 
   const INDEX_ASC = 1;
   const INDEX_DESC = -1;
+  const INDEX_SPATIAL = '2d';
 
   /**
    *  hold the table name this schema represents
@@ -55,7 +56,20 @@ class mingo_schema extends mingo_base {
    *  @return array   
    */
   public function getIndexes(){
-    return array_merge($this->getIndex(),$this->getSpatial());
+  
+    $ret_list = array();
+    if($this->hasSpatial()){
+      $ret_list[] = $this->getSpatial();
+    }//if
+    
+    if($this->hasIndex()){
+    
+      $ret_list = array_merge($ret_list,$this->getIndex());
+    
+    }//if
+  
+    return $ret_list;
+    
   }//method
 
   /**
@@ -97,8 +111,7 @@ class mingo_schema extends mingo_base {
       );
     }//if
     
-    $index_name = sprintf('i%s',md5(join(',',array_keys($index_map))));
-    $this->index_map[$index_name] = $index_map;
+    $this->index_map[] = $index_map;
     
     return true;
   
@@ -153,7 +166,7 @@ class mingo_schema extends mingo_base {
       
     }//foreach
     
-    $args[0] = array($args[0] => '2d');
+    $args[0] = array($args[0] => self::INDEX_SPATIAL);
     $this->spatial_index = $this->normalizeIndex($args);
     return true;
   

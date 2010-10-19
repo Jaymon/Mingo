@@ -84,7 +84,7 @@ abstract class test_mingo_db_interface extends mingo_test {
   
     // make sure index exists...
     $index_list = $db->getIndexes($table);
-    $this->assertSame(count($schema->getIndex()) + 1,count($index_list));
+    $this->assertGreaterThanOrEqual(count($schema->getIndexes()),count($index_list));
     
     return $db;
     

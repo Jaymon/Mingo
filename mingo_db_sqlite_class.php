@@ -10,11 +10,64 @@
  ******************************************************************************/
 class mingo_db_sqlite extends mingo_db_sql {
 
-  protected function start(){
+  protected function start(){}//method
   
-    $this->setType(self::TYPE_SQLITE);
+  /**
+   *  get all the tables of the currently connected db
+   *  
+   *  @return array a list of table names
+   */
+  function getTables($table = ''){
+  
+    $ret_list = array();
     
+    // thanks: http://us3.php.net/manual/en/ref.sqlite.php#47442
+    // query that should check sqlite tables: "SELECT * FROM sqlite_master WHERE type='table' AND name='$mytable'"
+    // SELECT name FROM sqlite_master WHERE type = \'table\'' from: http://www.litewebsite.com/?c=49
+    $query = 'Select * FROM sqlite_master WHERE type=?';
+    $query_vars = array('table');
+    if(!empty($table)){
+      $query .= ' AND name=?';
+      $query_vars[] = $table;
+    }//if
+    
+    $list = $this->getQuery($query,$query_vars);
+    if(!empty($list)){
+    
+      // sqlite gives us tons of stuff like schema and stuff, we just want the names...
+      foreach($list as $map){
+        $ret_list[] = $map['tbl_name'];
+      }//foreach
+    
+    }//if
+    
+    return $ret_list;
+  
   }//method
+  
+  /**
+   *  get the dsn connection string that PDO will use to connect to the backend
+   *   
+   *  @since  10-18-10
+   *  @param  string  $db_name  the database name
+   *  @param  string  $host the host
+   *  @return string  the dsn         
+   */
+  protected function getDsn($db_name,$host){
+  
+    // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html only good on db creation
+    // http://stackoverflow.com/questions/263056/how-to-change-character-encoding-of-a-pdo-sqlite-connection-in-php
+  
+    return sprintf('sqlite:%s',$db_name);
+  
+  }//method
+  
+  /**
+   *  things to do once the connection is established
+   *   
+   *  @since  10-18-10
+   */
+  protected function onConnect(){}//method
   
   protected function createTable($table,mingo_schema $schema){
   
@@ -36,13 +89,13 @@ class mingo_db_sqlite extends mingo_db_sql {
   
   }//method
   
-  protected function createIndex($table,$map){
+  protected function createIndex($table,array $index_map){
   
     // SQLite has a different index creation syntax...
     //  http://www.sqlite.org/lang_createindex.html create index [if not exists] name ON table_name (col_one[,col...])
     
     // the order bit is ignored for sql, so we just need the keys...
-    $field_list = array_keys($map);
+    $field_list = array_keys($index_map);
     $field_list_str = join(',',$field_list);
     $index_name = 'i'.md5($field_list_str);
     
@@ -51,10 +104,103 @@ class mingo_db_sqlite extends mingo_db_sql {
   
   }//method
   
-  protected function setIndex($table,array $map){
+  /**
+   *  create an index table for the given $table and $index_map      
+   *  
+   *  http://www.sqlite.org/syntaxdiagrams.html#column-constraint
+   *      
+   *  @since  10-18-10
+   *  @param  string  $table
+   *  @param  array $index_map  the index structure
+   *  @param  mingo_schema  $schema the table schema   
+   */
+  protected function createIndexTable($table,array $index_map,mingo_schema $schema){
   
+    list($field_list,$field_list_str,$index_table) = $this->getIndexInfo($table,$index_map);
   
+    // canary...
+    if($this->hasTable($index_table)){ return true; }//if
   
+    $printf_vars = array();
+    $query = array();
+    $query[] = 'CREATE TABLE %s (';
+    $printf_vars[] = $index_table;
+    
+    foreach($index_map as $field => $index_type){
+    
+      if($this->isSpatialIndexType($index_type)){
+        throw new RuntimeException('SPATIAL indexes are currently unsupported in SQLite');
+      }//if
+    
+      $query[] = '%s VARCHAR(100) COLLATE NOCASE NOT NULL,';
+      $printf_vars[] = $field;
+    
+    }//foreach
+
+    $query[] = '_id VARCHAR(24) NOT NULL, PRIMARY KEY (%s,_id))';
+    $printf_vars[] = $field_list_str;
+    
+    $query = vsprintf(join(PHP_EOL,$query),$printf_vars);
+    $ret_bool = $this->getQuery($query);
+    if($ret_bool){
+    
+      $this->createIndex($index_table,array('_id' => 1));
+      
+    }//if
+      
+    return $ret_bool;
+  
+  }//method
+  
+  protected function getTableIndexes($table){
+  
+    $ret_list = array();
+  
+    // sqlite: pragma table_info(table_name)
+    //  http://www.sqlite.org/pragma.html#schema
+    //  http://www.mail-archive.com/sqlite-users@sqlite.org/msg22055.html
+    //  http://stackoverflow.com/questions/604939/how-can-i-get-the-list-of-a-columns-in-a-table-for-a-sqlite-database
+    $query = sprintf('PRAGMA index_list(%s)',$table);
+    $index_list = $this->getQuery($query);
+    foreach($index_list as $index_map){
+    
+      $query = sprintf('PRAGMA index_info(%s)',$index_map['name']);
+      $field_list = $this->getQuery($query);
+
+      $ret_map = array();
+      foreach($field_list as $field_map){
+        $ret_map[$field_map['name']] = 1; // all sql indexes sort asc
+      }//foreach
+      
+      $ret_list[] = $ret_map;
+      
+    }//foreach
+
+    return $ret_list;
+  
+  }//method
+  
+  /**
+   *  true if the $e is for a missing table exception
+   *
+   *  @since  10-18-10
+   *  @see  handleException()         
+   *  @param  Exception $e  the thrown exception
+   *  @return boolean
+   */
+  protected function isNoTableException(Exception $e){
+  
+    $ret_bool = false;
+  
+    $e_code = $e->getCode();
+    if(!empty($e_code)){
+    
+      $ret_bool = ($e_code == 'HY000');
+    
+    }//if
+    
+    return $ret_bool;
+    
   }//method
   
 }//class     

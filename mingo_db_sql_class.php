@@ -12,7 +12,7 @@
  *      for better transaction support   
  *  
  *  @abstract 
- *  @version 0.6
+ *  @version 0.7
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-12-09
  *  @package mingo 
@@ -23,27 +23,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  everything is utf-8, I'm not even giving people a choice
    */        
   const CHARSET = 'UTF8';
-  const ENGINE = 'InnoDB';
-  
-  /**
-   *  supported SQL databases
-   */
-  const TYPE_MYSQL = 1;
-  const TYPE_SQLITE = 2;
-  
-  /**
-   *  maps certain errors to one namespace (ie, key) so we can group table errors
-   *  and handle them all with the same code, even though different dbs (eg, mysql and sqlite)
-   *  throw different errors (eg, they have different error codes for "table doesn't exist")      
-   *
-   *  @var  array   
-   */
-  protected $error_map = array(
-    'no_table' => array(
-      'HY000', // sqlite
-      '42S02' // mysql
-    )
-  );
   
   /**
    *  these are directly correlated with mingo_criteria's $where_criteria internal
@@ -53,28 +32,82 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @var  array   
    */
   protected $method_map = array(
-    'in' => array('sql' => 'handleListSql', 'symbol' => 'IN'),
-    'nin' => array('sql' => 'handleListSql', 'symbol' => 'NOT IN'),
-    'is' => array('sql' => 'handleValSql', 'symbol' => '='),
-    'not' => array('sql' => 'handleValSql', 'symbol' => '!='),
-    'gt' => array('sql' => 'handleValSql', 'symbol' => '>'),
-    'gte' => array('sql' => 'handleValSql', 'symbol' => '>='),
-    'lt' => array('sql' => 'handleValSql', 'symbol' => '<'),
-    'lte' => array('sql' => 'handleValSql', 'symbol' => '<='),
-    'sort' => array('sql' => 'handleSortSql')
+    'in' => array('arg' => 'handleListSql', 'symbol' => 'IN'),
+    'nin' => array('arg' => 'handleListSql', 'symbol' => 'NOT IN'),
+    'is' => array('arg' => 'handleValSql', 'symbol' => '='),
+    'not' => array('arg' => 'handleValSql', 'symbol' => '!='),
+    'gt' => array('arg' => 'handleValSql', 'symbol' => '>'),
+    'gte' => array('arg' => 'handleValSql', 'symbol' => '>='),
+    'lt' => array('arg' => 'handleValSql', 'symbol' => '<'),
+    'lte' => array('arg' => 'handleValSql', 'symbol' => '<='),
+    'near' => array('args' => 'handleSpatialSql'),
+    'sort' => array('arg' => 'handleSortSql')
   );
   
   /**
-   *
+   *  create a table
+   *   
+   *  teh table should have atleast an _id (varchar(24)) and a body (blob) field, 
+   *  it can also have a row_id (integer), if it doesn't have those then nothing will
+   *  work as expected   
+   *      
    *  @see  setTable()
-   */        
+   *  @param  string  $table  the table name
+   *  @Param  mingo_schema  $schema the table's schema         
+   */
   abstract protected function createTable($table,mingo_schema $schema);
   
+  /**
+   *  create an index table for the given $table and $index_map      
+   *   
+   *  @since  10-18-10
+   *  @param  string  $table
+   *  @param  array $index_map  the index structure
+   *  @param  mingo_schema  $schema the table schema   
+   */
+  abstract protected function createIndexTable($table,array $index_map,mingo_schema $schema);
+  
+  /**
+   *  get the indexes for the given table
+   *  
+   *  this should get all the indexes that are set on the $table
+   *         
+   *  @since  10-18-10
+   *  @see  getIndexes()
+   *  @param  string  $table      
+   */
+  abstract protected function getTableIndexes($table);
+  
+  /**
+   *  get the dsn connection string that PDO will use to connect to the backend
+   *   
+   *  @since  10-18-10
+   *  @param  string  $db_name  the database name
+   *  @param  string  $host the host
+   *  @return string  the dsn         
+   */
+  abstract protected function getDsn($db_name,$host);
+  
+  /**
+   *  things to do once the connection is established
+   *   
+   *  @since  10-18-10
+   */
+  abstract protected function onConnect();
+  
+  /**
+   *  true if the $e is for a missing table exception
+   *
+   *  @since  10-18-10
+   *  @see  handleException()         
+   *  @param  Exception $e  the thrown exception
+   *  @return boolean
+   */
+  abstract protected function isNoTableException(Exception $e);
   
   /**
    *  connect to the db
    *  
-   *  @param  integer $type one of the self::TYPE_* constants   
    *  @param  string  $db_name  the db to use
    *  @param  string  $host the host to use               
    *  @param  string  $username the username to use
@@ -94,36 +127,13 @@ abstract class mingo_db_sql extends mingo_db_interface {
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
     ); 
 
-    $dsn = '';
-    $query_charset = '';
-    if($this->isMysql()){
-    
-      if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
-      
-      $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db_name,self::CHARSET);
-      // http://stackoverflow.com/questions/1566602/is-set-character-set-utf8-necessary
-      $query_charset = sprintf('SET NAMES %s',self::CHARSET); // another: 'SET CHARACTER SET UTF8';
-    
-    }else if($this->isSqlite()){
-    
-      $dsn = sprintf('sqlite:%s',$db_name);
-      
-      // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html only good on db creation
-      // http://stackoverflow.com/questions/263056/how-to-change-character-encoding-of-a-pdo-sqlite-connection-in-php
-    
-    }else{
-    
-      throw new mingo_exception(
-        sprintf('Unsupported db type, check the %s::TYPE_* constants for supported db types',__CLASS__)
-      );
-    
-    }//if/else
+    $dsn = $this->getDsn($db_name,$host);
     
     try{
-      
+    
       $this->con_db = new PDO($dsn,$username,$password,$this->con_map['pdo_options']);
-      if(!empty($query_charset)){ $this->getQuery($query_charset); }//if
       $this->con_map['connected'] = true;
+      $this->onConnect();
       
     }catch(Exception $e){
     
@@ -161,13 +171,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
     return $this->con_map['connected'];
   
   }//method
-
-  function setType($val){ $this->con_map['type'] = $val; }//method
-  function getType(){ return $this->hasType() ? $this->con_map['type'] : 0; }//method
-  function hasType(){ return !empty($this->con_map['type']); }//method
-  function isType($val){ return ((int)$this->getType() === (int)$val); }//method
-  function isSqlite(){ return $this->isType(self::TYPE_SQLITE); }//method
-  function isMysql(){ return $this->isType(self::TYPE_MYSQL); }//method
   
   /**
    *  delete the records that match $where_criteria in $table
@@ -500,7 +503,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         $map['row_id'] = $this->con_db->lastInsertId();
       
         // we need to add to all the index tables...
-        if($schema->hasIndex()){
+        if($schema->hasIndexes()){
         
           $this->setIndexes($table,$field_map['_id'],$map,$schema);
         
@@ -552,7 +555,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
       
       if($ret_bool){
         
-        // we need to add to all the index tables...
+        // we need to update all the index tables, and it's easier to delete and re-add...
         if($schema->hasIndex()){
         
           $this->killIndexes($table,$_id,$schema);
@@ -639,62 +642,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
-   *  get all the tables of the currently connected db
-   *  
-   *  @return array a list of table names
-   */
-  function getTables($table = ''){
-  
-    $ret_list = array();
-    if($this->isSqlite()){
-    
-      // thanks: http://us3.php.net/manual/en/ref.sqlite.php#47442
-      // query that should check sqlite tables: "SELECT * FROM sqlite_master WHERE type='table' AND name='$mytable'"
-      // SELECT name FROM sqlite_master WHERE type = \'table\'' from: http://www.litewebsite.com/?c=49
-      $query = 'Select * FROM sqlite_master WHERE type=?';
-      $query_vars = array('table');
-      if(!empty($table)){
-        $query .= ' AND name=?';
-        $query_vars[] = $table;
-      }//if
-      
-      $list = $this->getQuery($query,$query_vars);
-      if(!empty($list)){
-      
-        // sqlite gives us tons of stuff like schema and stuff, we just want the names...
-        foreach($list as $map){
-          $ret_list[] = $map['tbl_name'];
-        }//foreach
-      
-      }//if
-    
-    }else if($this->isMysql()){
-  
-      $query = 'SHOW TABLES';
-      $query_vars = array();
-      if(!empty($table)){
-        $query .= ' LIKE ?';
-        $query_vars[] = $table;
-      }//if
-      
-      $list = $this->getQuery($query,$query_vars);
-      if(!empty($list)){
-        
-        // for some reason, mysql puts each table in an array with a horrible name: Tables_in_DBNAME
-        foreach($list as $table_map){
-          $array_keys = array_keys($table_map);
-          if(isset($table_map[$array_keys[0]])){ $ret_list[] = $table_map[$array_keys[0]]; }//if
-        }//foreach
-        
-      }//if
-    
-    }//if/else
-    
-    return $ret_list;
-  
-  }//method
-  
-  /**
    *  adds a table to the db
    *  
    *  http://dev.mysql.com/doc/refman/5.0/en/storage-requirements.html
@@ -710,7 +657,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     if(!$ret_bool){
     
-      $ret_bool = $this->createTable($table,mingo_schema $schema);
+      $ret_bool = $this->createTable($table,$schema);
       
     }//if
     
@@ -719,83 +666,10 @@ abstract class mingo_db_sql extends mingo_db_interface {
       // add all the indexes for this table...
       if($schema->hasIndexes()){
       
-        $engine = self::ENGINE;
-      
-        // error checking for spatial...
-        if($schema->hasSpatial()){
-        
-          if($this->isMysql()){
-          
-            $engine = 'MyISAM'; // spatial can only be on MyISAM tables
-          
-          }else if($this->isSqlite()){
-          
-            throw new RuntimeException('spatial indexes are currently unsupported on %s',$this->getType());
-          
-          }//if/else if
-        
-        
-        }//if
-      
         foreach($schema->getIndexes() as $index_map){
-        
-          $printf_vars = array();
-          
-          list($field_list,$field_list_str,$index_table) = $this->getIndexInfo($index_map);
-          
-          $field_list = array_keys($index_map);
-          $field_list_str = join(',',$field_list);
-          $index_table = sprintf('%s_%s',$table,md5($field_list_str));
-        
-          if(!$this->hasTable($index_table)){
-          
-            $query = 'CREATE TABLE %s (';
-            $printf_vars[] = $index_table;
-            
-            foreach($field_list as $field){
-            
-              if($this->isMysql()){
-            
-                $query .= '%s VARCHAR(100) NOT NULL,';
-                
-              }else if($this->isSqlite()){
-              
-                $query .= '%s VARCHAR(100) COLLATE NOCASE NOT NULL,';
-              
-              }//if/else if
-                
-              $printf_vars[] = $field;
-            
-            }//foreach
-          
-            // it turns out putting NOT NULL UNIQUE creates an index, so when I set the _id index later
-            // it makes 2 _id indexes, one unique and one normal
-            $query .= '_id VARCHAR(24) NOT NULL, PRIMARY KEY (%s,_id))';
-            $printf_vars[] = $field_list_str;
-          
-            if($this->isMysql()){
-            
-              $query .= ' ENGINE=%s CHARSET=%s';
-              $printf_vars[] = self::ENGINE;
-              $printf_vars[] = self::CHARSET;
-              
-            }//if
-            
-            $query = vsprintf($query,$printf_vars);
-  
-            if($this->getQuery($query)){
-            
-              $this->setIndex($index_table,array('_id' => 1));
-              
-              // if debugging is on it means we're in dev so go ahead and populate the index...
-              if($this->hasDebug()){
-                $this->populateIndex($table,$index_map,$schema);
-              }//if
-            
-            }//if
-            
-          }//if
 
+          $this->setIndex($table,$index_map,$schema);
+        
         }//foreach
       
       }//if
@@ -925,7 +799,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
     $ret_list = array();
   
-    // get just the $table tables...
+    // get just the $table index tables...
     $table_list = array();
     foreach($this->getTables() as $table_name){
     
@@ -939,89 +813,16 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     foreach($table_list as $table_name){
       
-      if($this->isMysql()){
+      $index_list = $this->getTableIndexes($table_name);
       
-        // http://www.techiegyan.com/?p=209
-        
-        // see also: http://www.xaprb.com/blog/2006/08/28/how-to-find-duplicate-and-redundant-indexes-in-mysql/
-        // for another way to find indexes
-        
-        // also good reading: http://www.mysqlperformanceblog.com/2006/08/17/duplicate-indexes-and-redundant-indexes/
+      // only add indexes that haven't been seen before...
+      foreach($index_list as $index_map){
       
-        $query = sprintf('SHOW INDEX FROM %s',$table_name);
-        $index_list = $this->getQuery($query);
-        
-        $ret_map = array();
-        $table_index_list = array();
-        $last_i = count($index_list) - 1;
-        
-        foreach($index_list as $i => $index_map){
-        
-          if($index_map['Seq_in_index'] > 1){
-          
-            $ret_map[$index_map['Column_name']] = 1;
-            
-          }else{
-          
-            $ret_map = array();
-            $ret_map[$index_map['Column_name']] = 1;
-          
-          }//if/else
-          
-          $next_i = $i + 1;
-          $have_index = ($next_i > $last_i) || ($index_list[$next_i]['Seq_in_index'] == 1);
-          if($have_index){
-          
-            // all this is to account for duplicate indexes but also for different tables (ie,
-            // tables might have the same index (eg, _id), but we don't want to include
-            // any duplicate index more than once, since multiple tables might have the same
-            // duplicate indexes)...
-            $table_index_list[] = $ret_map;
-            $keys = array_keys($table_index_list,$ret_map,true);
-            if(empty($keys) || (count($keys) != 2)){
-              if(!in_array($ret_map,$ret_list,true)){
-                $ret_list[] = $ret_map;
-              }//if
-            }else{
-              $keys = array_keys($ret_list,$ret_map,true);
-              if(count($keys) < 2){
-                $ret_list[] = $ret_map;
-              }//if
-            }//if/else
-            
-            $ret_map = array();
-              
-          }else{
-            $ret_map[$index_map['Column_name']] = 1;
-          }//if/else
-        
-        }//foreach
-        
-      }else if($this->isSqlite()){
+        if(!in_array($index_map,$ret_list,true)){
+          $ret_list[] = $index_map;
+        }//if
       
-        // sqlite: pragma table_info(table_name)
-        //  http://www.sqlite.org/pragma.html#schema
-        //  http://www.mail-archive.com/sqlite-users@sqlite.org/msg22055.html
-        //  http://stackoverflow.com/questions/604939/how-can-i-get-the-list-of-a-columns-in-a-table-for-a-sqlite-database
-        $query = sprintf('PRAGMA index_list(%s)',$table_name);
-        $index_list = $this->getQuery($query);
-        foreach($index_list as $index_map){
-        
-          $query = sprintf('PRAGMA index_info(%s)',$index_map['name']);
-          $field_list = $this->getQuery($query);
-
-          $ret_map = array();
-          foreach($field_list as $field_map){
-            $ret_map[$field_map['name']] = 1; // all sql indexes sort asc
-          }//foreach
-          
-          if(!in_array($ret_map,$ret_list,true)){
-            $ret_list[] = $ret_map;
-          }//if
-          
-        }//foreach
-        
-      }//if/else if
+      }//foreach
       
     }//foreach
     
@@ -1035,9 +836,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  this is handy for trying to add tables or indexes if they don't exist so the db
    *  handler can then try the queries that errored out again
    *  
-   *  this method will also try and fix any exception that match codes found in {@link $error_map},
-   *  if it does successfully resolve the exception, it will return true giving the failed method
-   *  a chance to redeem itself.      
+   *  this method will also try and fix any exception if a is*Exception method returns true       
    *  
    *  @param  Exception $e  the exception that was raised
    *  @param  string  $table  the table name
@@ -1047,18 +846,13 @@ abstract class mingo_db_sql extends mingo_db_interface {
   function handleException(Exception $e,$table,mingo_schema $schema){
   
     $ret_bool = false;
-    $e_code = $e->getCode();
-    if(!empty($e_code)){
+    if($this->isNoTableException($e)){
     
-      if(in_array($e_code,$this->error_map['no_table'])){
-      
-        // table was missing, so assure the table and everything...
-        $ret_bool = $this->setTable($table,$schema);
-      
-      }//if
-      
+      // table was missing, so assure the table and everything...
+      $ret_bool = $this->setTable($table,$schema);
+    
     }//if
-  
+      
     return $ret_bool;
   
   }//method
@@ -1111,13 +905,37 @@ abstract class mingo_db_sql extends mingo_db_interface {
         
     $ret_bool = false;
     
-    foreach($schema->getIndex() as $index_map){
+    foreach($schema->getIndexes() as $index_map){
     
       $ret_bool = $this->insertIndex($table,$_id,$map,$index_map);
       
     }//foreach
     
     return $ret_bool;
+    
+  }//method
+  
+  /**
+   *  adds an index to $table
+   *  
+   *  @param  string  $table  the table to add the index to
+   *  @param  array $map  usually something like array('field_name' => 1), this isn't need for sql
+   *                      but it's the same way to keep compatibility with Mongo
+   *  @param  mingo_schema  $schema the table schema      
+   *  @return boolean
+   */
+  public function setIndex($table,array $index_map,mingo_schema $schema){
+  
+    $ret_bool = $this->createIndexTable($table,$index_map,$schema);
+
+    if($ret_bool){
+    
+      // if debugging is on it means we're in dev so go ahead and populate the index...
+      if($this->hasDebug()){
+        $this->populateIndex($table,$index_map,$schema);
+      }//if
+    
+    }//if
     
   }//method
   
@@ -1139,7 +957,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $ret_bool = false;
     $_id_count = count($_id_list);
   
-    foreach($schema->getIndex() as $index_map){
+    foreach($schema->getIndexes() as $index_map){
     
       $field_list = array_keys($index_map);
       $field_name_str = join(',',$field_list);
@@ -1181,7 +999,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     if(empty($field_list) && !empty($sort_map)){ $field_list = array_keys($sort_map); }//if
   
     // now go through the index and see if it matches...
-    foreach($schema->getIndex() as $index_map){
+    foreach($schema->getIndexes() as $index_map){
     
       $field_i = 0;
       $is_match = false;
@@ -1261,9 +1079,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
    */
   protected function insertIndex($table,$_id,$map,$index_map){
     
-    $field_list = array_keys($index_map);
-    $field_name_str = join(',',$field_list);
-    $index_table = sprintf('%s_%s',$table,md5($field_name_str));
+    list($field_list,$field_name_str,$index_table) = $this->getIndexInfo($table,$index_map);
+    
     $field_name_str .= ',_id';
     $field_val_str = join(',',array_fill(0,count($field_list) + 1,'?'));
     $val_list = array();
@@ -1271,7 +1088,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     ///$query = 'INSERT INTO %s (%s) VALUES (%s)';
     $query = sprintf('INSERT INTO %s (%s) VALUES (%s)',$index_table,$field_name_str,$field_val_str);
     
-    foreach($index_map as $field => $order){
+    foreach($index_map as $field => $index_type){
     
       $val = '';
       if(isset($map[$field])){
@@ -1291,10 +1108,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
   /**
    *  get info about the index
    *  
+   *  @param  string  $table   
    *  @param  array $index_map
    *  @return array  array($field_list,$field_list_str,$index_table);
    */
-  protected function getIndexInfo($index_map){
+  protected function getIndexInfo($table,$index_map){
           
     $field_list = array_keys($index_map);
     $field_list_str = join(',',$field_list);
@@ -1392,31 +1210,45 @@ abstract class mingo_db_sql extends mingo_db_interface {
               // build the sql...
               if(isset($this->method_map[$command_bare])){
               
-                if(!empty($this->method_map[$command_bare]['sql'])){
+                $symbol = empty($this->method_map[$command_bare]['symbol'])
+                  ? ''
+                  : $this->method_map[$command_bare]['symbol'];
+              
+                if(!empty($this->method_map[$command_bare]['arg'])){
                 
-                  $callback = $this->method_map[$command_bare]['sql'];
+                  $callback = $this->method_map[$command_bare]['arg'];
                   list($command_sql,$command_val) = $this->{$callback}(
-                    $this->method_map[$command_bare]['symbol'],
+                    $symbol,
                     $name,
                     $map[$command]
                   );
                   
-                  list($where_sql,$where_val) = $this->appendSql(
-                    'AND',
-                    $command_sql,
-                    $command_val,
-                    $where_sql,
-                    $where_val
+                }else if(!empty($this->method_map[$command_bare]['args'])){
+                
+                  $callback = $this->method_map[$command_bare]['args'];
+                  list($command_sql,$command_val) = $this->{$callback}(
+                    $symbol,
+                    $name,
+                    $map
                   );
-                  
-                }//if
+                
+                
+                }//if/else
+              
+                list($where_sql,$where_val) = $this->appendSql(
+                  'AND',
+                  $command_sql,
+                  $command_val,
+                  $where_sql,
+                  $where_val
+                );
               
               }//if
             
             }else{
             
               // @todo  throw an error, there shouldn't ever be an array value outside a command
-              throw new mingo_exception(
+              throw new UnexpectedValueException(
                 'there is an error in your criteria, this happens when you pass in an array to '
                 .'the constructor, maybe try generating your criteria using the object\'s methods '
                 .'and not passing in an array.'
@@ -1498,6 +1330,19 @@ abstract class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
+   *  handle sql'ing a spatial point
+   *  
+   *  @since  10-18-10   
+   *  @param  string  $symbol the symbol to use in the sQL string
+   *  @param  string  $name the name of the field      
+   *  @param  array $args the entire map under the $name key         
+   *  @return array array($sql,$val);
+   */
+  protected function handleSpatialSql($symbol,$name,$args){
+    throw new BadMethodCallException('the given SQL interface does not support spatial indexing');
+  }//method
+  
+  /**
    *  handle appending to a sql string
    *  
    *  @param  string  $separator  something like 'AND' or 'OR'
@@ -1542,7 +1387,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  string  $val  the val to check to see if contains binary characters
    *  @return boolean true if binary, false if not
    */
-  private function isBinaryString($val){
+  protected function isBinaryString($val){
   
     $val = (string)$val;
     $ret_bool = false;

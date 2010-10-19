@@ -114,6 +114,26 @@ class test_mingo_schema extends mingo_test {
     }catch(exception $e){}//try/catch
     
   }//method
+  
+  public function testGetIndexes(){
+  
+    $schema = new mingo_schema('table');
+    $schema->setIndex('one','two');
+    
+    $index_list = $schema->getIndexes();
+    $this->assertEquals(1,count($index_list));
+    
+    $schema = new mingo_schema('table');
+    $schema->setSpatial('one');
+    
+    $index_list = $schema->getIndexes();
+    $this->assertEquals(1,count($index_list));
+    
+    $schema->setIndex('one','two');
+    $index_list = $schema->getIndexes();
+    $this->assertEquals(2,count($index_list));
+  
+  }//method
 
 
 }//class
