@@ -10,8 +10,8 @@
  *    - when implementing the interface, you don't really have to worry about error checking
  *      because mingo_db will do all the error checking before calling the functions from this
  *      class
- *    - you don't have to worry about throwing mingo_exceptions either because mingo_db
- *      will catch any exceptions from all the abstract methods and wrap them in a mingo_exception.
+ *    - throw any exception you want but mingo_db will catch any exceptions from all the abstract 
+ *      methods and wrap them in a mingo_exception if they aren't already a mingo_exception.
  *    - in php 5.3 you can set default values for any of the abstract method params without
  *      an error being thrown, in php <5.3 the implemented method signatures have to match
  *      the abstract signature exactly 
@@ -21,8 +21,8 @@
  *              isn't an included one (like mongo) then you can use {@link getUniqueId()}
  *              defined in this class
  *      - row_id = this is an auto increment row, ie, the row number. This technically only
- *                 needs to be generated when mingo_schema::setInc() is used in the ORM's
- *                 __construct() method
+ *                 needs to be generated when the backend supports it and is set up (mongo ignores
+ *                 it, mysql and sqlite set it) 
  *  
  *  @link http://www.php.net/manual/en/language.oop5.abstract.php
  *  

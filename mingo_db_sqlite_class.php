@@ -132,8 +132,9 @@ class mingo_db_sqlite extends mingo_db_sql {
         throw new RuntimeException('SPATIAL indexes are currently unsupported in SQLite');
       }//if
     
-      $query[] = '%s VARCHAR(100) COLLATE NOCASE NOT NULL,';
+      $query[] = '%s %s NOT NULL,';
       $printf_vars[] = $field;
+      $printf_vars[] = $this->getSqlType($field,$schema);
     
     }//foreach
 
@@ -201,6 +202,48 @@ class mingo_db_sqlite extends mingo_db_sql {
     
     return $ret_bool;
     
+  }//method
+  
+  /**
+   *  allows customizing the field sql type using the schema's field hints
+   *
+   *  @since  10-19-10
+   *  @param  string  $field  the field name
+   *  @param  mingo_schema  $schema the schema for the table         
+   *  @return string
+   */
+  protected function getSqlType($field,mingo_schema $schema){
+  
+    $ret_str = '';
+    $field_instance = $schema->getField($field);
+  
+    switch($field_instance->getType()){
+    
+      case mingo_field::TYPE_INT:
+      case mingo_field::TYPE_BOOL:
+        $ret_str = 'INTEGER';
+        break;
+      
+      case mingo_field::TYPE_FLOAT:
+      
+        $ret_str = 'REAL';
+        break;
+      
+      case mingo_field::TYPE_POINT:
+      case mingo_field::TYPE_STR:
+      case mingo_field::TYPE_LIST:
+      case mingo_field::TYPE_MAP:
+      case mingo_field::TYPE_OBJ:
+      case mingo_field::TYPE_DEFAULT:
+      default:
+        
+        $ret_str = 'VARCHAR(100) COLLATE NOCASE';
+        break;
+    
+    }//switch
+  
+    return $ret_str;
+  
   }//method
   
 }//class     

@@ -15,15 +15,15 @@ class test_mingo_orm extends mingo_test {
     
     $t->setPt($this->getPoint());
     
-    $t->setType('che');
+    $t->setType(100);
     $t->setFoo('blah');
     
     $this->assertTrue($t->set());
     
-    // now update point...
-    $t->setPt('blah');
-    
     try{
+    
+      // now update point...
+      $t->setPt('blah');
     
       $t->set();
       $this->fail('Pt was the wrong format, an exception should have been generated');
@@ -43,7 +43,7 @@ class test_mingo_orm extends mingo_test {
     $this->assertGreaterThanOrEqual(1,$loaded);
     
     // now grab on something else also...
-    $c->isType('che');
+    $c->isType(100);
     
     $loaded = $t->load($c);
     $this->assertGreaterThanOrEqual(1,$loaded);
@@ -78,6 +78,16 @@ class test_mingo_orm extends mingo_test {
     $long = -122.4183333;
     return array($lat,$long);
   
+  }//method
+  
+  public static function tearDownAfterClass(){
+  
+    $that = new self();
+    $t = $that->getDbConnectedOrm();
+    
+    $db = $t->getDb();
+    $db->killTable($t->getTable());
+    
   }//method
 
 }//class

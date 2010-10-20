@@ -130,12 +130,12 @@ class mingo_criteria extends mingo_base {
    */
   public function __call($method,$args){
   
-    list($command,$field,$args) = $this->splitMethod($method,$args);
+    list($command,$field_instance,$args) = $this->splitMethod($method,$args);
     
     if(isset($this->method_map[$command])){
     
       $callback = $this->method_map[$command]['set'];
-      $this->{$callback}($command,$field,$args);
+      $this->{$callback}($command,$field_instance->getNameAsString(),$args);
     
     }else{
     
@@ -305,25 +305,10 @@ class mingo_criteria extends mingo_base {
    */
   protected function handleSpatial($command,$name,$args){
   
-    // canary...
-    if(empty($args)){
-      throw new UnexpectedValueException(sprintf('%s must have a point and distance. None given',$command));
-    }//if
-    if(!is_array($args[0])){
-      throw new InvalidArgumentException(
-        sprintf('%s - the first argument must be an array($lat,$long), %s given',$command,gettype($args[0]))
-      );
-    }else{
-      if(!isset($args[0][0])){
-        throw new UnexpectedValueException('no latitude given');
-      }//if
-      if(!isset($args[0][1])){
-        throw new UnexpectedValueException('no longitude given');
-      }//if
-    }//if/else
-    if(!isset($args[1])){
-      throw new InvalidArgumentException('no distance specified');
-    }//if
+    // canary, make sure the point is valid...
+    $field = new mingo_field();
+    $field->setType(mingo_field::TYPE_POINT);
+    $args[0] = $field->normalizeInVal($args[0]);
   
     $this->map_where[$name] = array(
       $this->getCommand('near') => $args[0],
@@ -462,7 +447,12 @@ class mingo_criteria extends mingo_base {
   }//method
   
   protected function getMap($command,$val){
-    $val = $this->normalizeVal($val);
+  
+    // format the val...
+    // @todo  this might be better deeper into the mingo_db so it would have access to the schema
+    $field_instance = new mingo_field();
+    $val = $field_instance->normalizeInVal($val);
+  
     return array($this->getCommand($command) => $val);
   }//method
   

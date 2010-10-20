@@ -14,6 +14,15 @@ class mingo_schema extends mingo_base {
   const INDEX_ASC = 1;
   const INDEX_DESC = -1;
   const INDEX_SPATIAL = '2d';
+  
+  const FIELD_DEFAULT = 0;
+  const FIELD_INT = 1;
+  const FIELD_STR = 2;
+  const FIELD_POINT = 3;
+  const FIELD_LIST = 4;
+  const FIELD_MAP = 5;
+  const FIELD_OBJ = 6;
+  const FIELD_BOOL = 7;
 
   /**
    *  hold the table name this schema represents
@@ -34,6 +43,17 @@ class mingo_schema extends mingo_base {
    *  @var  array
    */
   protected $spatial_index = array();
+  
+  /**
+   *  handle the type hints
+   *  
+   *  uses the FIELD_* constants to allow type hints
+   *      
+   *  @see  setType()   
+   *  @since  10-19-10   
+   *  @var  array
+   */        
+  protected $field_map = array();
   
   /**
    *  used to set fields that should be there when the db is set
@@ -175,19 +195,45 @@ class mingo_schema extends mingo_base {
   public function getSpatial(){ return $this->spatial_index; }//method
   public function hasSpatial(){ return !empty($this->spatial_index); }//method
   
-  /**
-   *  set a required field
-   *  
-   *  @param  string  $name the field name
-   *  @param  mixed $default_val  if something other than null then that value will be put into the field
-   *                              and an error won't be thrown if the field isn't there      
-   */
-  public function requireField($name,$default_val = null){
+  public function setField(mingo_field $field){
   
     // canary...
-    if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
-    $this->required_map[$this->normalizeField($name)] = $default_val;
+    if(!$field->hasName()){
+      throw new InvalidArgumentException('$field must have a name set');
+    }//if
+  
+    $name = $field->getNameAsString();
+  
+    if($field->isRequired()){
+      $this->requireField($name,$field->getDefaultVal());
+    }//if
+  
+    $this->field_map[] = $field;
+  }//method
+  
+  /**
+   *  get a field instance for the given name
+   *  
+   *  this will return any previously set field instance if it exists, if it doesn't
+   *  then it will create a new one so it guarrantees to always return an mingo_field
+   *  instance         
+   *
+   *  @param  string|array  $name the field's name   
+   *  @return mingo_field
+   */
+  public function getField($name){
+  
+    $ret_instance = new mingo_field($name);
     
+    $field_name = $ret_instance->getNameAsString();
+    if(!empty($this->field_map[$field_name])){
+    
+      $ret_instance = $this->field_map[$field_name];
+      
+    }//if
+  
+    return $ret_instance;
+  
   }//method
   
   /**
@@ -196,6 +242,21 @@ class mingo_schema extends mingo_base {
    *  @return array
    */
   public function getRequiredFields(){ return $this->required_map; }//method
+  
+  /**
+   *  set a required field
+   *  
+   *  @param  string  $name the field name, it should already be normalized
+   *  @param  mixed $default_val  if something other than null then that value will be put into the field
+   *                              and an error won't be thrown if the field isn't there      
+   */
+  protected function requireField($name,$default_val = null){
+  
+    // canary...
+    if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
+    $this->required_map[$name] = $default_val;
+    
+  }//method
   
   /**
    *  normalizes all the index fields
@@ -229,6 +290,19 @@ class mingo_schema extends mingo_base {
   
     return $index_map;
   
+  }//method
+  
+  /**
+   *  make the field name consistent
+   *  
+   *  @param  string  $field  the field name
+   *  @return string|array  the $field, normalized
+   */
+  protected function normalizeField($field){
+    
+    $instance = new mingo_field($field);
+    return $instance->getName();
+    
   }//method
 
 }//class     

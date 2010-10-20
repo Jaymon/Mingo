@@ -129,7 +129,13 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   
     $this->table = mb_strtolower(get_class($this));
   
-    $this->setSchema(new mingo_schema($this->table));
+    $schema = new mingo_schema($this->table);
+    $field = new mingo_field(self::CREATED,mingo_field::TYPE_INT);
+    $schema->setField($field);
+    $field = new mingo_field(self::UPDATED,mingo_field::TYPE_INT);
+    $schema->setField($field);
+  
+    $this->setSchema($schema);
     
     // do the child's initializing stuff, like setting ORM specific schema stuff...
     $this->start();
@@ -783,12 +789,12 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     list($command,$field,$args) = $this->splitMethod($method,$args);
     
     // canary...
-    if(empty($field)){
+    if(!$field->hasName()){
       throw new BadMethodCallException('field cannot be empty');
     }//if
     
-    if(is_string($field) && array_key_exists($field,get_object_vars($this))){
-      throw new BadMethodCallException(sprintf('a field cannot have this name: %s',$field));
+    if(is_string($field->getName()) && array_key_exists($field->getName(),get_object_vars($this))){
+      throw new BadMethodCallException(sprintf('a field cannot have this name: %s',$field->getName()));
     }//if
     
     $ret_mixed = $this->handleCall($command,$field,$args);
@@ -811,11 +817,11 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  
    *  @since  10-5-10   
    *  @param  string  $command  the command that will be executed
-   *  @param  array|string  $field_list the field to be retrieved   
+   *  @param  mingo_field $field_instance the field to be retrieved   
    *  @param  array $args the arguments passed into the __call method
    *  @return mixed depending on the $command, something is returned
    */
-  private function handleCall($command,$field_list,$args){
+  private function handleCall($command,$field_instance,$args){
   
     $ret_mixed = null;
   
@@ -885,11 +891,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
     }//switch
   
-    // canary...
-    if(!is_array($field_list)){
-      $field_list = (array)$field_list;
-    }//if
-  
+    $field_list = (array)$field_instance->getName();
     $ret_val_list = array();
     $ret_found_list = array();
     $field_last_i = count($field_list) - 1;
@@ -981,8 +983,9 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
             
               $this->list[$list_i]['modified'] = true;
               
-              $field_ref[$field] = $args[0];
-              $ret_mixed= true;
+              $schema_field_instance = $this->schema->getField($field_instance->getName());
+              $field_ref[$field] = $schema_field_instance->normalizeInVal($args[0]);
+              $ret_mixed = true;
               break;
               
             case 'bump':

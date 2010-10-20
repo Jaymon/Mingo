@@ -1403,4 +1403,17 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
   }//method
   
+  /**
+   *  allows customizing the field sql type using the schema's field hints
+   *
+   *  @since  10-19-10
+   *  @param  string  $field  the field name
+   *  @param  mingo_schema  $schema the schema for the table         
+   *  @return string
+   */
+  protected function getSqlType($field,mingo_schema $schema){
+    $ret_str = 'VARCHAR(100)';
+    return $ret_str;
+  }//method
+  
 }//class     

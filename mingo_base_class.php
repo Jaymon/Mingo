@@ -3,63 +3,14 @@
 /**
  *  the base class for some of the public facing mingo classes, the idea is to massage 
  *  user given input to make it consistent across all the classes  
- *   
+ *  
+ *  @abstract  
  *  @version 0.2
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-17-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_base {
-
-  /**
-   *  make the val consistent
-   *  
-   *  @todo this should probably go through arrays also
-   *      
-   *  @param  string  $field  the field name
-   *  @return string  the $field, normalized
-   */
-  protected function normalizeVal($val){
-
-    // booleans aren't really supported, so map them to integers...
-    if(is_bool($val)){ $val = empty($val) ? 0 : 1; }//if
-    
-    return $val;
-    
-  }//if/else
-
-  /**
-   *  make the field name consistent
-   *  
-   *  @param  string  $field  the field name
-   *  @return string|array  the $field, normalized
-   */
-  protected function normalizeField($field){
-    
-    // canary...
-    if(is_numeric($field)){
-      throw new mingo_exception(sprintf('an all numeric $field like %s is not allowed',$field));
-    }//if
-    
-    $ret_mix = null;
-    
-    if(is_array($field)){
-    
-      $ret_mix = array();
-    
-      foreach($field as $key => $f){
-        $ret_mix[$key] = mb_strtolower((string)$f);
-      }//foreach
-    
-    }else{
-    
-      $ret_mix = mb_strtolower((string)$field);
-      
-    }//if/else
-    
-    return $ret_mix;
-    
-  }//method
+abstract class mingo_base { // mingo_magic or mingo_call
 
   /**
    *  splits the $method by the first non lowercase char found
@@ -72,7 +23,8 @@ class mingo_base {
    *  
    *  @param  string  $method the method name that was called
    *  @param  array $args the argument array that was passed into __call() with the method
-   *  @return array array($prefix,$field,$args)
+   *  @return array array($prefix,$field,$args) where prefix is a string, field is a 
+   *                mingo_field instance and args is an array   
    */
   protected function splitMethod($method,$args = array()){
   
@@ -84,7 +36,8 @@ class mingo_base {
       $ascii = ord($method[$i]);
       if(($ascii < 97) || ($ascii > 122)){
       
-        $ret_field = $this->normalizeField(mb_substr($method,$i));
+        ///$ret_field = $this->normalizeField(mb_substr($method,$i));
+        $ret_field = new mingo_field(mb_substr($method,$i));
         break;
       
       }else{
@@ -99,12 +52,12 @@ class mingo_base {
     
       throw new mingo_exception(
         'no field was specified in the method, for example, if you want to "get" the field "foo" '.
-        'you would do: getFoo() or getField(\'foo\')'
+        'you would do: getFoo() or getField("foo")'
       ); 
     
     }else{
     
-      if($ret_field === 'field'){
+      if($ret_field->isName('field')){
       
         if(empty($args)){
         
@@ -114,7 +67,7 @@ class mingo_base {
         
         }else{
       
-          $ret_field = $this->normalizeField($args[0]);
+          $ret_field->setName($args[0]);
           $args = array_slice($args,1);
           
         }//if/else

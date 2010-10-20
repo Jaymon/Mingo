@@ -116,6 +116,8 @@ class mingo_db_mysql extends mingo_db_sql {
           throw new DomainException('the index table can only have one spatial index');
         }//if
     
+        // according to this: http://dev.mysql.com/doc/refman/5.0/en/creating-spatial-columns.html
+        // InnoDB POINT column support was added in 5.0.16, but index support is still lacking...
         $engine = 'MyISAM'; // spatial tables have to be MyIsam tables
     
         $spatial_field = $field;
@@ -123,10 +125,12 @@ class mingo_db_mysql extends mingo_db_sql {
         $printf_vars[] = $field;
       
       }else{
-      
-        $query[] = '`%s` VARCHAR(100) NOT NULL,';
+        
+        $query[] = '`%s` %s NOT NULL,';
         $printf_vars[] = $field;
+        $printf_vars[] = $this->getSqlType($field,$schema);
         $pk_field_list[] = $field;
+        
         
       }//if/else
     
@@ -232,7 +236,9 @@ class mingo_db_mysql extends mingo_db_sql {
     
       if($this->isSpatialIndexType($index_type)){
     
-        // canary...
+        // canary, if there is no spatial field, we don't need to insert into this index...
+        if(empty($map[$field])){ return false; }//if
+        // more canary...
         if(!is_array($map[$field]) || (!isset($map[$field][0]) || !isset($map[$field][1]))){
           throw new UnexpectedValueException(
             'the SPATIAL field "%s" was not in the form: array($latitude,$longitude)',
@@ -344,7 +350,7 @@ class mingo_db_mysql extends mingo_db_sql {
    *                      but it's the same way to keep compatibility with Mongo   
    *  @return boolean
    */
-  function createIndex($table,array $index_map){
+  protected function createIndex($table,array $index_map){
     
     // ALTER TABLE table_name`ADD|DROP [FULLTEXT] INDEX(column_name,...);
     // http://www.w3schools.com/sql/sql_alter.asp
@@ -370,6 +376,56 @@ class mingo_db_mysql extends mingo_db_sql {
     
     return $this->getQuery($query);
   
-  }//method */
+  }//method
+  
+  /**
+   *  allows customizing the field sql type using the schema's field hints
+   *
+   *  @since  10-19-10
+   *  @param  string  $field  the field name
+   *  @param  mingo_schema  $schema the schema for the table         
+   *  @return string
+   */
+  protected function getSqlType($field,mingo_schema $schema){
+  
+    $ret_str = '';
+    $field_instance = $schema->getField($field);
+  
+    switch($field_instance->getType()){
+    
+      case mingo_field::TYPE_INT:
+        $ret_str = 'INT(11)';
+        break;
+      
+      case mingo_field::TYPE_POINT:
+      
+        $ret_str = 'POINT';
+        break;
+      
+      case mingo_field::TYPE_BOOL:
+      
+        $ret_str = 'TINYINT(4)';
+        break;
+      
+      case mingo_field::TYPE_FLOAT:
+      
+        $ret_str = 'FLOAT';
+        break;
+      
+      case mingo_field::TYPE_STR:
+      case mingo_field::TYPE_LIST:
+      case mingo_field::TYPE_MAP:
+      case mingo_field::TYPE_OBJ:
+      case mingo_field::TYPE_DEFAULT:
+      default:
+        
+        $ret_str = 'VARCHAR(100)';
+        break;
+    
+    }//switch
+  
+    return $ret_str;
+  
+  }//method
   
 }//class     
