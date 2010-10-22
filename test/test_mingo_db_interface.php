@@ -57,7 +57,7 @@ abstract class test_mingo_db_interface extends mingo_test {
     }catch(Exception $e){
       
       $this->fail(
-        sprintf('connecting failed with exeption %s "%s"',get_class($e),$e->getMessage())
+        sprintf('connecting failed with exception %s "%s"',get_class($e),$e->getMessage())
       );
       
     }//try/catch
@@ -74,6 +74,9 @@ abstract class test_mingo_db_interface extends mingo_test {
     $table = $this->getTable();
     $schema = $this->getSchema();
   
+    // make sure the table doesn't exist before creating it...
+    $db->killTable($table,$schema);
+  
     $ret_bool = $db->setTable($table,$schema);
     $this->assertTrue($ret_bool);
     $this->assertTrue($db->hasTable($table));
@@ -87,6 +90,97 @@ abstract class test_mingo_db_interface extends mingo_test {
     $this->assertGreaterThanOrEqual(count($schema->getIndexes()),count($index_list));
     
     return $db;
+    
+  }//method
+  
+  /**
+   *  @depends  testSetTable
+   */
+  public function testInsertIndexArray($db){
+  
+    $table = $this->getTable();
+    $schema = $this->getSchema();
+    
+    // a map with 2 arrays can't be indexed (as per mongo), so an exception should
+    // be thrown...
+    try{
+      
+      $map = array(
+        'foo' => 'che',
+        'bar' => range(1,3),
+        'baz' => range(1,2)
+      );
+      
+      $map = $db->insert($table,$map,$schema);
+      $this->fail('indexing 2 arrays should not currently work');
+    
+    }catch(PHPUnit_Framework_AssertionFailedError $e){
+      throw $e;
+    }catch(Exception $e){}//try/catch
+    
+    $map = array(
+      'foo' => 'che',
+      'bar' => range(1,3),
+      'baz' => time()
+    );
+    
+    $map = $db->insert($table,$map,$schema);
+    $this->assertInternalType('array',$map);
+    
+    $where_criteria = new mingo_criteria();
+    $where_criteria->isBar(1);
+    $list = $db->get($table,$schema,$where_criteria);
+    $this->assertInternalType('array',$list);
+    
+    $_id_list = array();
+    foreach($list as $list_map){
+    
+      $this->assertEquals($map['bar'],$list_map['bar']);
+      $this->assertEquals($map['baz'],$list_map['baz']);
+      $_id_list[] = $map['_id'];
+    
+    }//method
+    
+    // delete them...
+    $where_criteria = new mingo_criteria();
+    $where_criteria->in_id($_id_list);
+    
+    $bool = $db->kill($table,$schema,$where_criteria);
+    $this->assertTrue($bool);
+    
+    /**
+    $map = array(
+      'foo' => 'che',
+      'bar' => array('cells' => array('foo','bar'),'categories' => array('one','two')),
+      'baz' => time()
+    );
+    
+    $map = $db->insert($table,$map,$schema);
+    $where_criteria = new mingo_criteria();
+    $where_criteria->inField('bar.cells',array('foo','happy'));
+    ///$where_criteria->inField('bar.categories','one');
+    $where_criteria->gteField('baz',time() - 100000);
+    $list = $db->get($table,$schema,$where_criteria);
+    out::e($list);
+    out::x();
+    
+    $map = array(
+      'foo' => 'che',
+      'bar' => array(0 => array('testing' => 'happy',1 => 'sad'),1 => 'nothing'),
+      'baz' => time()
+    );
+    
+    $map = $db->insert($table,$map,$schema);
+    $this->assertInternalType('array',$map);
+    
+    $where_criteria = new mingo_criteria();
+    ///$where_criteria->isField('bar.testing','happy'); // equivalent to bar.0.testing
+    $where_criteria->isField('bar','nothing'); // equivalent to bar.1.nothing
+    $list = $db->get($table,$schema,$where_criteria);
+    out::e($list);
+    out::x();
+    // **/
+    
     
   }//method
   
@@ -235,7 +329,7 @@ abstract class test_mingo_db_interface extends mingo_test {
   protected function getSchema(){
   
     $ret_schema = new mingo_schema($this->getTable());
-    $ret_schema->setIndex('foo');
+    $ret_schema->setIndex('foo','bar','baz');
     $ret_schema->setIndex('bar','baz');
     return $ret_schema;
   

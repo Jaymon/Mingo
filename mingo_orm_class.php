@@ -711,7 +711,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     $db = $this->getDb();
   
     if($drop_table){ $db->killTable($this->getTable()); }//if
-  
+
     // create the table...
     if(!$db->setTable($this->getTable(),$this->schema)){
     

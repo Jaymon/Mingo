@@ -25,6 +25,9 @@ class test_mingo_db_sqlite extends test_mingo_db_interface {
   /* public static function tearDownAfterClass(){
   
     $that = new self();
+    
+    
+    
     out::e($that->getDbName());
   
     // http://us2.php.net/manual/en/function.unlink.php#98861

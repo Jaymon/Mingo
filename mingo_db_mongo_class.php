@@ -213,7 +213,7 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @throws MongoException on any failure
    */
   public function update($table,$_id,array $map,mingo_schema $schema){
-    
+
     $table = $this->getTable($table);
     $map = $this->getMap($map);
     $where_criteria = new mingo_criteria();
@@ -247,13 +247,13 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  array $map  usually something like array('field_name' => 1)
    *  @return boolean
    */
-  public function setIndex($table,array $map){
+  public function setIndex($table,array $index_map,mingo_schema $schema){
     
     // canary...
-    if(empty($map)){ throw new mingo_exception('no $map given'); }//if
+    if(empty($index_map)){ throw new mingo_exception('$index_map cannot be empty'); }//if
     
     $table = $this->getTable($table);
-    return $table->ensureIndex($map);
+    return $table->ensureIndex($index_map);
   
   }//method
   
@@ -326,12 +326,11 @@ class mingo_db_mongo extends mingo_db_interface {
     if(!empty($schema)){
       
       // add all the indexes for this table...
-      if($schema->hasIndex()){
+      if($schema->hasIndexes()){
       
-        foreach($schema->getIndex() as $index_map){
+        foreach($schema->getIndexes() as $index_map){
         
-          $this->setIndex($table,$index_map);
-          
+          $this->setIndex($table,$index_map,$schema);
         
         }//foreach
       
@@ -358,10 +357,20 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  this doesn't do anything except return false since Mongo pretty much adds tables and
-   *  indexes if they don't already exist. It's needed for interface compatibility though
+   *  currently, all mongo does to error recovery is set the table, in case an index was missed
+   *  or something   
    */
-  public function handleException(Exception $e,$table,mingo_schema $schema){ return false; }//method
+  public function handleException(Exception $e,$table,mingo_schema $schema){
+    
+    // canary, check for infinite recursion...
+    $traces = $e->getTrace();
+    foreach($traces as $trace){
+      if($trace['function'] === __FUNCTION__){ return false; }//if
+    }//foreach
+    
+    return $this->setTable($table,$schema);
+    
+  }//method
   
   /**
    *  this loads the table so operations can be performed on it

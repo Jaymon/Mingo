@@ -116,11 +116,12 @@ class mingo_db_sqlite extends mingo_db_sql {
    */
   protected function createIndexTable($table,array $index_map,mingo_schema $schema){
   
-    list($field_list,$field_list_str,$index_table) = $this->getIndexInfo($table,$index_map);
+    $index_table = $this->getIndexTableName($table,$index_map);
   
     // canary...
     if($this->hasTable($index_table)){ return true; }//if
   
+    $field_list = array();
     $printf_vars = array();
     $query = array();
     $query[] = 'CREATE TABLE %s (';
@@ -132,14 +133,16 @@ class mingo_db_sqlite extends mingo_db_sql {
         throw new RuntimeException('SPATIAL indexes are currently unsupported in SQLite');
       }//if
     
-      $query[] = '%s %s NOT NULL,';
+      $query[] = '%s %s,';
+      
+      $field_list[] = $field;
       $printf_vars[] = $field;
       $printf_vars[] = $this->getSqlType($field,$schema);
     
     }//foreach
 
     $query[] = '_id VARCHAR(24) NOT NULL, PRIMARY KEY (%s,_id))';
-    $printf_vars[] = $field_list_str;
+    $printf_vars[] = join(',',$field_list);
     
     $query = vsprintf(join(PHP_EOL,$query),$printf_vars);
     $ret_bool = $this->getQuery($query);

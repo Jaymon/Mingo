@@ -289,12 +289,12 @@ abstract class mingo_db_interface {
    *  links that helped me calculate miles to a point:
    *  http://mathforum.org/library/drmath/view/55461.html
    *  http://wiki.answers.com/Q/How_many_miles_are_in_a_degree_of_longitude_or_latitude
-   *  http://answers.yahoo.com/question/index?qid=20070911165150AAQGeJc              
+   *  http://answers.yahoo.com/question/index?qid=20070911165150AAQGeJc 
    *  
    *  @since  8-19-10   
    *  @param  integer $miles  how many miles we want to go in any direction from $point
-   *  @param  array $point  see {@link assurePoint()} for description
-   *  @return array basically 4 points: array($point_a,$point_b,$point_c,$point_d)
+   *  @param  array $point  array($lat,$long)
+   *  @return array basically 4 points: array($sw,$se,$ne,$nw)
    */              
   protected function getSpatialBoundingBox($miles,$point){
   
@@ -312,12 +312,13 @@ abstract class mingo_db_interface {
     $longitude_bounding = ($miles / $longitude_miles);
     
     // create a bounding rectangle...
-    $point_a = array($latitude - $latitude_bounding,$longitude - $longitude_bounding); 
-    $point_b = array($latitude - $latitude_bounding,$longitude + $longitude_bounding); 
-    $point_c = array($latitude + $latitude_bounding,$longitude + $longitude_bounding); 
-    $point_d = array($latitude + $latitude_bounding,$longitude - $longitude_bounding);
+    // http://maisonbisson.com/blog/post/12148/find-stuff-by-minimum-bounding-rectangle/
+    $sw = array($latitude - $latitude_bounding,$longitude - $longitude_bounding);
+    $se = array($latitude - $latitude_bounding,$longitude + $longitude_bounding);
+    $ne = array($latitude + $latitude_bounding,$longitude + $longitude_bounding);
+    $nw = array($latitude + $latitude_bounding,$longitude - $longitude_bounding);
     
-    return array($point_a,$point_b,$point_c,$point_d);
+    return array($sw,$se,$ne,$nw);
     
   }//method
   

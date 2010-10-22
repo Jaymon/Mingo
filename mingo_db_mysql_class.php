@@ -93,7 +93,7 @@ class mingo_db_mysql extends mingo_db_sql {
   
   protected function createIndexTable($table,array $index_map,mingo_schema $schema){
   
-    list($field_list,$field_list_str,$index_table) = $this->getIndexInfo($table,$index_map);
+    $index_table = $this->getIndexTableName($table,$index_map);
   
     // canary...
     if($this->hasTable($index_table)){ return true; }//if
@@ -117,8 +117,9 @@ class mingo_db_mysql extends mingo_db_sql {
         }//if
     
         // according to this: http://dev.mysql.com/doc/refman/5.0/en/creating-spatial-columns.html
-        // InnoDB POINT column support was added in 5.0.16, but index support is still lacking...
-        $engine = 'MyISAM'; // spatial tables have to be MyIsam tables
+        // InnoDB POINT column support was added in 5.0.16, but index support is still lacking, so
+        // to have an index, spatial tables have to be MyIsam tables...
+        $engine = 'MyISAM';
     
         $spatial_field = $field;
         $query[] = '`%s` POINT NOT NULL,';
@@ -126,7 +127,7 @@ class mingo_db_mysql extends mingo_db_sql {
       
       }else{
         
-        $query[] = '`%s` %s NOT NULL,';
+        $query[] = '`%s` %s,';
         $printf_vars[] = $field;
         $printf_vars[] = $this->getSqlType($field,$schema);
         $pk_field_list[] = $field;
@@ -212,73 +213,6 @@ class mingo_db_mysql extends mingo_db_sql {
     }//foreach
 
     return $ret_list;
-  
-  }//method
-  
-  /**
-   *  insert into an index table
-   *  
-   *  @param  string  $table  the master table, not the index table
-   *  @param  string  $_id the _id of the $table where $map is found
-   *  @param  array $map  the key/value pairs found in $table's body field
-   *  @param  array $index_map  the map that represents the index
-   *  @return boolean
-   */
-  protected function insertIndex($table,$_id,$map,$index_map){
-    
-    list($field_list,$field_name_str,$index_table) = $this->getIndexInfo($table,$index_map);
-
-    $field_list[] = '_id';
-    $val_bind_list = array();
-    $val_list = array();
-    
-    foreach($index_map as $field => $index_type){
-    
-      if($this->isSpatialIndexType($index_type)){
-    
-        // canary, if there is no spatial field, we don't need to insert into this index...
-        if(empty($map[$field])){ return false; }//if
-        // more canary...
-        if(!is_array($map[$field]) || (!isset($map[$field][0]) || !isset($map[$field][1]))){
-          throw new UnexpectedValueException(
-            'the SPATIAL field "%s" was not in the form: array($latitude,$longitude)',
-            $field
-          ); 
-        }//if
-    
-        $val_list[] = sprintf(
-          'POINT(%s %s)',
-          (float)$map[$field][0],
-          (float)$map[$field][1]
-        );
-    
-        $val_bind_list[] = 'PointFromText(?)';
-    
-      }else{
-      
-        $val = '';
-        if(isset($map[$field])){
-          $val = $map[$field];
-        }//if
-        
-        $val_list[] = $val;
-        $val_bind_list[] = '?';
-        
-      }//if/else
-    
-    }//foreach
-    
-    $val_list[] = $_id;
-    $val_bind_list[] = '?';
-    
-    $query = sprintf(
-      'INSERT INTO `%s` (`%s`) VALUES (%s)',
-      $index_table,
-      join('`,`',$field_list),
-      join(',',$val_bind_list)
-    );
-
-    return $this->getQuery($query,$val_list);
   
   }//method
   
@@ -427,5 +361,49 @@ class mingo_db_mysql extends mingo_db_sql {
     return $ret_str;
   
   }//method
+  
+  /**
+   *  formats the insert sql for index tables
+   *  
+   *  @since  10-21-10
+   *  @param  string  $field  the field name
+   *  @param  mixed $val  the field value
+   *  @param  mixed $index_type the index type for $field
+   *  @return array array($field,$val,$bind) where $bind is usually a question mark
+   */
+  protected function handleInsertSql($field,$val,$index_type = null){
+  
+    $field = sprintf('`%s`',$field);
+    $bind = '?';
+  
+    if($this->isSpatialIndexType($index_type)){
+    
+      // canary, check the field is properly formatted...
+      $mf = new mingo_field();
+      $mf->setType(mingo_field::TYPE_POINT);
+      $val = $mf->normalizeInVal($val);
+  
+      $val = sprintf(
+        'POINT(%s %s)',
+        (float)$val[0],
+        (float)$val[1]
+      );
+  
+      $bind = 'PointFromText(?)';
+  
+    }//if
+  
+    return array($field,$val,$bind);
+  
+  }//method
+  
+  /**
+   *  if you want to do anything special with the table's name, override this method
+   *  
+   *  @since  10-21-10   
+   *  @param  string  $table
+   *  @return string  $table, formatted
+   */
+  protected function handleTableSql($table){ return sprintf('`%s`',$table); }//method
   
 }//class     

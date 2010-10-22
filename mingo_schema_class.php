@@ -208,7 +208,8 @@ class mingo_schema extends mingo_base {
       $this->requireField($name,$field->getDefaultVal());
     }//if
   
-    $this->field_map[] = $field;
+    $this->field_map[$name] = $field;
+    
   }//method
   
   /**

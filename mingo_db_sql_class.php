@@ -219,7 +219,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         // delete values from main table...
         $query = sprintf(
           'DELETE FROM %s WHERE _id IN (%s)',
-          $table,
+          $this->handleTableSql($table),
           join(',',array_fill(0,$_id_count,'?'))
         );
         $ret_bool = $this->getQuery($query,$_id_list);
@@ -253,7 +253,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
   function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
     
     $ret_list = array();
-    $id_list = array();
+    $_id_list = array();
     $order_map = array();
     $list = array();
     $sort_query = '';
@@ -285,7 +285,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
           if(isset($where_map['_id'])){
             
             // it is a _id query, so the only sort can be row_id...
-            $id_list = $val_list;
+            $_id_list = $val_list;
             
           }else{
           
@@ -325,8 +325,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
         $limit = array();
         
         $stmt_handler = $this->getStatement($query,$val_list);
-        $id_list = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
-        if(!empty($id_list)){ $order_map = array_flip($id_list); }//if
+        $_id_list = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
+        
+        if(!empty($_id_list)){
+          $order_map = array_flip($_id_list);
+        }//if
       
       }//if/else
       
@@ -344,17 +347,17 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     }//if/else
     
-    if(!empty($id_list)){
+    if(!empty($_id_list)){
       
       $query = $this->getSelectQuery(
         $table,
         '*',
-        sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($id_list),'?'))),
+        sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($_id_list),'?'))),
         $sort_query,
         $limit
       );
       
-      $list = $this->getQuery($query,$id_list);
+      $list = $this->getQuery($query,$_id_list);
       
     }//if
     
@@ -650,7 +653,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  mingo_schema  $schema the table schema    
    *  @return boolean
    */
-  function setTable($table,mingo_schema $schema){
+  public function setTable($table,mingo_schema $schema){
 
     $ret_bool = $this->hasTable($table);
     $query = '';
@@ -686,7 +689,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  string  $table  the table to check
    *  @return boolean
    */
-  function hasTable($table){
+  public function hasTable($table){
   
     // get all the tables currently in the db...
     $table_list = $this->getTables($table);
@@ -703,7 +706,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *                          the values should be in this array           
    *  @return mixed array of results if select query, last id if insert, update
    */
-  function getQuery($query,$val_list = array()){
+  public function getQuery($query,$val_list = array()){
   
     $ret_mixed = false;
   
@@ -951,18 +954,13 @@ abstract class mingo_db_sql extends mingo_db_interface {
    */
   protected function killIndexes($table,$_id_list,$schema){
   
-    // canary...
-    if(!is_array($_id_list)){ $_id_list = array($_id_list); }//if
-  
     $ret_bool = false;
+    $_id_list = (array)$_id_list;
     $_id_count = count($_id_list);
   
     foreach($schema->getIndexes() as $index_map){
-    
-      $field_list = array_keys($index_map);
-      $field_name_str = join(',',$field_list);
-      $index_table = sprintf('%s_%s',$table,md5($field_name_str));
       
+      $index_table = $this->getIndexTableName($table,$index_map);
       if(!empty($index_table)){
       
         $query = sprintf(
@@ -1027,7 +1025,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
       if($is_match){
       
         // we're done, we found a match...
-        $ret_str = sprintf('%s_%s',$table,md5(join(',',array_keys($index_map))));
+        $ret_str = $this->getIndexTableName($table,$index_map);
         break;
         
       }//if
@@ -1071,6 +1069,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
   /**
    *  insert into an index table
    *  
+   *  @see  recursiveInsertIndex()   
    *  @param  string  $table  the master table, not the index table
    *  @param  string  $_id the _id of the $table where $map is found
    *  @param  array $map  the key/value pairs found in $table's body field
@@ -1079,29 +1078,145 @@ abstract class mingo_db_sql extends mingo_db_interface {
    */
   protected function insertIndex($table,$_id,$map,$index_map){
     
-    list($field_list,$field_name_str,$index_table) = $this->getIndexInfo($table,$index_map);
-    
-    $field_name_str .= ',_id';
-    $field_val_str = join(',',array_fill(0,count($field_list) + 1,'?'));
-    $val_list = array();
-  
-    ///$query = 'INSERT INTO %s (%s) VALUES (%s)';
-    $query = sprintf('INSERT INTO %s (%s) VALUES (%s)',$index_table,$field_name_str,$field_val_str);
-    
+    // canary, if this is a spatial index and the spatial field isn't set, then don't insert...
     foreach($index_map as $field => $index_type){
-    
-      $val = '';
-      if(isset($map[$field])){
-        $val = $map[$field];
+      if($this->isSpatialIndexType($index_type)){
+        if(!isset($map[$field])){
+          return false;
+        }//if
       }//if
-    
-      $val_list[] = $val;
-    
     }//foreach
     
-    $val_list[] = $_id;
+    $index_table = $this->getIndexTableName($table,$index_map);
     
-    return $this->getQuery($query,$val_list);
+    $state = new StdClass();
+    $state->depth = 0;
+    $state->arrField = '';
+    
+    return $this->recursiveInsertIndex(
+      $index_table,
+      $_id,
+      $map,
+      $index_map,
+      $state
+    );
+  
+  }//method
+  
+  /**
+   *  actually do the inserting into an index table
+   *  
+   *  @recursive   
+   *  @see  insertIndex   
+   *  @param  string  $table  the master table, not the index table
+   *  @param  string  $_id the _id of the $table where $map is found
+   *  @param  array $map  the key/value pairs found in $table's body field
+   *  @param  array $index_map  the map that represents the index
+   *  @param  StdClass  $state  the current state of the recrusion   
+   *  @return boolean
+   */
+  protected function recursiveInsertIndex($index_table,$_id,$map,array $index_map,StdClass $state){
+  
+    $ret_bool = false;
+    $field_list = array();
+    $field_bind_list = array();
+    $val_list = array();
+    $run_query = true;
+  
+    foreach($index_map as $field => $index_type){
+    
+      // canary...
+      if(!$run_query){ break; }//if
+      if(!isset($map[$field])){ continue; }//if
+      
+      if(is_array($map[$field]) && !$this->isSpatialIndexType($index_type)){
+      
+        if(!empty($state->arrField)){
+        
+          throw new DomainException(
+            sprintf('Cannot index parallel arrays [%s] [%s]',$state->arrField,$field)
+          );
+        
+        }//if
+      
+        $state->arrField = $field;
+        $state->depth++;
+        
+        $sql_name = $sql_val = $sql_bind = '';
+        $run_query = false;
+        $list = $map[$field];
+        foreach($list as $key => $val){
+        
+          // filter out nulls...
+          if(isset($list[$key])){
+          
+            $o = new StdClass();
+            $o->_is_recurse_ = true;
+            $o->key = $key;
+            $o->val = $val;
+            $map[$field] = $o;
+          
+            // recursively go through the individual array values...
+            $ret_bool = $this->recursiveInsertIndex($index_table,$_id,$map,$index_map,$state);
+            
+          }//if
+        
+        }//foreach
+        
+        $state->arrField = '';
+        $state->depth--;
+        
+        $map[$field] = $list;
+      
+      }else if(($map[$field] instanceof StdClass) && isset($map[$field]->_is_recurse_)){
+      
+        // canary...
+        if(is_array($map[$field]->val)){
+        
+          throw new DomainException(
+            sprintf(
+              'field [%s] is a multi-dimensional array which is not currently supported with this interface',
+              $field
+            )
+          );
+        
+        }//if
+      
+        ///out::i($map[$field]);  
+        list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql($field,$map[$field]->val,$index_type);
+      
+      }else{
+      
+        list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql($field,$map[$field],$index_type);
+        
+      }//if/else
+      
+      $field_list[] = $sql_name;
+      $val_list[] = $sql_val;
+      $field_bind_list[] = $sql_bind;
+        
+    }//foreach
+    
+    if($run_query){
+    
+      list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql(mingo_orm::_ID,$_id);
+      $field_list[] = $sql_name;
+      $val_list[] = $sql_val;
+      $field_bind_list[] = $sql_bind;
+      
+      $query = sprintf(
+        'INSERT INTO %s (%s) VALUES (%s)',
+        $this->handleTableSql($index_table),
+        join(',',$field_list),
+        join(',',$field_bind_list)
+      );
+      
+      $ret_bool = $this->getQuery($query,$val_list);
+      
+    }//if
+      
+    return $ret_bool;
+  
   
   }//method
   
@@ -1110,14 +1225,14 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  
    *  @param  string  $table   
    *  @param  array $index_map
-   *  @return array  array($field_list,$field_list_str,$index_table);
+   *  @return string  the index table name
    */
-  protected function getIndexInfo($table,$index_map){
+  protected function getIndexTableName($table,$index_map){
           
     $field_list = array_keys($index_map);
     $field_list_str = join(',',$field_list);
     $index_table = sprintf('%s_%s',$table,md5($field_list_str));
-    return array($field_list,$field_list_str,$index_table);
+    return $index_table;
   
   }//method
   
@@ -1140,7 +1255,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     // build the query...
     $query = 'SELECT %s FROM %s';
     $printf_vars[] = $select_query;
-    $printf_vars[] = $table;
+    $printf_vars[] = $this->handleTableSql($table);
     
     if(!empty($where_query)){
       $query .= ' %s';
@@ -1415,5 +1530,27 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $ret_str = 'VARCHAR(100)';
     return $ret_str;
   }//method
+  
+  /**
+   *  formats the insert sql for index tables
+   *  
+   *  @since  10-21-10
+   *  @param  string  $field  the field name
+   *  @param  mixed $val  the field value
+   *  @param  mixed $index_type the index type for $field
+   *  @return array array($field,$val,$bind) where $bind is usually a question mark
+   */
+  protected function handleInsertSql($field,$val,$index_type = null){
+    return array($field,$val,'?');
+  }//method
+  
+  /**
+   *  if you want to do anything special with the table's name, override this method
+   *  
+   *  @since  10-21-10   
+   *  @param  string  $table
+   *  @return string  $table, formatted
+   */
+  protected function handleTableSql($table){ return $table; }//method
   
 }//class     

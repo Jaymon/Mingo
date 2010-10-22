@@ -35,7 +35,7 @@ class test_mingo_db_mysql extends test_mingo_db_interface {
     $ret_schema = parent::getSchema();
     
     // add a spatial index also...
-    $ret_schema->setSpatial('location','bar','baz');
+    ///$ret_schema->setSpatial('location','bar','baz');
     
     return $ret_schema;
   

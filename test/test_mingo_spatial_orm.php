@@ -1,9 +1,4 @@
 <?php
-/**
- *  @todo currently the load and kill only load/kill one row, so we need to test
- *  loading mulitple rows and killing multiple rows and iterating through, and pagination,
- *  and totals   
- */    
 
 require('mingo_test_class.php');
 
@@ -22,12 +17,18 @@ class test_mingo_orm extends mingo_test {
     
     try{
     
-      // now update point...
+      $t->reset();
+    
+      // now update point to something not valid...
       $t->setPt('blah');
+      $t->setType(99);
+      $t->setFoo('roh');
     
       $t->set();
       $this->fail('Pt was the wrong format, an exception should have been generated');
     
+    }catch(PHPUnit_Framework_AssertionFailedError $e){
+      throw $e;
     }catch(Exception $e){}//try/catch
   
   }//method
@@ -48,13 +49,13 @@ class test_mingo_orm extends mingo_test {
     $loaded = $t->load($c);
     $this->assertGreaterThanOrEqual(1,$loaded);
   
-  
   }//method
 
   protected function getDbConnectedOrm(){
   
     ///$test_db = new test_mingo_db_sqlite();
     $test_db = new test_mingo_db_mysql();
+    ///$test_db = new test_mingo_db_mongo();
   
     $db = mingo_db::getInstance();
     $db->connect(

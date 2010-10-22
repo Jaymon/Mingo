@@ -148,6 +148,20 @@ class mingo_criteria extends mingo_base {
   }//method
   
   /**
+   *  how field names are separated from commands is because commands start with
+   *  a command symbol
+   *  
+   *  this method will return the full given command (ie, the command with the prefixed
+   *  command symbol)
+   *  
+   *  @param  string  $command  the command to be built
+   *  @return string  the full command
+   */
+  public function getCommand($command){
+    return sprintf('%s%s',$this->command_symbol,$command);
+  }//method
+  
+  /**
    *  get rid of the internally set criteria maps
    */
   public function reset(){
@@ -454,10 +468,6 @@ class mingo_criteria extends mingo_base {
     $val = $field_instance->normalizeInVal($val);
   
     return array($this->getCommand($command) => $val);
-  }//method
-  
-  protected function getCommand($command){
-    return sprintf('%s%s',$this->command_symbol,$command);
   }//method
 
 }//class     
