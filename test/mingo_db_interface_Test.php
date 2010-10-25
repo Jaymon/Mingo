@@ -328,7 +328,7 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   protected function getSchema(){
   
-    $ret_schema = new mingo_schema($this->getTable());
+    $ret_schema = new mingo_schema();
     $ret_schema->setIndex('foo','bar','baz');
     $ret_schema->setIndex('bar','baz');
     return $ret_schema;

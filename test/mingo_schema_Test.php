@@ -1,6 +1,6 @@
 <?php
 
-require('mingo_test_class.php');
+require_once('mingo_test_class.php');
 
 class test_mingo_schema extends mingo_test {
 
@@ -26,7 +26,7 @@ class test_mingo_schema extends mingo_test {
   
     foreach($arg_list as $key => $args){
     
-      $schema = new mingo_schema('table');
+      $schema = new mingo_schema();
       $ret_bool = call_user_func_array(array($schema,'setIndex'),$args);
       $this->assertTrue($ret_bool);
       
@@ -55,10 +55,15 @@ class test_mingo_schema extends mingo_test {
   
     foreach($arg_list as $key => $args){
     
-      $schema = new mingo_schema('table');
+      $schema = new mingo_schema();
       
       foreach($args as $name => $default_val){
-        $schema->requireField($name,$default_val);
+      
+        $f = new mingo_field($name);
+        $f->setDefaultVal($default_val);
+        $f->setRequired(true);
+        $schema->setField($f);
+        
       }//foreach
       
       $fields = $schema->getRequiredFields();
@@ -88,7 +93,7 @@ class test_mingo_schema extends mingo_test {
   
     foreach($arg_list as $key => $args){
     
-      $schema = new mingo_schema('table');
+      $schema = new mingo_schema();
       $ret_bool = call_user_func_array(array($schema,'setSpatial'),$args);
       $this->assertTrue($ret_bool);
       
@@ -97,7 +102,7 @@ class test_mingo_schema extends mingo_test {
     
     }//foreach
     
-    $schema = new mingo_schema('table');
+    $schema = new mingo_schema();
     
     try{
     
@@ -117,13 +122,13 @@ class test_mingo_schema extends mingo_test {
   
   public function testGetIndexes(){
   
-    $schema = new mingo_schema('table');
+    $schema = new mingo_schema();
     $schema->setIndex('one','two');
     
     $index_list = $schema->getIndexes();
     $this->assertEquals(1,count($index_list));
     
-    $schema = new mingo_schema('table');
+    $schema = new mingo_schema();
     $schema->setSpatial('one');
     
     $index_list = $schema->getIndexes();

@@ -4,7 +4,7 @@
  *  allows you to define some stuff about how a mingo_orm should be set up (eg, indexes
  *  and the like)  
  *
- *  @version 0.3
+ *  @version 0.4
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-18-09
  *  @package mingo 
@@ -23,12 +23,6 @@ class mingo_schema extends mingo_base {
   const FIELD_MAP = 5;
   const FIELD_OBJ = 6;
   const FIELD_BOOL = 7;
-
-  /**
-   *  hold the table name this schema represents
-   *  @var  string
-   */
-  protected $table = '';
 
   /**
    *  hold all the indexes
@@ -63,11 +57,7 @@ class mingo_schema extends mingo_base {
    */        
   protected $required_map = array();
 
-  public function __construct($table){
-  
-    $this->table = $table;
-  
-  }//method
+  ///public function __construct(){}//method
 
   /**
    *  get all the indexes (of any type) this schema contains

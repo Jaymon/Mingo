@@ -15,7 +15,7 @@
  *    - created = holds a unix timestamp of when the row was created, always set  
  *  
  *  @abstract 
- *  @version 0.6
+ *  @version 0.7
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
@@ -127,9 +127,11 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    */
   final public function __construct($_id_list = array()){
   
-    $this->table = mb_strtolower(get_class($this));
+    $this->setTable(get_class($this));
   
-    $schema = new mingo_schema($this->table);
+    $schema = new mingo_schema();
+    
+    // set some of the default fields...
     $field = new mingo_field(self::CREATED,mingo_field::TYPE_INT);
     $schema->setField($field);
     $field = new mingo_field(self::UPDATED,mingo_field::TYPE_INT);
@@ -218,6 +220,21 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   public function hasCriteria(){ return !empty($this->criteria); }//method
   
   public function getTable(){ return $this->table; }//method
+  
+  /**
+   *  set the table
+   *
+   *  @since  10-25-10
+   *  @param  string  $table  the table name   
+   */
+  protected function setTable($table){
+  
+    // canary...
+    if(empty($table)){ throw new UnexpectedValueException('$table cannot be empty'); }//if
+  
+    $this->table = mb_strtolower($table);
+    
+  }//method
   
   /**
    *  pass in true to make this instance act like it is a list no matter what

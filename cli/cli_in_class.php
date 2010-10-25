@@ -181,7 +181,7 @@ class cli_in
             
           }//if
           
-          $schema = new mingo_schema($table);
+          $schema = new mingo_schema();
           foreach($this->db->getIndexes($table) as $index_map){
             
             // the _id can't be in the index...

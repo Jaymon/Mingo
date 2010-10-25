@@ -4,7 +4,7 @@ error_reporting(E_ALL | E_STRICT | E_PARSE);
 ini_set('display_errors','on');
 
 // declare a mingo autoloader we can use...
-include(
+include_once(
   join(
     DIRECTORY_SEPARATOR,
     array(
@@ -14,7 +14,6 @@ include(
   )
 );
 mingo_autoload::register();
-
 
 class mingo_test extends PHPUnit_Framework_TestCase {
 

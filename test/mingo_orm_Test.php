@@ -5,7 +5,7 @@
  *  and totals   
  */    
 
-require('mingo_test_class.php');
+require_once('mingo_test_class.php');
 
 class test_mingo_orm extends mingo_test {
 

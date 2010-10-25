@@ -1,6 +1,6 @@
 <?php
 
-require_once('test_mingo_db_interface.php');
+require_once('mingo_db_interface_Test.php');
 
 class test_mingo_db_mysql extends test_mingo_db_interface {
   

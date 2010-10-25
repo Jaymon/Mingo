@@ -1,8 +1,8 @@
 <?php
 
-require('mingo_test_class.php');
+require_once('mingo_test_class.php');
 
-class test_mingo_orm extends mingo_test {
+class test_mingo_spatial_orm extends mingo_test {
 
   public function testSetSpatial(){
   
