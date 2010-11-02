@@ -96,8 +96,8 @@ abstract class test_mingo_db_interface extends mingo_test {
   /**
    *  @depends  testSetTable
    */
-  public function testInsertIndexArray($db){
-  
+  public function testInsertIndexArray($db)
+  {
     $table = $this->getTable();
     $schema = $this->getSchema();
     
@@ -187,6 +187,44 @@ abstract class test_mingo_db_interface extends mingo_test {
   /**
    *  @depends  testSetTable
    */
+  public function testGetIndexArray($db){
+  
+    $table = $this->getTable();
+    $schema = $this->getSchema();
+  
+    $map = array(
+      'foo' => 'che',
+      'bar' => array(1,2,3),
+      'baz' => time()
+    );
+    
+    // insert it twice because we want atleast 2 rows...
+    $db->insert($table,$map,$schema);
+    
+    // somehow mongo can set the id of the $map even though I don't do $map = $db->insert...
+    if(isset($map['_id'])){ unset($map['_id']); }//if
+    
+    $db->insert($table,$map,$schema);
+  
+    $where_criteria = new mingo_criteria();
+    $where_criteria->inField('bar',1,2);
+    
+    // get the count...
+    $count = $db->getCount($table,$schema,$where_criteria);
+    $this->assertSame(2,$count);
+    
+    $where_criteria->setLimit(2);
+    
+    $list = $db->get($table,$schema,$where_criteria,$where_criteria->getBounds());
+    
+    $this->assertSame(2,count($list));
+    $this->assertNotEquals((string)$list[0]['_id'],(string)$list[1]['_id']);
+  
+  }//method
+  
+  /**
+   *  @depends  testSetTable
+   */
   public function testInsert($db){
   
     $table = $this->getTable();
@@ -229,6 +267,8 @@ abstract class test_mingo_db_interface extends mingo_test {
     $total = $db->getCount($table,$schema,$where_criteria);
     $this->assertEquals(20,$total);
     
+    $_id_seen_list = array();
+    
     for($page = 0,$max = count($_id_list); $page < $max ;$page += 10){
       
       $list = $db->get($table,$schema,$where_criteria,array(10,$page));
@@ -238,7 +278,14 @@ abstract class test_mingo_db_interface extends mingo_test {
       foreach($list as $map){
       
         $this->assertArrayHasKey('_id',$map);
-        $this->assertContains((string)$map['_id'],$_id_list);
+        
+        // make sure this was an id we wanted...
+        $_id = (string)$map['_id'];
+        $this->assertContains($_id,$_id_list);
+        
+        // make sure we aren't getting any dupes...
+        $this->assertNotContains($_id,$_id_seen_list);
+        $_id_seen_list[] = $_id;
       
       }//foreach
       
@@ -247,6 +294,21 @@ abstract class test_mingo_db_interface extends mingo_test {
     $map = $db->getOne($table,$schema,$where_criteria);
     $this->assertArrayHasKey('_id',$map);
     $this->assertContains((string)$map['_id'],$_id_list);
+    
+    // make sure counts and results are right when we have mutltiple ids...
+    $where_criteria = new mingo_criteria();
+    $where_criteria->in_id(
+      array(
+        $_id_list[0],
+        $_id_list[1],
+        $_id_list[0]
+      )
+    );
+    $list = $db->get($table,$schema,$where_criteria);
+    $this->assertEquals(2,count($list));
+    
+    $count = $db->getCount($table,$schema,$where_criteria);
+    $this->assertEquals(2,$count);
   
     return $db_map;
   

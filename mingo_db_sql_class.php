@@ -292,10 +292,12 @@ abstract class mingo_db_sql extends mingo_db_interface {
             // you can directly select on the table using "row_id" also...
             $query = $this->getSelectQuery(
               $table,
-              '*',
-              $where_query,
-              $sort_query,
-              $limit
+              array(
+                'select' => '*',
+                'where' => $where_query,
+                'sort' => $sort_query,
+                'limit' => $limit
+              )
             );
             
             $list = $this->getQuery($query,$val_list);
@@ -315,10 +317,12 @@ abstract class mingo_db_sql extends mingo_db_interface {
         
         $query = $this->getSelectQuery(
           $index_table,
-          '_id',
-          $where_query,
-          $sort_query,
-          $limit
+          array(
+            'select' => 'DISTINCT _id',
+            'where' => $where_query,
+            'sort' => $sort_query,
+            'limit' => $limit
+          )
         );
         
         $sort_query = ''; // clear it so it isn't used in the second query
@@ -338,10 +342,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
       // we're selecting raw, so just load results with no WHERE...
       $query = $this->getSelectQuery(
         $table,
-        '*',
-        '',
-        $sort_query,
-        $limit
+        array(
+          'select' => '*',
+          'sort' => $sort_query,
+          'limit' => $limit
+        )
       );
       $list = $this->getQuery($query,array());
     
@@ -351,10 +356,12 @@ abstract class mingo_db_sql extends mingo_db_interface {
       
       $query = $this->getSelectQuery(
         $table,
-        '*',
-        sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($_id_list),'?'))),
-        $sort_query,
-        $limit
+        array(
+          'select' => '*',
+          'where' => sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($_id_list),'?'))),
+          'sort' => $sort_query,
+          'limit' => $limit
+        )
       );
       
       $list = $this->getQuery($query,$_id_list);
@@ -438,7 +445,14 @@ abstract class mingo_db_sql extends mingo_db_interface {
         
         if($is_valid){
         
-          $query = $this->getSelectQuery($table,'count(*)',$where_query,'',$limit);
+          $query = $this->getSelectQuery(
+            $table,
+            array(
+              'select' => 'count(DISTINCT _id) AS ct',
+              'where' => $where_query,
+              'limit' => $limit
+            )
+          );
           $result = $this->getQuery($query,$val_list);
           
         }else{
@@ -451,7 +465,14 @@ abstract class mingo_db_sql extends mingo_db_interface {
         
       }else{
         
-        $query = $this->getSelectQuery($index_table,'count(*)',$where_query,'',$limit);
+        $query = $this->getSelectQuery(
+          $index_table,
+          array(
+            'select' => 'count(DISTINCT _id) AS ct',
+            'where' => $where_query,
+            'limit' => $limit
+          )
+        );
         $result = $this->getQuery($query,$val_list);
         
       }//if/else
@@ -461,12 +482,18 @@ abstract class mingo_db_sql extends mingo_db_interface {
     // if another query wasn't run, just run on the main table...
     if(empty($result)){
     
-      $query = $this->getSelectQuery($table,'count(*)','','',$limit);
+      $query = $this->getSelectQuery(
+        $table,
+        array(
+          'select' => 'count(*) AS ct',
+          'limit' => $limit
+        )
+      );
       $result = $this->getQuery($query);
     
     }//if
     
-    if(isset($result[0]['count(*)'])){ $ret_int = (int)$result[0]['count(*)']; }//if
+    if(isset($result[0]['ct'])){ $ret_int = (int)$result[0]['ct']; }//if
     return $ret_int;
   
   }//method
@@ -1240,37 +1267,54 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  builds a select query suitable to be passed into {@link getQuery()}
    *  
    *  this function puts all the different parts together
-   *  
-   *  @param  string  $table  the table   
-   *  @param  string  $select_query the fields to select from (usually * or count(*), or _id
-   *  @param  string  $where_query  the where part of the string
-   *  @param  string  $sort_query the sort part of the string
-   *  @param  array $limit  array($limit,$offset)
+   *      
+   *  @param  string  $table  the table
+   *  @param  array $query_map  can have a number of keys:
+   *                            'select' - string - the fields to select from (usually * or count(*), or _id)
+   *                            'where' - string - the where part of the string (starts with WHERE ...)
+   *                            'sort' - string - the sort part of the string
+   *                            'limit' - array - array($limit,$offset)   
    *  @return string  the built query         
    */
-  protected function getSelectQuery($table,$select_query,$where_query = '',$sort_query = '',$limit = array()){
+  protected function getSelectQuery($table,array $query_map){
   
+    $query = 'SELECT';
     $printf_vars = array();
         
     // build the query...
-    $query = 'SELECT %s FROM %s';
-    $printf_vars[] = $select_query;
+    
+    if(empty($query_map['select'])){
+    
+      $query .= ' *';
+    
+    }else{
+    
+      $query .= ' %s';
+      $printf_vars[] = $query_map['select'];
+    
+    }//if/else
+    
+    $query .= ' FROM %s';
     $printf_vars[] = $this->handleTableSql($table);
     
-    if(!empty($where_query)){
+    if(!empty($query_map['where'])){
+    
       $query .= ' %s';
-      $printf_vars[] = $where_query;
+      $printf_vars[] = $query_map['where'];
+    
     }//if
     
     // add sort...
-    if(!empty($sort_query)){
-      $query .= ' '.$sort_query;
+    if(!empty($query_map['sort'])){
+    
+      $query .= ' '.$query_map['sort'];
+    
     }//if
     
-    if(!empty($limit[0])){
+    if(!empty($query_map['limit'][0])){
       $query .= ' LIMIT %d OFFSET %d';
-      $printf_vars[] = (int)$limit[0];
-      $printf_vars[] = (int)(empty($limit[1]) ? 0 : $limit[1]);
+      $printf_vars[] = (int)$query_map['limit'][0];
+      $printf_vars[] = (int)(empty($query_map['limit'][1]) ? 0 : $query_map['limit'][1]);
     }//if
     
     return vsprintf($query,$printf_vars);
