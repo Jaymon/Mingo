@@ -956,6 +956,10 @@ abstract class mingo_db_sql extends mingo_db_interface {
    */
   public function setIndex($table,array $index_map,mingo_schema $schema){
   
+    // canary, don't bother trying to re-created the index table if it already exists...
+    $index_table = $this->getIndexTableName($table,$index_map);
+    if($this->hasTable($index_table)){ return true; }//if
+  
     $ret_bool = $this->createIndexTable($table,$index_map,$schema);
 
     if($ret_bool){
@@ -966,6 +970,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
       }//if
     
     }//if
+    
+    return $ret_bool;
     
   }//method
   

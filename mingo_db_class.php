@@ -274,7 +274,6 @@ final class mingo_db {
         throw new mingo_exception('aborting delete because $where_criteria had no where clause');
       }//if
     }//if/else
-    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
   
     $ret_bool = false;
   
@@ -344,7 +343,6 @@ final class mingo_db {
         );
       }//if
     }//if
-    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_list = array();
     list($limit,$offset) = $this->getLimit($limit);
@@ -392,7 +390,6 @@ final class mingo_db {
         );
       }//if
     }//if
-    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_map = array();
     
@@ -441,7 +438,6 @@ final class mingo_db {
         );
       }//if
     }//if
-    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
     
     $ret_int = 0;
     list($limit,$offset) = $this->getLimit($limit);
@@ -486,7 +482,6 @@ final class mingo_db {
     if(empty($map)){ throw new mingo_exception('no point in setting an empty $map'); }//if
     if(empty($schema)){ throw new mingo_exception('no $schema specified'); }//if
     if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
-    if($this->hasDebug()){ $this->setTable($table,$schema); }//if
   
     // check required fields...
     $req_field_list = array();

@@ -228,6 +228,14 @@ class mingo_schema extends mingo_base {
   }//method
   
   /**
+   *  return the defined fields
+   *  
+   *  @since  11-4-10   
+   *  @return array an array with field names as key and mingo_field instances as values
+   */
+  public function getFields(){ return $this->field_map; }//method
+  
+  /**
    *  return the required fields
    *  
    *  @return array

@@ -94,10 +94,6 @@ class mingo_db_mysql extends mingo_db_sql {
   protected function createIndexTable($table,array $index_map,mingo_schema $schema){
   
     $index_table = $this->getIndexTableName($table,$index_map);
-  
-    // canary...
-    if($this->hasTable($index_table)){ return true; }//if
-  
     $printf_vars = array();
     $spatial_field = '';
     $pk_field_list = array();

@@ -117,10 +117,6 @@ class mingo_db_sqlite extends mingo_db_sql {
   protected function createIndexTable($table,array $index_map,mingo_schema $schema){
   
     $index_table = $this->getIndexTableName($table,$index_map);
-  
-    // canary...
-    if($this->hasTable($index_table)){ return true; }//if
-  
     $field_list = array();
     $printf_vars = array();
     $query = array();
