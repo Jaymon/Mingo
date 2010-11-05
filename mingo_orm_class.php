@@ -792,6 +792,10 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @example  if you want to see if a field has atleast one matching value
    *              $this->inFoo('bar'); // true if field foo contains bar atleast once   
    *
+   *  @example  if you want to append to an array or a string field
+   *              $this->appendFoo('bar'); // if foo is an array, append a new row (with ''bar' value
+   *                                       // if foo is a string, append 'bar' on the end  
+   *      
    *  @example  you can also reach into arrays...
    *              $this->setFoo(array('bar' => 'che')); // foo now is an array with one key, bar   
    *              $this->getField(array('foo','bar')); // would return 'che'
@@ -864,6 +868,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
     
       case 'set':
       case 'bump':
+      case 'append':
       
         // canary...
         if(!array_key_exists(0,$args)){
@@ -958,6 +963,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
             case 'exists':
             case 'is':
             case 'in':
+            case 'append':
           
               if(isset($field_ref[$field])){
                 $field_ref = &$field_ref[$field];
@@ -1014,7 +1020,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
               }//if
               
               $field_ref[$field] += (int)$args[0];
-              $ret_mixed= true;
+              $ret_mixed = true;
               break;
               
             case 'is':
@@ -1030,12 +1036,44 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
             
               if(array_key_exists($field,$field_ref)){
               
-                $key = array_search($field_ref[$field],$args,true);
-                if($key !== false){
+                if(is_array($field_ref[$field])){
                 
-                  unset($args[$key]);
+                  foreach($args as $arg_i => $arg){
+                  
+                    // if arg is an array, we want to check the full value, then a sub-value...
+                    if(is_array($arg)){
+                    
+                      if($arg === $field_ref[$field]){
+                      
+                        unset($args[$arg_i]);
+                      
+                      }//if
+                    
+                    }//if
+                    
+                    // might have matched the full array, so only check each row if still set...
+                    if(isset($args[$arg_i])){
+                      
+                      if(in_array($arg,$field_ref[$field],true)){
+                      
+                        unset($args[$arg_i]);
+                      
+                      }//if
+                      
+                    }//if
+                    
+                  }//foreach
                 
-                }//if
+                }else{
+                
+                  $key = array_search($field_ref[$field],$args,true);
+                  if($key !== false){
+                  
+                    unset($args[$key]);
+                  
+                  }//if
+                  
+                }//if/else
               
               }//if
               
@@ -1044,6 +1082,32 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
                 break 3;
               }//if
             
+              break;
+              
+            case 'append':
+            
+              // the field has to exist...
+              if(!isset($field_ref[$field])){
+                throw new UnexpectedValueException('you can\'t append to a field that doesn\'t exist');
+              }//if
+              
+              $this->list[$list_i]['modified'] = true;
+              
+              if(is_array($field_ref[$field])){
+              
+                $field_ref[$field] = array_merge($field_ref[$field],$args);
+              
+              }else if(is_string($field_ref[$field])){
+              
+                $field_ref[$field] = sprintf('%s%s',$field_ref[$field],join('',$args));
+                
+              }else{
+              
+                throw new RuntimeValueException('you can only append to a string or an array');
+              
+              }//if/else if/else
+              
+              $ret_mixed = true;
               break;
               
             case 'exists':

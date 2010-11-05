@@ -300,6 +300,46 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertTrue($t->inFoo(1,4,2));
     $this->assertFalse($t->inFoo(3));
     $this->assertFalse($t->inFoo(1,4,3));
+    
+    // now test searching for in in the array...
+    $t = new test_orm();
+    $t->setFoo(array(1,2,3,4)); // foo: array(1,2,3,4)
+    $this->assertTrue($t->inFoo(2));
+    $this->assertTrue($t->inFoo(2,3));
+    $this->assertTrue($t->inFoo($t->getFoo()));
+    $this->assertFalse($t->inFoo(5));
+    $this->assertFalse($t->inFoo(1,5));
+    
+    // append another value...
+    $t->append(array('foo' => 5)); // foo: array(1,2,3,4), 5
+    $this->assertTrue($t->inFoo(2));
+    $this->assertTrue($t->inFoo(array(1,2,3,4)));
+    $this->assertFalse($t->inFoo(6));
+    $this->assertFalse($t->inFoo(1,6));
+    
+    // test an array of arrays...
+    $t->append(array('foo' => array(array(6)))); // foo: array(1,2,3,4), 5, array(array(6))
+    $this->assertTrue($t->inFoo(array(6)));
+  
+  }//method
+  
+  public function testAppend(){
+  
+    $t = new test_orm();
+    $t->setFoo(array(1,2,3));
+    $t->appendFoo(4);
+    $this->assertEquals(array(1,2,3,4),$t->getFoo());
+  
+    $t->appendFoo(5,6);
+    $this->assertEquals(array(1,2,3,4,5,6),$t->getFoo());
+  
+    $t->setBar('foo');
+    $t->appendBar('bar');
+    $this->assertEquals('foobar',$t->getBar());
+    
+    // make sure the orm knows it should update itself...
+    $list = $t->getList();
+    $this->assertTrue($list[0]['modified']);
   
   }//method
   
