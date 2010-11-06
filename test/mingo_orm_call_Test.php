@@ -343,6 +343,31 @@ class test_mingo_orm_call extends mingo_test {
   
   }//method
   
+  public function testClear(){
+  
+    $t = new test_orm();
+    $t->setFoo(array(1,2,3,4)); // foo: array(1,2,3,4)
+    $t->clearFoo(4);
+    $this->assertEquals(array(1,2,3),$t->getFoo());
+  
+     // append another value...
+    $t->append(array('foo' => 3)); // foo: array(1,2,3), 3
+    $t->clearFoo(3);
+    $this->assertEquals(array(array(1,2),null),$t->getFoo());
+    
+    $t->append(array('foo' => 1)); // foo: array(1,2), null, 1
+    $t->append(array('foo' => 2)); // foo: array(1,2), null, 1, 2
+    $t->clearFoo(1,2);
+    $this->assertEquals(array(array(),null,null,null),$t->getFoo());
+    
+    // make sure the orm knows it should update itself...
+    $list = $t->getList();
+    foreach($list as $map){
+      $this->assertTrue($map['modified']);
+    }//foreach
+  
+  }//method
+  
   /**
    *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
    *

@@ -795,7 +795,10 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
    *  @example  if you want to append to an array or a string field
    *              $this->appendFoo('bar'); // if foo is an array, append a new row (with ''bar' value
    *                                       // if foo is a string, append 'bar' on the end  
-   *      
+   *  
+   *  @example  if you want to clear all the matching values from a field
+   *              $this->clearFoo('bar'); // clears foo of any 'bar' values (will search within an array)
+   *        
    *  @example  you can also reach into arrays...
    *              $this->setFoo(array('bar' => 'che')); // foo now is an array with one key, bar   
    *              $this->getField(array('foo','bar')); // would return 'che'
@@ -869,6 +872,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       case 'set':
       case 'bump':
       case 'append':
+      case 'clear': // I also liked: wipe, and remove as other names
       
         // canary...
         if(!array_key_exists(0,$args)){
@@ -882,7 +886,6 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         $ret_mixed = false;
         break;
     
-      // just establish that these exist...
       case 'kill':
         break;
     
@@ -964,6 +967,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
             case 'is':
             case 'in':
             case 'append':
+            case 'clear':
           
               if(isset($field_ref[$field])){
                 $field_ref = &$field_ref[$field];
@@ -1124,9 +1128,59 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
             
             case 'kill':
             
-              $this->list[$list_i]['modified'] = true;
               if(isset($field_ref[$field])){
+                $this->list[$list_i]['modified'] = true;
                 unset($field_ref[$field]);
+              }//if
+            
+              $ret_mixed = true;
+              break;
+              
+            case 'clear':
+            
+              if(isset($field_ref[$field])){
+              
+                if(is_array($field_ref[$field])){
+                
+                  foreach($args as $arg_i => $arg){
+                  
+                    // if arg is an array, we want to check the full value, then a sub-value...
+                    if(is_array($arg)){
+                    
+                      if($arg === $field_ref[$field]){
+                      
+                        $this->list[$list_i]['modified'] = true;
+                        unset($field_ref[$field]);
+                      
+                      }//if
+                    
+                    }//if
+                    
+                    // might have matched the full array, so only check each row if still set...
+                    if(isset($field_ref[$field])){
+                      
+                      // we need all the keys to get rid of them...
+                      $field_keys = array_keys($field_ref[$field],$arg,true);
+                      foreach($field_keys as $field_key){
+                        $this->list[$list_i]['modified'] = true;
+                        unset($field_ref[$field][$field_key]);
+                      }//foreach
+                      
+                    }//if
+                    
+                  }//foreach
+                
+                }else{
+                
+                  if(in_array($field_ref[$field],$args,true)){
+                  
+                    $this->list[$list_i]['modified'] = true;
+                    unset($field_ref[$field]);
+                  
+                  }//if
+                  
+                }//if/else
+              
               }//if
             
               $ret_mixed = true;
