@@ -872,7 +872,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
       case 'set':
       case 'bump':
       case 'append':
-      case 'clear': // I also liked: wipe, and remove as other names
+      case 'clear': // I also liked: wipe, purge, and remove as other names
       
         // canary...
         if(!array_key_exists(0,$args)){
