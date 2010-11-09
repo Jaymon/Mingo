@@ -84,23 +84,25 @@ class mingo_criteria extends mingo_base {
    */
   protected $method_map = array(
     // these are the where map commands...
-    'in' => array('set' => 'handleList'),
-    'nin' => array('set' => 'handleList'),
-    'is' => array('set' => 'handleIs'), // =
-    'not' => array('set' => 'handleVal'), // !=
-    'gt' => array('set' => 'handleVal'), // >
-    'gte' => array('set' => 'handleVal'), // >=
-    'lt' => array('set' => 'handleVal'), // <
-    'lte' => array('set' => 'handleVal'), // <=
-    'between' => array('set' => 'handleBetween'),
-    'near' => array('set' => 'handleSpatial'), // spatial
+    'in' => array('callback' => 'handleList'),
+    'nin' => array('callback' => 'handleList'),
+    'is' => array('callback' => 'handleIs'), // =
+    'not' => array('callback' => 'handleVal'), // !=
+    'gt' => array('callback' => 'handleVal'), // >
+    'gte' => array('callback' => 'handleVal'), // >=
+    'lt' => array('callback' => 'handleVal'), // <
+    'lte' => array('callback' => 'handleVal'), // <=
+    'between' => array('callback' => 'handleBetween'),
+    'near' => array('callback' => 'handleSpatial'), // spatial
     // these are the sort map commands...
-    'sort' => array('set' => 'handleSort'),
-    'asc' => array('set' => 'handleSortAsc'),
-    'desc' => array('set' => 'handleSortDesc'), 
+    'sort' => array('callback' => 'handleSort'),
+    'asc' => array('callback' => 'handleSortAsc'),
+    'desc' => array('callback' => 'handleSortDesc'), 
     // these are the operations map commands...
-    'inc' => array('set' => 'handleAtomic'),
-    'set' => array('set' => 'handleAtomic')
+    'inc' => array('callback' => 'handleAtomic'),
+    'callback' => array('callback' => 'handleAtomic'),
+    // these are read-only commands...
+    'has' => array('callback' => 'handleHas')
   );
 
   final public function __construct(){
@@ -127,6 +129,7 @@ class mingo_criteria extends mingo_base {
    *
    *  @param  string  $method the method that was called
    *  @param  array $args the params passed into the method
+   *  @return mixed whatever the callback method returns   
    */
   public function __call($method,$args){
   
@@ -134,8 +137,8 @@ class mingo_criteria extends mingo_base {
     
     if(isset($this->method_map[$command])){
     
-      $callback = $this->method_map[$command]['set'];
-      $this->{$callback}($command,$field_instance->getNameAsString(),$args);
+      $callback = $this->method_map[$command]['callback'];
+      $ret_mixed = $this->{$callback}($command,$field_instance->getNameAsString(),$args);
     
     }else{
     
@@ -143,7 +146,7 @@ class mingo_criteria extends mingo_base {
     
     }//if/else
   
-    return true;
+    return $ret_mixed;
   
   }//method
   
@@ -281,6 +284,19 @@ class mingo_criteria extends mingo_base {
   
   public function hasBounds(){
     return !empty($this->map_bounds);
+  }//method
+  
+  /**
+   *  handle whether a field is set or not in where or sort
+   *  
+   *  @param  string  $name the field name
+   *  @param  array $args currently ignored
+   *  @return boolean   
+   */
+  protected function handleHas($command,$name,$args){
+
+    return isset($this->map_where[$name]) || isset($this->map_sort[$name]);
+    
   }//method
   
   /**

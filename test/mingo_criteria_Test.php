@@ -46,6 +46,26 @@ class test_mingo_criteria extends mingo_test {
     $where_map = $c->getWhere();
     $this->assertSame($test_map,$where_map);
   
-  }//method 
+  }//method
+  
+  /**
+   *  test the criteria ->has* magic method
+   *  
+   *  @since  11-8-10
+   */
+  public function testHas(){
+  
+    $c = new mingo_criteria();
+    
+    $this->assertFalse($c->hasFoo());
+    $c->isFoo(1);
+    $this->assertTrue($c->hasFoo());
+    
+    $this->assertFalse($c->hasBar());
+    $c->gteBar(2);
+    $this->assertTrue($c->hasBar());
+    $this->assertTrue($c->hasFoo());
+  
+  }//method
 
 }//class
