@@ -3,6 +3,9 @@
 /**
  *  handle relational db abstraction for mingo for sqlite    
  *
+ *  SQLite has a limit of 500 values in an IN (...) query, just something to be
+ *  aware of, see #7: http://www.sqlite.org/limits.html 
+ *  
  *  @version 0.2
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 3-19-10

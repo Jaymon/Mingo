@@ -2,7 +2,7 @@
 
 require_once('mingo_db_interface_Test.php');
 
-class test_mingo_db_sqlite extends test_mingo_db_interface {
+class mingo_db_sqlite_Test extends test_mingo_db_interface {
 
   /**
    *  @return string  the database name
