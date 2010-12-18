@@ -53,9 +53,9 @@ class test_mingo_spatial_orm extends mingo_test {
 
   protected function getDbConnectedOrm(){
   
-    ///$test_db = new test_mingo_db_sqlite();
-    $test_db = new test_mingo_db_mysql();
-    ///$test_db = new test_mingo_db_mongo();
+    ///$test_db = new test_mingo_db_sqlite_Test();
+    $test_db = new mingo_db_mysql_Test();
+    ///$test_db = new test_mingo_db_mongo_Test();
   
     $db = mingo_db::getInstance();
     $db->connect(
