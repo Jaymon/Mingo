@@ -38,6 +38,8 @@ class cli_out
     $output = $this->output;
     $count = 1;
 
+    ///print_r($output); exit;
+
     if(is_array($output)){
     
       $count = count($output);
@@ -126,15 +128,21 @@ class cli_out
   protected function aIter($array,$deep = 0){
   
     $ret_str = sprintf('Array (%s)%s(%s',count($array),PHP_EOL,PHP_EOL);
-  
+
     foreach($array as $key => $val){
-      
+
       $ret_str .= sprintf("\t[%s] => ",$key);
       
       if(is_object($val)){
       
         $ret_str .= trim($this->handleIndent($this->indent,$this->handleObject($val)));
       
+      }else if($val instanceof __PHP_Incomplete_Class){
+      
+        // this fails the is_object check, this happens when a class fails unserialize...
+        $ret_str .= '__PHP_Incomplete_Class (class failed unserialize because it is undefined)';
+        ///$ret_str .= sprintf('%s Incomplete Class',$val->__PHP_Incomplete_Class_Name);
+        
       }else if(is_array($val)){
       
         $ret_str .= trim($this->handleIndent($this->indent,$this->aIter($val,$deep + 1)));
