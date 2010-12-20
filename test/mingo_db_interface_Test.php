@@ -375,6 +375,43 @@ abstract class test_mingo_db_interface extends mingo_test {
   }//method
   
   /**
+   *  load up the table with 2000 rows, and then delete them
+   *   
+   *  @since  12-19-10
+   *  @depends  testKill      
+   */
+  public function testKillLots($db){
+  
+    ///return;
+  
+    $table = $this->getTable();
+    $schema = $this->getSchema();
+    $timestamp = time();
+    
+    for($i = 0; $i < 2000 ;$i++)
+    ///for($i = 0; $i < 501 ;$i++)
+    {
+      $map = array();
+      $map['foo'] = $timestamp;
+      $map['bar'] = $timestamp;
+      $map['baz'] = $timestamp;
+      $db->insert($table,$map,$schema);
+    
+    }//for */
+  
+    $where_criteria = new mingo_criteria();
+    $where_criteria->isFoo($timestamp);
+    $where_criteria->isBar($timestamp);
+    $where_criteria->isBaz($timestamp);
+  
+    $db->kill($table,$schema,$where_criteria);
+  
+    $result = $db->get($table,$schema,$where_criteria,array(1,0));
+    $this->assertEmpty($result);
+  
+  }//method
+  
+  /**
    *  @depends  testKill
    */
   public function testKillTable($db){

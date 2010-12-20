@@ -273,6 +273,9 @@ final class mingo_db {
       if(!$where_criteria->hasWhere()){
         throw new mingo_exception('aborting delete because $where_criteria had no where clause');
       }//if
+      
+      $where_criteria->killSort(); // no need to sort when you're deleting
+      
     }//if/else
   
     $ret_bool = false;
@@ -436,7 +439,9 @@ final class mingo_db {
           '$where_criteria does not have a where clause but does have an operations criteria, '
           .'that means you most likely used setField(...) when you meant isField(...)'
         );
-      }//if
+      }else{
+        $where_criteria->killSort(); // no need to sort when you're counting
+      }//if/else
     }//if
     
     $ret_int = 0;

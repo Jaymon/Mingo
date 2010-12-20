@@ -188,7 +188,8 @@ class mingo_criteria extends mingo_base {
     if(empty($map)){ $map = array(); }//if
     if(!is_array($map)){ throw new UnexpectedValueException('$map isn\'t an array'); }//if
     
-    return $this->map_where = $map;
+    $this->map_where = $map;
+    return $this->map_where;
   }//method
   
   public function getSort(){ return $this->map_sort; }//method
@@ -198,8 +199,10 @@ class mingo_criteria extends mingo_base {
     if(empty($map)){ $map = array(); }//if
     if(!is_array($map)){ throw new UnexpectedValueException('$map isn\'t an array'); }//if
     
-    return $this->map_sort = $map;
+    $this->map_sort = $map;
+    return $this->map_sort;
   }//method
+  public function killSort(){ return $this->setSort(array()); }//method
   
   public function getOperations(){ return $this->map_operations; }//method
   public function hasOperations(){ return !empty($this->map_operations); }//method
@@ -208,7 +211,8 @@ class mingo_criteria extends mingo_base {
     if(empty($map)){ $map = array(); }//if
     if(!is_array($map)){ throw new mingo_exception('$map isn\'t an array'); }//if
     
-    return $this->map_operations = $map;
+    $this->map_operations = $map;
+    return $this->map_operations;
   }//method
   
   /**

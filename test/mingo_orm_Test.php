@@ -158,7 +158,7 @@ class test_mingo_orm extends mingo_test {
   
   protected function getDbConnectedOrm(){
   
-    $test_db = new test_mingo_db_sqlite();
+    $test_db = new mingo_db_sqlite_Test();
     ///$test_db = new test_mingo_db_mongo();
   
     $db = mingo_db::getInstance();
