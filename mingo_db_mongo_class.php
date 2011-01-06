@@ -54,6 +54,9 @@ class mingo_db_mongo extends mingo_db_interface {
   
     $this->con_map['connected'] = true;
     
+    // turn off timeouts, if the user wants to do a long query, more power to them...
+    MongoCursor::$timeout = -1;
+    
     return $this->con_map['connected'];
   
   }//method
@@ -457,3 +460,4 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
 }//class     
+
