@@ -4,6 +4,11 @@ require_once('mingo_test_class.php');
 
 abstract class test_mingo_db_interface extends mingo_test {
   
+  /**
+   *  singleton db object
+   */     
+  protected static $db = null;
+  
   abstract public function getDbInterface();
   
   /**
@@ -33,9 +38,12 @@ abstract class test_mingo_db_interface extends mingo_test {
    */
   public function getDb(){
   
+    // canary...
+    if(self::$db !== null){ return self::$db; }//if
+  
     $interface = $this->getDbInterface();
-    $db = new $interface();
-    return $db;
+    self::$db = new $interface();
+    return self::$db;
   
   }//method
 
@@ -371,6 +379,13 @@ abstract class test_mingo_db_interface extends mingo_test {
     $this->assertEmpty($list);
     
     return $db;
+  
+  }//method
+  
+  public function testBadKill(){
+  
+    
+  
   
   }//method
   

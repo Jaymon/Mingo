@@ -652,60 +652,34 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
         
     }else{
   
+      $_id_list = array();
+  
+      // get all the ids...
       if($this->hasField(self::_ID)){
       
-        // get all the ids...
-        $where_criteria = new mingo_criteria();
-        $where_criteria->inField(self::_ID,$this->getField(self::_ID));
-        if($db->kill($this->getTable(),$this->schema,$where_criteria)){
-          $this->reset();
-          $ret_bool = true;
-        }//if
+        $_id_list = $this->getField(self::_ID);
       
       }else{
-      
-        $ret_bool = true;
       
         for($i = 0; $i < $this->count ;$i++){
       
           if(isset($this->list[$i]['map']['_id'])){
-          
-            $where_criteria = new mingo_criteria();
-            $where_criteria->isField(self::_ID,$this->list[$i]['map']['_id']);
-            
-            if($db->kill($this->getTable(),$this->schema,$where_criteria)){
-            
-              unset($this->list[$i]);
-              $this->count--;
-            
-            }else{
-            
-              $ret_bool = false;
-              
-            }//if/else
-        
-          }else{
-          
-            $ret_bool = false;
-            
-          }//if/else
+            $_id_list[] = $this->list[$i]['map']['_id'];
+          }//if
           
         }//for
       
-        if($ret_bool){
-        
-          // everything was successfully washed...
-          $this->reset();
-        
-        }else{
-        
-          // we had an error or something didn't get killed, compensate for that...
-          
-          // re-do the keys...
-          $this->list = array_values($this->list);
-        
-        }//if/else
+      }//if/else
       
+      if(!empty($_id_list)){
+        
+        $where_criteria = new mingo_criteria();
+        $where_criteria->inField(self::_ID,$_id_list);
+        if($db->kill($this->getTable(),$this->schema,$where_criteria)){
+          $this->reset();
+          $ret_bool = true;
+        }//if
+        
       }//if/else
       
     }//if/else

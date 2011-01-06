@@ -190,6 +190,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     try{
     
+      $has_more = false;
+    
       // begin the delete transaction...
       $this->con_db->beginTransaction();
     
@@ -267,6 +269,9 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $list = array();
     $qi_map = $this->getQueryInfo($table,$schema,$where_criteria,$limit);
     
+    ///out::isHtml(false);
+    out::e($qi_map);
+    
     if(empty($qi_map['_id_list'])){
     
       $query_map = $qi_map['query_map'];
@@ -292,6 +297,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
       $_id_list = $qi_map['_id_list'];
     
     }//if/else
+    
+    out::e($_id_list);
     
     if(!empty($_id_list)){
       
@@ -336,6 +343,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
       }//foreach
     
     }//if
+
+    out::e($ret_list); out::x();
 
     return $ret_list;
 
@@ -892,7 +901,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
     $ret_bool = false;
     $_id_list = (array)$_id_list;
-    $_id_count = count($_id_list);
+    $_id_sub_list = join(',',array_fill(0,count($_id_list),'?'));
   
     foreach($schema->getIndexes() as $index_map){
       
@@ -902,7 +911,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         $query = sprintf(
           'DELETE FROM %s WHERE _id IN (%s)',
           $index_table,
-          join(',',array_fill(0,$_id_count,'?'))
+          $_id_sub_list
         );
         
         $ret_bool = $this->getQuery($query,$_id_list);
