@@ -204,6 +204,24 @@ abstract class test_mingo_db_interface extends mingo_test {
   }//method
   
   /**
+   *  this is just to make sure there are no problems raised when no criteria is used
+   *  
+   *  I noticed a NOTICE was getting raised when doing this using the mysql interface
+   *      
+   *  @since  1-6-11      
+   */
+  public function testGetAll(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $schema = $this->getSchema();
+    $where_criteria = new mingo_criteria();
+    $list = $db->get($table,$schema,$where_criteria,array(10,0));
+    $this->assertInternalType('array',$list);
+  
+  }//method
+  
+  /**
    *  @depends  testInsert
    */
   public function testGet($db_map){
@@ -332,8 +350,6 @@ abstract class test_mingo_db_interface extends mingo_test {
    *  @since  12-19-10
    */
   public function testKillLots(){
-  
-    return;
   
     $db = $this->getDb();
     $table = $this->getTable();

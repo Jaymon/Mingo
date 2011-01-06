@@ -1635,7 +1635,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
       $ret_map['is_index'] = false;
       $ret_map['query_map'] = array(
         'select' => '*',
-        'sort' => $sort_query,
         'limit' => $limit
       );
       $ret_map['val_list'] = array();
