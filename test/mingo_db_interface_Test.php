@@ -43,69 +43,17 @@ abstract class test_mingo_db_interface extends mingo_test {
   
     $interface = $this->getDbInterface();
     self::$db = new $interface();
+    self::$db = $this->connect(self::$db);
+    
+    $this->setTable();
+    
     return self::$db;
   
   }//method
-
-  ///public function setUp(){}//method
-
-  public function testConnect(){
   
-    $db = $this->getDb();
-    $db_name = $this->getDbName();
-    $host = $this->getDbHost();
-    $username = $this->getDbUsername();
-    $password = $this->getDbPassword();
-    
-    try{
-    
-      $ret_bool = $db->connect($db_name,$host,$username,$password);
-      $this->assertTrue($ret_bool);
-
-    }catch(Exception $e){
-      
-      $this->fail(
-        sprintf('connecting failed with exception %s "%s"',get_class($e),$e->getMessage())
-      );
-      
-    }//try/catch
-  
-    return $db;
-  
-  }//method
-
-  /**
-   *  @depends  testConnect
-   */
-  public function testSetTable($db){
-  
-    $table = $this->getTable();
-    $schema = $this->getSchema();
-  
-    // make sure the table doesn't exist before creating it...
-    $db->killTable($table,$schema);
-  
-    $ret_bool = $db->setTable($table,$schema);
-    $this->assertTrue($ret_bool);
-    $this->assertTrue($db->hasTable($table));
-  
-    // make sure the table exists...
-    $table_list = $db->getTables();
-    $this->assertContains($table,$table_list);
-  
-    // make sure index exists...
-    $index_list = $db->getIndexes($table);
-    $this->assertGreaterThanOrEqual(count($schema->getIndexes()),count($index_list));
-    
-    return $db;
-    
-  }//method
-  
-  /**
-   *  @depends  testSetTable
-   */
-  public function testInsertIndexArray($db)
+  public function testInsertIndexArray()
   {
+    $db = $this->getDb();
     $table = $this->getTable();
     $schema = $this->getSchema();
     
@@ -192,11 +140,9 @@ abstract class test_mingo_db_interface extends mingo_test {
     
   }//method
   
-  /**
-   *  @depends  testSetTable
-   */
-  public function testGetIndexArray($db){
+  public function testGetIndexArray(){
   
+    $db = $this->getDb();
     $table = $this->getTable();
     $schema = $this->getSchema();
   
@@ -230,11 +176,9 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   }//method
   
-  /**
-   *  @depends  testSetTable
-   */
-  public function testInsert($db){
+  public function testInsert(){
   
+    $db = $this->getDb();
     $table = $this->getTable();
     $schema = $this->getSchema();
     $_id_list = array();
@@ -382,23 +326,16 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   }//method
   
-  public function testBadKill(){
-  
-    
-  
-  
-  }//method
-  
   /**
    *  load up the table with 2000 rows, and then delete them
    *   
    *  @since  12-19-10
-   *  @depends  testKill      
    */
-  public function testKillLots($db){
+  public function testKillLots(){
   
-    ///return;
+    return;
   
+    $db = $this->getDb();
     $table = $this->getTable();
     $schema = $this->getSchema();
     $timestamp = time();
@@ -426,11 +363,9 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   }//method
   
-  /**
-   *  @depends  testKill
-   */
-  public function testKillTable($db){
+  public function testKillTable(){
   
+    $db = $this->getDb();
     $table = $this->getTable();
     $ret_bool = $db->killTable($table);
     $this->assertTrue($ret_bool);
@@ -451,6 +386,66 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   protected function getTable(){
     return sprintf('%s_test',__CLASS__);
+  }//method
+  
+  /**
+   *  connect to the db
+   */     
+  protected function connect($db){
+  
+    $db_name = $this->getDbName();
+    $host = $this->getDbHost();
+    $username = $this->getDbUsername();
+    $password = $this->getDbPassword();
+    
+    try{
+    
+      $ret_bool = $db->connect($db_name,$host,$username,$password);
+      $this->assertTrue($ret_bool);
+
+    }catch(Exception $e){
+      
+      $this->fail(
+        sprintf('connecting failed with exception %s "%s"',get_class($e),$e->getMessage())
+      );
+      
+    }//try/catch
+  
+    return $db;
+  
+  }//method
+
+  protected function setTable(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $schema = $this->getSchema();
+  
+    // make sure the table doesn't exist before creating it...
+    $db->killTable($table,$schema);
+  
+    $ret_bool = $db->setTable($table,$schema);
+    $this->assertTrue($ret_bool);
+    $this->assertTrue($db->hasTable($table));
+  
+    // make sure the table exists...
+    $table_list = $db->getTables();
+    $this->assertContains($table,$table_list);
+  
+    // make sure index exists...
+    $index_list = $db->getIndexes($table);
+    $this->assertGreaterThanOrEqual(count($schema->getIndexes()),count($index_list));
+    
+  }//method
+  
+  /**
+   *  this will be called after the class is done running tests, so override if you want
+   *  to do global test specific finish work
+   *  
+   *  @link http://www.phpunit.de/manual/current/en/fixtures.html#fixtures.more-setup-than-teardown
+   */
+  public static function tearDownAfterClass(){
+    self::$db = null;
   }//method
 
 }//class

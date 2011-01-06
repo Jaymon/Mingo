@@ -269,9 +269,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
     $list = array();
     $qi_map = $this->getQueryInfo($table,$schema,$where_criteria,$limit);
     
-    ///out::isHtml(false);
-    out::e($qi_map);
-    
     if(empty($qi_map['_id_list'])){
     
       $query_map = $qi_map['query_map'];
@@ -297,8 +294,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
       $_id_list = $qi_map['_id_list'];
     
     }//if/else
-    
-    out::e($_id_list);
     
     if(!empty($_id_list)){
       
@@ -333,6 +328,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         if(isset($order_map[$map['_id']])){
         
           $ret_list[$order_map[$map['_id']]] = $ret_map;
+          unset($order_map[$map['_id']]);
         
         }else{
         
@@ -341,10 +337,33 @@ abstract class mingo_db_sql extends mingo_db_interface {
         }//if/else
       
       }//foreach
+      
+      // do some self correcting if there were rows in the index tables not in the main table
+      // I'm not entirely sure how this happens, but it has cropped up, plus, if a user
+      // manually deletes a row from the main table, we want to eventually sync the index
+      // tables again...
+      if(!empty($order_map)){
+      
+        $dead_id_list = array();
+      
+        foreach($order_map as $dead_id => $dead_index){
+        
+          $dead_id_list[] = $dead_id;
+          unset($ret_list[$dead_index]);
+        
+        }//foreach
+      
+        // quick check to make sure we don't try and delete a whole table...
+        if(!empty($dead_id_list)){
+          $this->killIndexes($table,$dead_id_list,$schema);
+        }//if
+      
+        // reset keys...
+        $ret_list = array_values($ret_list);
+      
+      }//if
     
     }//if
-
-    out::e($ret_list); out::x();
 
     return $ret_list;
 

@@ -69,7 +69,8 @@ abstract class mingo_db_interface {
   /**
    *  connect to the db
    *  
-   *  @param  integer $type one of the self::TYPE_* constants   
+   *  this method should put the connection in the {@link $con_db} class variable
+   *       
    *  @param  string  $db_name  the db to use
    *  @param  string  $host the host to use. If you want a specific port, attach it to 
    *                        host (eg, localhost:27017 or example.com:27017)            
@@ -259,6 +260,16 @@ abstract class mingo_db_interface {
    *  @return boolean
    */
   public function isConnected(){ return !empty($this->con_map['connected']); }//method
+  
+  /**
+   *  return the connected backend db connection.
+   *  
+   *  this is the raw db connection for whatever backend the interface is using
+   *  
+   *  @since  1-6-11
+   *  @return object
+   */
+  public function getDb(){ return $this->con_db; }//method
   
   /**
    *  returns a list of the queries executed  
