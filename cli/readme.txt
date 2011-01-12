@@ -1,1 +1,1 @@
-php mingo.php --interface=mingo_db_sqlite --db=..\model.sqlite
+php mingo.php --interface=mingo_db_sqlite --name=..\model.sqlite

@@ -97,10 +97,11 @@ class cli_in
       $ret_mix = array();
       $ret_mix[] = 'HELP - Brings up this menu';
       $ret_mix[] = 'SHOW TABLES - show all the available Mingo tables';
-      $ret_mix[] = 'SHOW INDEXES FROM table_name - show all the indexes of "table_name"';
-      $ret_mix[] = 'DROP TABLE table_name - delete "table_name" from Mingo';
+      $ret_mix[] = 'SHOW INDEXES FROM <table_name> - show all the indexes of "table_name"';
+      $ret_mix[] = 'DROP TABLE <table_name> - delete "table_name" from Mingo';
       $ret_mix[] = 'SHOW QUERIES - Show all the queries executed on Mingo during this session.';
       $ret_mix[] = 'SELECT ... - Follow ANSI SQL guidelines for SELECT queries. No joins are supported!';
+      $ret_mix[] = 'DELETE FROM <table_name> WHERE ... - Follow ANSI SQL guidelines for DELETE queries.';
       
     }else if(preg_match('#^(?:show|get)\s+tables$#i',$input)){
     
@@ -143,6 +144,8 @@ class cli_in
       $table = $parse_map['table_names'][0];
       $where_criteria = new mingo_criteria();
       
+      out::e($parse_map); out::x();
+      
       switch($parse_map['command']){
       
         case 'select':
@@ -181,19 +184,7 @@ class cli_in
             
           }//if
           
-          $schema = new mingo_schema();
-          foreach($this->db->getIndexes($table) as $index_map){
-            
-            // the _id can't be in the index...
-            if(isset($index_map[mingo_orm::_ID])){
-              unset($index_map[mingo_orm::_ID]);
-            }//if
-            
-            if(!empty($index_map)){
-              $schema->setIndex($index_map);
-            }//if
-            
-          }//method
+          $schema = $this->getSchema($table);
           
           if($is_count){
             $ret_mix = sprintf(
@@ -203,6 +194,30 @@ class cli_in
           }else{
             $ret_mix = $this->db->get($table,$schema,$where_criteria,$where_criteria->getBounds());
           }//if/else
+          
+          break;
+          
+        case 'delete':
+        
+          if(!empty($parse_map['where_clause'])){
+          
+            $where_criteria = $this->handleWhere($where_criteria,$parse_map['where_clause']);
+            
+          }//if
+          
+          $schema = $this->getSchema($table);
+          
+          $ret_mix = sprintf(
+            'Query Ok, rows affected: %s',
+            $this->db->getCount($table,$schema,$where_criteria)
+          );
+          
+          // now actually delete...
+          $ret_bool = $this->db->kill($table,$schema,$where_criteria);
+          if(empty($ret_bool))
+          {
+            $ret_mix = 'Query failed';
+          }//if
           
           break;
           
@@ -221,6 +236,33 @@ class cli_in
     $ret_instance = new cli_out($ret_mix,$timestamp_start,$timestamp_stop);
   
     return $ret_instance;
+  
+  }//method
+  
+  /**
+   *  get the table's schema
+   *  
+   *  @since  1-12-11
+   *  @param  string  $table  the table whose schema should be created
+   *  @return mingo_schema
+   */
+  protected function getSchema($table)
+  {
+    $schema = new mingo_schema();
+    foreach($this->db->getIndexes($table) as $index_map){
+      
+      // the _id can't be in the index...
+      if(isset($index_map[mingo_orm::_ID])){
+        unset($index_map[mingo_orm::_ID]);
+      }//if
+      
+      if(!empty($index_map)){
+        $schema->setIndex($index_map);
+      }//if
+      
+    }//method
+  
+    return $schema;
   
   }//method
   
