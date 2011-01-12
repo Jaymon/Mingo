@@ -101,7 +101,8 @@ class cli_in
       $ret_mix[] = 'DROP TABLE <table_name> - delete "table_name" from Mingo';
       $ret_mix[] = 'SHOW QUERIES - Show all the queries executed on Mingo during this session.';
       $ret_mix[] = 'SELECT ... - Follow ANSI SQL guidelines for SELECT queries. No joins are supported!';
-      $ret_mix[] = 'DELETE FROM <table_name> WHERE ... - Follow ANSI SQL guidelines for DELETE queries.';
+      $ret_mix[] = 'DELETE FROM <table_name> WHERE ...';
+      $ret_mix[] = 'INSERT INTO <table_name> (<field_1>, <field_2>, ...) VALUES (<val_1>, <val_2>,  ...)';
       
     }else if(preg_match('#^(?:show|get)\s+tables$#i',$input)){
     
@@ -144,7 +145,7 @@ class cli_in
       $table = $parse_map['table_names'][0];
       $where_criteria = new mingo_criteria();
       
-      out::e($parse_map); out::x();
+      ///out::e($parse_map); out::x();
       
       switch($parse_map['command']){
       
@@ -219,6 +220,66 @@ class cli_in
             $ret_mix = 'Query failed';
           }//if
           
+          break;
+          
+        case 'insert':
+        
+          // canary...
+          $field_count = count($parse_map['column_names']);
+          $val_count = count($parse_map['values']);
+          if($field_count !== $val_count)
+          {
+            throw new RuntimeException(
+              sprintf(
+                'You need the same number of fields as values, you currently have %s fields and %s values',
+                $field_count,
+                $val_count
+              )
+            );
+          
+          }//if
+        
+          $map = array();
+          foreach($parse_map['column_names'] as $key => $field){
+          
+            // @todo  add support for array [] and object/map {} types, I guess these would
+            // be strings that will need to be json encoded.
+          
+            $val = null;
+            switch($parse_map['values'][$key]['type']){
+            
+              case 'int_val':
+              
+                $val = (int)$parse_map['values'][$key]['value'];
+            
+              case 'text_val':
+              default:
+              
+                $val = $parse_map['values'][$key]['value'];
+                break;
+            
+            }//switch
+          
+            $map[$field] = $val;
+          
+          }//foreach
+        
+          // canary, some things can't be set by the user...
+          if(isset($map['_id'])){
+            throw new UnexpectedValueException('cannot set "_id" using INSERT');
+          }//if
+          if(isset($map['row_id'])){
+            throw new UnexpectedValueException('cannot set "row_id" using INSERT');
+          }//if
+        
+          $schema = $this->getSchema($table);
+          $map = $this->db->set($table,$map,$schema);
+        
+          $ret_mix = sprintf(
+            'Query Ok, new row inserted with _id %s',
+            $map['_id']
+          );
+        
           break;
           
         default:

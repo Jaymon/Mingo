@@ -480,13 +480,18 @@ final class mingo_db {
    *     
    *  @throws mingo_exception on any failure               
    */
-  public function set($table,$map,mingo_schema $schema){
+  public function set($table,array $map,mingo_schema $schema){
   
     // canary...
     if(empty($table)){ throw new mingo_exception('no $table specified'); }//if
     if(empty($map)){ throw new mingo_exception('no point in setting an empty $map'); }//if
     if(empty($schema)){ throw new mingo_exception('no $schema specified'); }//if
     if(!$this->isConnected()){ throw new mingo_exception('no db connection found'); }//if
+  
+    // add created and last touched fields...
+    $now = time();
+    if(empty($map['created'])){ $map['created'] = $now; }//if
+    $map['updated'] = $now;
   
     // check required fields...
     $req_field_list = array();

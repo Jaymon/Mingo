@@ -365,19 +365,12 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   function set(){
   
     $ret_bool = true;
-    $now = time();
     $db = $this->getDb();
 
     foreach(array_keys($this->list) as $key){
     
       // only try and save if it has changes...
       if(!empty($this->list[$key]['modified'])){
-      
-        // add created and last touched fields...
-        if(empty($this->list[$key]['map'][self::CREATED])){ 
-          $this->list[$key]['map'][self::CREATED] = $now;
-        }//if
-        $this->list[$key]['map'][self::UPDATED] = $now;
       
         $this->list[$key]['map'] = $db->set(
           $this->getTable(),
