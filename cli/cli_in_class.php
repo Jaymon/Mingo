@@ -101,8 +101,9 @@ class cli_in
       $ret_mix[] = 'DROP TABLE <table_name> - delete "table_name" from Mingo';
       $ret_mix[] = 'SHOW QUERIES - Show all the queries executed on Mingo during this session.';
       $ret_mix[] = 'SELECT ... - Follow ANSI SQL guidelines for SELECT queries. No joins are supported!';
-      $ret_mix[] = 'DELETE FROM <table_name> WHERE ...';
-      $ret_mix[] = 'INSERT INTO <table_name> (<field_1>, <field_2>, ...) VALUES (<val_1>, <val_2>,  ...)';
+      $ret_mix[] = 'DELETE FROM <table_name> WHERE ... - delete from the "table_name"';
+      $ret_mix[] = 'INSERT INTO <table_name> (<field_1>, <field_2>, ...) VALUES (<val_1>, <val_2>,  ...) - insert a new row into "table_name"';
+      $ret_mix[] = 'UPDATE <table_name> SET <field_1>=<val_1>, <field_2>=<val_2>, ... WHERE ... - update rows in "table_name"';
       
     }else if(preg_match('#^(?:show|get)\s+tables$#i',$input)){
     
@@ -209,7 +210,7 @@ class cli_in
           $schema = $this->getSchema($table);
           
           $ret_mix = sprintf(
-            'Query Ok, rows affected: %s',
+            'Query Ok, %s rows affected',
             $this->db->getCount($table,$schema,$where_criteria)
           );
           
@@ -224,60 +225,43 @@ class cli_in
           
         case 'insert':
         
-          // canary...
-          $field_count = count($parse_map['column_names']);
-          $val_count = count($parse_map['values']);
-          if($field_count !== $val_count)
-          {
-            throw new RuntimeException(
-              sprintf(
-                'You need the same number of fields as values, you currently have %s fields and %s values',
-                $field_count,
-                $val_count
-              )
-            );
-          
-          }//if
-        
-          $map = array();
-          foreach($parse_map['column_names'] as $key => $field){
-          
-            // @todo  add support for array [] and object/map {} types, I guess these would
-            // be strings that will need to be json encoded.
-          
-            $val = null;
-            switch($parse_map['values'][$key]['type']){
-            
-              case 'int_val':
-              
-                $val = (int)$parse_map['values'][$key]['value'];
-            
-              case 'text_val':
-              default:
-              
-                $val = $parse_map['values'][$key]['value'];
-                break;
-            
-            }//switch
-          
-            $map[$field] = $val;
-          
-          }//foreach
-        
-          // canary, some things can't be set by the user...
-          if(isset($map['_id'])){
-            throw new UnexpectedValueException('cannot set "_id" using INSERT');
-          }//if
-          if(isset($map['row_id'])){
-            throw new UnexpectedValueException('cannot set "row_id" using INSERT');
-          }//if
-        
+          $map = $this->handleMap($parse_map);
           $schema = $this->getSchema($table);
           $map = $this->db->set($table,$map,$schema);
         
           $ret_mix = sprintf(
             'Query Ok, new row inserted with _id %s',
             $map['_id']
+          );
+        
+          break;
+          
+        case 'update':
+        
+          if(empty($parse_map['where_clause'])){
+            throw new RuntimeException('no WHERE clause in your UPDATE statement');
+          }//if
+        
+          $map = $this->handleMap($parse_map);
+          $schema = $this->getSchema($table);
+          
+          $where_criteria = $this->handleWhere($where_criteria,$parse_map['where_clause']);
+          
+          // iterate through each row and update it...
+          $count = 0;
+          $limit = 0;
+          $list = $this->db->get($table,$schema,$where_criteria,$limit);
+          foreach($list as $result_map){
+          
+            $map = array_merge($result_map,$map);
+            $map = $this->db->set($table,$map,$schema);
+            $count++;
+          
+          }//foreach
+          
+          $ret_mix = sprintf(
+            'Query Ok, %s rows affected',
+            $count
           );
         
           break;
@@ -315,6 +299,11 @@ class cli_in
       // the _id can't be in the index...
       if(isset($index_map[mingo_orm::_ID])){
         unset($index_map[mingo_orm::_ID]);
+      }//if
+      
+      // the row_id can't be in the index...
+      if(isset($index_map[mingo_orm::ROW_ID])){
+        unset($index_map[mingo_orm::ROW_ID]);
       }//if
       
       if(!empty($index_map)){
@@ -384,6 +373,67 @@ class cli_in
     
     return $c;
     
+  }//method
+  
+  /**
+   *  builds the map for, as an example, the INSERT and UPDATE queries
+   * 
+   *  @since  1-12-11    
+   *  @param  array $parse_map  the parsed values
+   *  @return array the fields maped to their values
+   */
+  protected function handleMap(array $parse_map){
+  
+    // canary...
+    $field_count = count($parse_map['column_names']);
+    $val_count = count($parse_map['values']);
+    if($field_count !== $val_count)
+    {
+      throw new RuntimeException(
+        sprintf(
+          'You need the same number of fields as values, you currently have %s fields and %s values',
+          $field_count,
+          $val_count
+        )
+      );
+    
+    }//if
+  
+    $map = array();
+    foreach($parse_map['column_names'] as $key => $field){
+    
+      // @todo  add support for array [] and object/map {} types, I guess these would
+      // be strings that will need to be json encoded.
+    
+      $val = null;
+      switch($parse_map['values'][$key]['type']){
+      
+        case 'int_val':
+        
+          $val = (int)$parse_map['values'][$key]['value'];
+      
+        case 'text_val':
+        default:
+        
+          $val = $parse_map['values'][$key]['value'];
+          break;
+      
+      }//switch
+    
+      $map[$field] = $val;
+    
+    }//foreach
+  
+    // canary, some things can't be set by the user...
+    if(isset($map['_id'])){
+      throw new UnexpectedValueException('cannot set "_id" manually');
+    }//if
+    if(isset($map['row_id'])){
+      throw new UnexpectedValueException('cannot set "row_id" manually');
+    }//if
+  
+    return $map;
+  
   }//method
   
   function __destruct(){
