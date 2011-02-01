@@ -167,12 +167,22 @@ class cli_in
           
           if(!empty($parse_map['limit_clause'])){
           
-            $where_criteria->setLimit($parse_map['limit_clause']['length']);
-            if(!empty($parse_map['limit_clause']['start'])){
-              $where_criteria->setPage(
-                (int)($parse_map['limit_clause']['start'] / $parse_map['limit_clause']['length'])
-              );
-            }//if
+            // compensate for bug in the SQL parser...
+          
+            if($parse_map['limit_clause']['start'] === 0){
+            
+              // start is the offset and length is the limit if start is 0...
+              $where_criteria->setLimit($parse_map['limit_clause']['length']);
+              $where_criteria->setPage(0);
+            
+            }else{
+            
+              // start is the limit and length is the offset if start > 0
+            
+              $where_criteria->setLimit($parse_map['limit_clause']['start']);
+              $where_criteria->setOffset($parse_map['limit_clause']['length']);
+            
+            }//if/else
             
           }//if
           

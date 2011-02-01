@@ -227,6 +227,8 @@ class mingo_criteria extends mingo_base {
   /**
    *  set the page that will be used to calculate the offset
    *  
+   *  a set offset will take precedence over the page
+   *      
    *  @param  integer
    */
   public function setPage($val){ $this->map_bounds['page'] = (int)$val; }//method
@@ -234,10 +236,26 @@ class mingo_criteria extends mingo_base {
   public function hasPage(){ return !empty($this->map_bounds['page']); }//method
   
   /**
+   *  set the page that will be used to calculate the offset
+   *  
+   *  this takes precedence over the page
+   *      
+   *  @since  2-1-11   
+   *  @param  integer
+   */
+  public function setOffset($val){ $this->map_bounds['offset'] = (int)$val; }//method
+  public function getOffset(){ return empty($this->map_bounds['offset']) ? 0 : $this->map_bounds['offset']; }//method
+  public function hasOffset(){ return !empty($this->map_bounds['offset']); }//method
+  
+  /**
    *  takes either 2 values or an array to set the bounds (ie, limit and page) for
    *  the query
    * 
-   *  @see  setLimit(), setPage()    
+   *  if you want to set a limit and an offset (instead of the page) then you will need
+   *  to call setLimit() and setOffset() separately, as this method only provides a shortcut
+   *  for limit and page      
+   *      
+   *  @see  setLimit(), setPage()  
    *  @param  integer|array $limit  if an array, then array($limit,$page)
    *  @param  integer $page what page to use
    */
@@ -277,10 +295,18 @@ class mingo_criteria extends mingo_base {
       
     }//method
     
-    if($this->hasPage()){
-      $page = $this->getPage();
-      $offset = ($page - 1) * $limit;
-    }//if
+    if($this->hasOffset()){
+    
+      $offset = $this->getOffset();
+    
+    }else{
+      
+      if($this->hasPage()){
+        $page = $this->getPage();
+        $offset = ($page - 1) * $limit;
+      }//if
+      
+    }//if/else
     
     return array($limit,$offset,$limit_paginate);
     
