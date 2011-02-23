@@ -16,6 +16,15 @@
  ******************************************************************************/
 class mingo_db_mongo extends mingo_db_interface {
 
+  /**
+   *  will contain the table names that have been verified this session
+   *
+   *  @see  getTable()
+   *  @since  2-23-11
+   *  @var  array keys are table names, values are booleans      
+   */
+  protected $table_verified_map = array();
+
   protected function start(){}//method
   
   /**
@@ -66,18 +75,29 @@ class mingo_db_mongo extends mingo_db_interface {
    *  
    *  @link http://us2.php.net/manual/en/mongodb.listcollections.php
    *  
-   *  @param  string  $table  doesn't do anything, just here for abstract signature match   
+   *  @param  string  $table  pass in if you want to filter by a certain table
    *  @return array a list of table names
    */
   public function getTables($table = ''){
   
     $ret_list = array();
-    $db_name = sprintf('%s.',$this->con_map['db_name']);
-  
-    $table_list = $this->con_db->listCollections();
-    foreach($table_list as $table){
-      $ret_list[] = str_replace($db_name,'',$table);
-    }//foreach
+    
+    if(empty($table)){
+    
+      $db_name = sprintf('%s.',$this->con_map['db_name']);
+    
+      $table_list = $this->con_db->listCollections();
+      foreach($table_list as $table){
+        $ret_list[] = str_replace($db_name,'',$table);
+      }//foreach
+      
+    }else{
+    
+      // I personally don't think this is very elegant, but it's all I can come up with...
+      $ret_map = $this->con_db->execute(sprintf('db.getCollectionNames().indexOf("%s")',$table));
+      if(isset($ret_map['retval']) && ($ret_map['retval'] > -1)){ $ret_list[] = $table; }//if
+    
+    }//if/else
     
     return $ret_list;
   
@@ -95,7 +115,7 @@ class mingo_db_mongo extends mingo_db_interface {
   public function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
   
     $ret_int = 0;
-    $table = $this->getTable($table);
+    $table = $this->getTable($table,$schema);
     
     if($where_criteria->hasWhere()){
     
@@ -123,7 +143,7 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   public function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
     
-    $table = $this->getTable($table);
+    $table = $this->getTable($table,$schema);
     $cursor = $this->getCursor($table,$where_criteria,$limit);
    
     ///while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
@@ -167,7 +187,7 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
   
-    $table = $this->getTable($table);
+    $table = $this->getTable($table,$schema);
     list($where_map) = $this->getCriteria($where_criteria);
     
     $ret_mixed = $table->remove($where_map);
@@ -189,7 +209,7 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   public function insert($table,array $map,mingo_schema $schema){
     
-    $db_table = $this->getTable($table);
+    $db_table = $this->getTable($table,$schema);
     $map = $this->getMap($map);
     
     $db_table->insert($map);
@@ -217,7 +237,7 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   public function update($table,$_id,array $map,mingo_schema $schema){
 
-    $table = $this->getTable($table);
+    $table = $this->getTable($table,$schema);
     $map = $this->getMap($map);
     $where_criteria = new mingo_criteria();
     $where_criteria->is_id($_id);
@@ -255,7 +275,7 @@ class mingo_db_mongo extends mingo_db_interface {
     // canary...
     if(empty($index_map)){ throw new mingo_exception('$index_map cannot be empty'); }//if
     
-    $table = $this->getTable($table);
+    $table = $this->getTable($table,$schema);
     return $table->ensureIndex($index_map);
   
   }//method
@@ -318,27 +338,30 @@ class mingo_db_mongo extends mingo_db_interface {
   /**
    *  adds a table to the db
    *  
+   *  http://www.mongodb.org/display/DOCS/Capped+Collections
+   *      
    *  @param  string  $table  the table to add to the db
    *  @param  mingo_schema  a schema object that defines indexes, etc. for this   
    *  @return boolean
    */
   public function setTable($table,mingo_schema $schema){
-  
-    $this->con_db->createCollection($table);
+
+    $this->con_db->createCollection(
+      $table,
+      $schema->getOption('table.capped',false),
+      $schema->getOption('table.size',0),
+      $schema->getOption('table.max',0)
+    );
     
-    if(!empty($schema)){
+    // add all the indexes for this table...
+    if($schema->hasIndexes()){
+    
+      foreach($schema->getIndexes() as $index_map){
       
-      // add all the indexes for this table...
-      if($schema->hasIndexes()){
+        $this->setIndex($table,$index_map,$schema);
       
-        foreach($schema->getIndexes() as $index_map){
-        
-          $this->setIndex($table,$index_map,$schema);
-        
-        }//foreach
-      
-      }//if
-      
+      }//foreach
+    
     }//if
     
     return true;
@@ -353,9 +376,8 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   public function hasTable($table){
 
-    // get all the tables currently in the db...
-    $table_list = $this->getTables();
-    return in_array($table,$table_list,true);
+    $table_list = $this->getTables($table);
+    return !empty($table_list);
     
   }//method
   
@@ -381,13 +403,25 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string|MongoCollection  $table  the table to connect to      
    *  @return MongoCollection the table connection
    */
-  protected function getTable($table){
+  protected function getTable($table,mingo_schema $schema = null){
   
     // canary...
     if(!$this->isConnected()){ throw new UnexpectedValueException('no db connection found'); }//if
     if(empty($table)){ throw new InvalidArgumentException('no $table given'); }//if
+    if($table instanceof MongoCollection){ return $table; }//if
+    if(empty($this->table_verified_map[$table]) && !empty($schema)){
     
-    return ($table instanceof MongoCollection) ? $table : $this->con_db->selectCollection($table);
+      // create the table and all its indexes if it doesn't already exist...
+      $table_list = $this->getTables($table);
+      if(empty($table_list)){
+        $this->setTable($table,$schema);
+      }//if
+    
+      $this->table_verified_map[$table] = true;
+    
+    }//if
+    
+    return $this->con_db->selectCollection($table);
   
   }//method
   

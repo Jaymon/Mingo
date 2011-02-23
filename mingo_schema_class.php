@@ -4,7 +4,18 @@
  *  allows you to define some stuff about how a mingo_orm should be set up (eg, indexes
  *  and the like)  
  *
- *  @version 0.4
+ *  If you want certain fields to be required (eg, don't insert unless 'foo' is set,
+ *  use the {@link mingo_field} class and set the required method, then pass it to {@link setField()}.
+ *  
+ *  If you want to make sure certain fields are of a given type (eg, 'foo' must be an int) then
+ *  use the {@link mingo_field} class with {@link setField()}
+ *  
+ *  If you want to set db interface specific options, use the {@link setOption()} method. It is
+ *  up to the specific db interface to tell you what the options are, and not all options
+ *  (I would guess most) will be cross db interface compatible (eg, if you use the Mongo
+ *  db interface's capped collections, then don't expect that to work using the SQL interface)         
+ *  
+ *  @version 0.5
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-18-09
  *  @package mingo 
@@ -41,21 +52,36 @@ class mingo_schema extends mingo_base {
   /**
    *  handle the type hints
    *  
+   *  tyope hints are used so Mingo can know what type of data it should expect the
+   *  field to be         
+   *  
    *  uses the FIELD_* constants to allow type hints
    *      
    *  @see  setType()   
    *  @since  10-19-10   
    *  @var  array
-   */        
+   */
   protected $field_map = array();
   
   /**
    *  used to set fields that should be there when the db is set
    *     
    *  @see  requireField()
-   *  @var  array()   
+   *  @var  array   
    */        
   protected $required_map = array();
+  
+  /**
+   *  used to store db interface specific things
+   *  
+   *  it is up to the db interface to specify what can go in here and how it should be used.
+   *  This just allows for a convenient way for the frontend to talk to the backend in a semi
+   *  documented common way               
+   *
+   *  @since  2-22-11
+   *  @var  array
+   */
+  protected $option_map = array();
 
   ///public function __construct(){}//method
 
@@ -254,6 +280,40 @@ class mingo_schema extends mingo_base {
     // canary...
     if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
     $this->required_map[$name] = $default_val;
+    
+  }//method
+  
+  /**
+   *  return all the options
+   *  
+   *  @since  2-22-11   
+   *  @return array
+   */
+  public function getOptions(){ return $this->option_map; }//method
+  
+  /**
+   *  get an option field, or $default_val if the option field isn't set
+   *  
+   *  @since  2-22-11
+   *  @param  string  $name the option field name   
+   *  @return mixed
+   */
+  public function getOption($name,$default_val = null){
+    return isset($this->option_map[$name]) ? $this->option_map[$name] : $default_val;
+  }//method
+  
+  /**
+   *  set an option field
+   *  
+   *  @since  2-22-11   
+   *  @param  string  $name the field name
+   *  @param  mixed $val  the value the $name should be set to      
+   */
+  public function setOption($name,$val){
+  
+    // canary...
+    if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
+    $this->option_map[$name] = $val;
     
   }//method
   

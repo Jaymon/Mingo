@@ -180,7 +180,7 @@ abstract class mingo_orm extends mingo_base implements ArrayAccess,Iterator,Coun
   protected function setMore($val){ $this->more = $val; }//method
   protected function getMore(){ return $this->more; }//method
   
-  public function setDb($db){ $this->db = $db; }//method
+  public function setDb(mingo_db $db){ $this->db = $db; }//method
   public function hasDb(){ return !empty($this->db); }//method
   
   /**
