@@ -6,13 +6,13 @@
  *  this class is instantiated in sfDatabaseManager::loadConfiguration() and can be
  *  retrieved by calling:  sfDatabaseManager::getDatabase('mingo')
  *  
- *  @version 0.3
+ *  @version 0.4
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 1-6-10
  *  @package mingo
  *  @subpackage symfony
  ******************************************************************************/
-class sfMingoDatabase extends sfDatabase {
+class MingoDatabase extends sfDatabase {
 
   /**
    *  gets the mingo dbs ready to be connected, mingo will take care of the actual connecting
@@ -105,16 +105,6 @@ class sfMingoDatabase extends sfDatabase {
    */
   public function initialize($parameters = array())
   {
-    if(sfContext::hasInstance())
-    {
-      // use the debug toolbar...
-      sfContext::getInstance()->getEventDispatcher()->connect('debug.web.load_panels', array(
-        'sfMingoDebugToolbar',
-        'listenToAddPanelEvent'
-      ));
-      
-    }//if
-    
     parent::initialize($parameters);
     
     $this->connect();

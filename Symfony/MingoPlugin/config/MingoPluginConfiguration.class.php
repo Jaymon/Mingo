@@ -12,16 +12,22 @@
  *  but it is nice to have it here in case I do think of something to put in it at
  *  a later time  
  *  
- *  @version 0.1
+ *  @version 0.2
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 1-5-10
  *  @package mingo
  *  @subpackage symfony
  ******************************************************************************/    
-class sfMingoPluginConfiguration extends sfPluginConfiguration
+class MingoPluginConfiguration extends sfPluginConfiguration
 {
   public function initialize()
   {
+    // use the debug toolbar...
+    $this->dispatcher->connect('debug.web.load_panels', array(
+      'MingoDebugToolbar',
+      'listenToAddPanelEvent'
+    ));
+   
     return true;
   }
 }

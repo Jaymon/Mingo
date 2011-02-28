@@ -1,7 +1,7 @@
 in your databases.yml file you can use the following params under the "mingo" namespace:
 
 mingo:
-    class:            sfMingoDatabase # the classname you want to use to hook into symfony
+    class:            MingoDatabase # the classname you want to use to hook into symfony
     param:
       servers:
         mingo_orm:
@@ -14,7 +14,7 @@ mingo:
 The "mingo_orm" namespace is basically the default, but you can actually have different mingo orm classes use different databases/servers. So, if you created a Foo class that should use mongo, but everything else should use sqlite, you would do something like:
 
 mingo:
-    class:            sfMingoDatabase
+    class:            MingoDatabase
     param:
       servers:
         Foo:

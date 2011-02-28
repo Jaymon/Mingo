@@ -4,13 +4,13 @@
  *  
  *  http://www.symfony-project.org/more-with-symfony/1_4/en/07-Extending-the-Web-Debug-Toolbar  
  *  
- *  @version 0.2
+ *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 3-31-10
  *  @project plancast
  *  @subpackage debug
  ******************************************************************************/
-class sfMingoDebugToolbar extends sfWebDebugPanel
+class MingoDebugToolbar extends sfWebDebugPanel
 {
   public function getTitle(){
   
@@ -38,7 +38,7 @@ class sfMingoDebugToolbar extends sfWebDebugPanel
         $query = json_encode($query);
       }//if
       
-      $ret_lines[] = sprintf('<li>%s</li>',$query);
+      $ret_lines[] = $this->formatSql(sprintf('<li>%s</li>',$query));
       
     }//method
    
