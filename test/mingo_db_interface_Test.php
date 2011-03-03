@@ -223,6 +223,38 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   /**
    *  @depends  testInsert
+   *  
+   *  @since  3-3-11      
+   */
+  public function testGetOne($db_map){
+  
+    $db = $db_map['db'];
+    $_id_list = $db_map['_id_list'];
+    $table = $this->getTable();
+    $schema = $this->getSchema();
+    
+    foreach($_id_list as $_id){
+
+      $where_criteria = new mingo_criteria();
+      $where_criteria->is_id($_id);
+      $map = $db->getOne(
+        $this->getTable(),
+        $this->getSchema(),
+        $where_criteria
+      );
+      
+      $this->assertArrayHasKey('_id',$map);
+        
+      // make sure this was an id we wanted...
+      $map_id = (string)$map['_id'];
+      $this->assertContains($map_id,$_id_list);
+    
+    }//foreach
+  
+  }//method
+  
+  /**
+   *  @depends  testInsert
    */
   public function testGet($db_map){
   
