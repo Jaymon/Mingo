@@ -232,11 +232,11 @@ abstract class test_mingo_db_interface extends mingo_test {
     $_id_list = $db_map['_id_list'];
     $table = $this->getTable();
     $schema = $this->getSchema();
-    
+
     foreach($_id_list as $_id){
 
       $where_criteria = new mingo_criteria();
-      $where_criteria->is_id($_id);
+      $where_criteria->is_id((string)$_id);
       $map = $db->getOne(
         $this->getTable(),
         $this->getSchema(),

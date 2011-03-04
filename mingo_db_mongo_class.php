@@ -434,6 +434,8 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   protected function getCriteria(mingo_criteria $where_criteria){
   
+    out::e($where_criteria->getWhere());
+  
     return array($where_criteria->getWhere(),$where_criteria->getSort());
       
   }//method
