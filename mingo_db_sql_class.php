@@ -111,11 +111,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  string  $db_name  the db to use
    *  @param  string  $host the host to use               
    *  @param  string  $username the username to use
-   *  @param  string  $password the password to use   
+   *  @param  string  $password the password to use
+   *  @param  array $options  any interface specific options you might want to use for connecting    
    *  @return boolean
-   *  @throws mingo_exception   
    */
-  function connect($db_name,$host,$username,$password){
+  function connect($db_name,$host,$username,$password,array $options = array()){
 
     $this->con_map['pdo_options'] = array(
       PDO::ERRMODE_EXCEPTION => true,
@@ -128,10 +128,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
     ); 
 
     $dsn = $this->getDsn($db_name,$host);
+    $con_class = empty($options['pdo_class']) ? 'PDO' : $options['pdo_class'];
     
     try{
     
-      $this->con_db = new PDO($dsn,$username,$password,$this->con_map['pdo_options']);
+      $this->con_db = new $con_class($dsn,$username,$password,$this->con_map['pdo_options']);
       $this->con_map['connected'] = true;
       $this->onConnect();
       
@@ -147,7 +148,8 @@ abstract class mingo_db_sql extends mingo_db_interface {
         }//foreach
         
         $e_msg[] = sprintf(
-          'new PDO("%s","%s","%s",array(%s)) failed.',
+          'new %s("%s","%s","%s",array(%s)) failed.',
+          $con_class,
           $dsn,
           $username,
           $password,
@@ -186,16 +188,16 @@ abstract class mingo_db_sql extends mingo_db_interface {
   function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
   
     $ret_bool = false;
-    $limit = 500; // SQLite has a 500 variable IN (...) limit
+    $limit = 100; // SQLite has a 500 variable IN (...) limit
     
     try{
     
       $has_more = false;
     
-      // begin the delete transaction...
-      $this->con_db->beginTransaction();
-    
       do{
+      
+        // begin the delete transaction, we're going to do this every iteration...
+        $this->con_db->beginTransaction();
       
         $_id_list = array();
         $map = $this->getQueryInfo($table,$schema,$where_criteria,array($limit,0));
@@ -234,10 +236,10 @@ abstract class mingo_db_sql extends mingo_db_interface {
         
         $has_more = isset($_id_list[$limit - 1]);
         
+        // finish the delete transaction for this iteration...
+        $this->con_db->commit();
+        
       }while($has_more);
-      
-      // finish the delete transaction...
-      $this->con_db->commit();
         
     }catch(Exception $e){
 

@@ -34,11 +34,11 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string  $host the host to use. if you want a specific port, 
    *                        attach it to host (eg, localhost:27017 or example.com:27017)            
    *  @param  string  $username the username to use
-   *  @param  string  $password the password to use   
+   *  @param  string  $password the password to use
+   *  @param  array $options  any interface specific options you might want to use for connecting    
    *  @return boolean
-   *  @throws mingo_exception   
    */
-  public function connect($db_name,$host,$username,$password){
+  public function connect($db_name,$host,$username,$password,array $options = array()){
     
     // canary, make sure certain things exist...
     if(empty($host)){ throw new UnexpectedValueException('$host cannot be empty'); }//if
@@ -239,11 +239,14 @@ class mingo_db_mongo extends mingo_db_interface {
 
     $table = $this->getTable($table,$schema);
     $map = $this->getMap($map);
+    
+    // convert the id to something Mongo understands...
     $where_criteria = new mingo_criteria();
     $where_criteria->is_id($_id);
+    list($where_map) = $this->getCriteria($where_criteria);
     
     // always returns true, annoying...
-    $table->update($where_criteria->getWhere(),$map);
+    $table->update($where_map,$map);
     
     // $error_map has keys: [err], [updatedExisting], [n], [ok]...
     $err_map = $this->con_db->lastError();
@@ -434,10 +437,35 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   protected function getCriteria(mingo_criteria $where_criteria){
   
-    out::e($where_criteria->getWhere());
+    $where_map = $where_criteria->getWhere();
+    if(isset($where_map['_id'])){
+      $where_map['_id'] = $this->normalize_id($where_map['_id']);
+    }//if
   
-    return array($where_criteria->getWhere(),$where_criteria->getSort());
+    return array($where_map,$where_criteria->getSort());
       
+  }//method
+  
+  /**
+   *  normalize the _id so that it becomes an _id mongo can work with
+   *
+   *  @since  3-6-11   
+   *  @param  mixed $val   
+   */
+  protected function normalize_id($val){
+  
+    if(is_array($val)){
+      foreach($val as $key => $v){
+        $val[$key] = $this->normalize_id($v);
+      }//foreach
+    }else{
+      if(!($val instanceof MongoId)){
+        $val = new MongoId($val);
+      }//if
+    }//if/else
+  
+    return $val;
+  
   }//method
   
   /**

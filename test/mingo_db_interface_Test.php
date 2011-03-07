@@ -195,7 +195,7 @@ abstract class test_mingo_db_interface extends mingo_test {
       $this->assertArrayHasKey('_id',$map);
       $this->assertEquals(24,mb_strlen($map['_id']));
       $this->assertNotContains($map['_id'],$_id_list);
-      $_id_list[] = $map['_id'];
+      $_id_list[] = (string)$map['_id'];
     
     }//for
     
@@ -425,48 +425,6 @@ abstract class test_mingo_db_interface extends mingo_test {
     
   }//method
   
-  /**
-   *  test the auto-creation of the mingo db
-   *  
-   *  while this is technically a per interface thing to have the table be auto-created
-   *  both the SQL and the Mongo interfaces do it, so the test is in here. To turn this
-   *  test off for future interfaces, then just override this method in the child specific
-   *  interface tester                     
-   *
-   *  @since  2-23-11   
-   */
-  public function testAutoCreate(){
-
-    $db = $this->getDb();
-    $table = sprintf('%s_2',$this->getTable());
-    
-    $ret_bool = $db->killTable($table);
-    $this->assertTrue($ret_bool);
-    
-    $schema = $this->getSchema();
-    $this->assertFalse($db->hasTable($table));
-    
-    // insert something...
-    
-    $timestamp = time();
-    $map['foo'] = $timestamp;
-    $map['bar'] = $timestamp;
-    $map['baz'] = $timestamp;
-    $db->insert($table,$map,$schema);
-    
-    // test the table was created...
-    $this->assertTrue($db->hasTable($table));
-  
-    $index_list = $db->getIndexes($table);
-    
-    // the "- 1" is to compensate for the schema not having the _id index... 
-    $this->assertEquals(count($schema->getIndexes()),count($index_list) - 1);
-  
-    $ret_bool = $db->killTable($table);
-    $this->assertTrue($ret_bool);
-  
-  }//method
-  
   protected function getSchema(){
   
     $ret_schema = new mingo_schema();
@@ -482,7 +440,7 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   /**
    *  connect to the db
-   */     
+   */
   protected function connect($db){
   
     $db_name = $this->getDbName();

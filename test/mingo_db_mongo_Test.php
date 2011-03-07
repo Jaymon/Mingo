@@ -15,6 +15,63 @@ class mingo_db_mongo_Test extends test_mingo_db_interface {
   
   }//method
   
+  /**
+   *  test the auto-creation of the Mongo db table
+   *  
+   *  Mongo auto-creates tables on the fly, it is not done on an error like the SQL interfaces,
+   *  so this just makes sure Mongo sets indexes and stuff correctly if they don't exist   
+   *
+   *  @since  2-23-11   
+   */
+  public function testAutoCreate(){
+
+    $db = $this->getDb();
+    $table = sprintf('%s_2',$this->getTable());
+    
+    $ret_bool = $db->killTable($table);
+    $this->assertTrue($ret_bool);
+    
+    $schema = $this->getSchema();
+    $this->assertFalse($db->hasTable($table));
+    
+    // insert something...
+    
+    $timestamp = time();
+    $map['foo'] = $timestamp;
+    $map['bar'] = $timestamp;
+    $map['baz'] = $timestamp;
+    $db->insert($table,$map,$schema);
+    
+    // test the table was created...
+    $this->assertTrue($db->hasTable($table));
+  
+    $index_list = $db->getIndexes($table);
+    
+    // the "- 1" is to compensate for the schema not having the _id index... 
+    $this->assertEquals(count($schema->getIndexes()),count($index_list) - 1);
+  
+    $ret_bool = $db->killTable($table);
+    $this->assertTrue($ret_bool);
+  
+  }//method
+  
+  public function xtestCriteria()
+  {
+    $c = new mingo_criteria();
+    $c->is_id('asdfdsfdsfsafdffdfdf');
+    out::e($c->getWhere());
+    
+    $c = new mingo_criteria();
+    $c->gt_id('asdfdsfdsfsafdffdfdf');
+    out::e($c->getWhere());
+  
+    $c = new mingo_criteria();
+    $c->in_id(array('asdfdsfdsfsafdffdfdf','asdfdsfdsfsafdffdfdf2'));
+    out::e($c->getWhere());
+  
+  }//method
+  
+  
   public function xtestLog()
   {
     $db_name = $this->getDbName();

@@ -46,11 +46,11 @@ final class mingo_db {
    *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
    *                        port, attach it to host (eg, localhost:27017 or example.com:27017)            
    *  @param  string  $username the username to use, defaults to {@link getUsername()}
-   *  @param  string  $password the password to use, defaults to {@link getPassword()}   
+   *  @param  string  $password the password to use, defaults to {@link getPassword()} 
+   *  @param  array $options  specific options you might want to use for connecting, defaults to {@link getOptions()}
    *  @return boolean
-   *  @throws mingo_exception   
    */
-  public function connect($db_interface = '',$db_name = '',$host = '',$username = '',$password = ''){
+  public function connect($db_interface = '',$db_name = '',$host = '',$username = '',$password = '',array $options = array()){
   
     // set all the connection variables...
     if(empty($db_interface)){
@@ -99,6 +99,14 @@ final class mingo_db {
       $this->setPassword($password);
     }//if/else
     
+    if(empty($options)){
+      if($this->hasOptions()){
+        $options = $this->getOptions();
+      }//if
+    }else{
+      $this->setOptions($options);
+    }//if/else
+    
     try{
       
       // make sure $db_interface exists and is compatible...
@@ -133,7 +141,8 @@ final class mingo_db {
         $db_name,
         $host,
         $username,
-        $password
+        $password,
+        $options
       );
       
       if($this->hasDebug()){
@@ -244,6 +253,13 @@ final class mingo_db {
   public function setPassword($val){ $this->con_map['password'] = $val; }//method
   public function getPassword(){ return $this->hasPassword() ? $this->con_map['password'] : ''; }//method
   public function hasPassword(){ return !empty($this->con_map['password']); }//method
+  
+  /**
+   *  @since  3-6-11
+   */
+  public function setOptions($val){ $this->con_map['options'] = $val; }//method
+  public function getOptions(){ return $this->hasOptions() ? $this->con_map['options'] : array(); }//method
+  public function hasOptions(){ return !empty($this->con_map['options']); }//method
   
   public function setDebug($val){
     $this->con_map['debug'] = $val;

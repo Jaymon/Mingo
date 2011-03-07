@@ -76,10 +76,10 @@ abstract class mingo_db_interface {
    *                        host (eg, localhost:27017 or example.com:27017)            
    *  @param  string  $username the username to use
    *  @param  string  $password the password to use
+   *  @param  array $options  any interface specific options you might want to use for connecting   
    *  @return boolean
-   *  @throws mingo_exception   
    */
-  abstract public function connect($db_name,$host,$username,$password);
+  abstract public function connect($db_name,$host,$username,$password,array $options = array());
   
   /**
    *  delete the records that match $where_criteria in $table
