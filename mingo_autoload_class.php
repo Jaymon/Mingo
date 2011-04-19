@@ -58,29 +58,26 @@ class mingo_autoload {
   
     // canary...
     if(!is_dir($path)){ return false; }//if
-    // ignore .name folders since they are almost always special folders by convention...
+    // ignore .name folders since they are almost always, by convention, special folders...
     $base = basename($path);
     if($base[0] === '.'){ return false; }//if
     
-    $changed = chdir($path);
-    out::e($changed);
-    
     $ret_bool = false;
-    $class_postfix_list = self::$postfix_list;
-    $file_glob = join(sprintf(',%s',$class_name),self::$postfix_list);
-    $file_glob = sprintf('{%s%s}',$class_name,$file_glob);
+    
+    foreach(self::$postfix_list as $class_postfix){
 
-    out::e($path,$file_glob);
+      $file_glob = sprintf('%s%s%s%s',$path,DIRECTORY_SEPARATOR,$class_name,$class_postfix);
 
-    $file_list = glob($file_glob);
-    out::e($file_list);
-    if(!empty($file_list)){
-      foreach($file_list as $file){
-        include($file);
-        $ret_bool = true;
-        break;
-      }//foreach
-    }//if
+      $file_list = glob($file_glob);
+      if(!empty($file_list)){
+        foreach($file_list as $file){
+          include($file);
+          $ret_bool = true;
+          break 2;
+        }//foreach
+      }//if
+      
+    }//foreach
     
     if(!$ret_bool){
     

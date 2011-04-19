@@ -53,6 +53,7 @@ class cli_in
       
     }else{
     
+      // http://www.php.net/manual/en/book.readline.php
       $line = readline($prompt);
     
     }//if/else
@@ -99,6 +100,7 @@ class cli_in
     
     $this->query_list[] = $input;
     
+    // we need to specifically set the history if we are in linux...
     if(!$this->isWindows()){
     
       $line = str_replace(PHP_EOL,' ',$input);
