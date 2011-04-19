@@ -15,6 +15,19 @@ include(
 );
 mingo_autoload::register();
 
+// personal debugging stuff, ignore..
+$out_path_list = array(
+  'out_class.php',
+  'C:\Projects\Plancast\_active\lib\out_class.php',
+  'E:\Projects\sandbox\out\git_repo\out_class.php'
+);
+foreach($out_path_list as $out_path){
+  if(is_file($out_path)){ include_once($out_path); break; }//if
+}//foreach
+
+bla::h();
+out::x();
+
 $required_argv_map = array(
   'interface' => null, // the interface to use to access mingo data
   'name' => null, // the database name
@@ -47,7 +60,7 @@ try{
   // get input from the user...
   while(true){
     
-    echo $cli_in->hasInput() ? '    -> ' : 'mingo> ';
+    ///echo $cli_in->hasInput() ? '    -> ' : 'mingo> ';
     
     // get a line and append it to the total inputted command...
     $cli_in->getLine();

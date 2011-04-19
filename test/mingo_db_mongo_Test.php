@@ -16,6 +16,45 @@ class mingo_db_mongo_Test extends test_mingo_db_interface {
   }//method
   
   /**
+   *  this test currently fails, but it should pass
+   *  
+   *  the problem is types, setting foo=1 then trying to select foo='1' should work
+   *  but doesn't, so you have to be really aware of the type you have and this particular
+   *  bug has bit us a couple times so far. I'm just not sure the most elegant way to fix
+   *  it yet   
+   *  
+   *  @since  4-18-11                  
+   *
+   */        
+  public function xtestType(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable(2);
+    $db->killTable($table);
+    
+    $schema = new mingo_schema();
+    $schema->setIndex('foo');
+    
+    $f = new mingo_field('foo',mingo_field::TYPE_INT);
+    $schema->setField($f);
+    
+    $map = array(
+      'foo' => 1
+    );
+    
+    $db->insert($table,$map,$schema);
+    
+    $c = new mingo_criteria();
+    $c->isField('foo','1');
+    
+    $ret_map = $db->getOne($table,$schema,$c);
+
+    $this->assertArrayHasKey('foo',$ret_map);
+    $this->assertEquals(1,$ret_map['foo']);
+  
+  }//method
+  
+  /**
    *  test the auto-creation of the Mongo db table
    *  
    *  Mongo auto-creates tables on the fly, it is not done on an error like the SQL interfaces,

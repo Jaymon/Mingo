@@ -44,7 +44,19 @@ class cli_in
   
   public function getLine(){
   
-    $line = rtrim(fgets($this->stdin));
+    $prompt = $this->hasInput() ? '    -> ' : 'mingo> ';
+  
+    if($this->isWindows()){
+  
+      echo $prompt;
+      $line = rtrim(fgets($this->stdin));
+      
+    }else{
+    
+      $line = readline($prompt);
+    
+    }//if/else
+      
     $this->append($line);
     
   }//method
@@ -86,6 +98,14 @@ class cli_in
     $matched = array();
     
     $this->query_list[] = $input;
+    
+    if(!$this->isWindows()){
+    
+      $line = str_replace(PHP_EOL,' ',$input);
+      $line .= ';';
+      readline_add_history($line);
+    
+    }//if
     
     // do we have an exit...
     if(preg_match('#^(?:exit|quit)#i',$input)){
@@ -444,6 +464,16 @@ class cli_in
   
     return $map;
   
+  }//method
+  
+  /**
+   *  true if php is running on a Windows OS
+   *  
+   *  @return boolean
+   */
+  protected function isWindows()
+  {
+    return (substr(PHP_OS,0,3) === 'WIN');
   }//method
   
   function __destruct(){
