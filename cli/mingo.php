@@ -25,8 +25,7 @@ foreach($out_path_list as $out_path){
   if(is_file($out_path)){ include_once($out_path); break; }//if
 }//foreach
 
-bla::h();
-out::x();
+///bla::h(); out::x();
 
 $required_argv_map = array(
   'interface' => null, // the interface to use to access mingo data

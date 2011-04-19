@@ -44,7 +44,7 @@ class mingo_autoload {
     self::$is_registered = true;
     
     self::addPath(__FILE__);
-    self::addPath(array_reverse(explode(PATH_SEPARATOR,get_include_path())));
+    ///self::addPath(array_reverse(explode(PATH_SEPARATOR,get_include_path())));
     
     self::addPostfix(
       array('_class.php','.class.php','.php','.inc','.class.inc')
@@ -62,14 +62,18 @@ class mingo_autoload {
     $base = basename($path);
     if($base[0] === '.'){ return false; }//if
     
-    chdir($path);
+    $changed = chdir($path);
+    out::e($changed);
     
     $ret_bool = false;
     $class_postfix_list = self::$postfix_list;
     $file_glob = join(sprintf(',%s',$class_name),self::$postfix_list);
     $file_glob = sprintf('{%s%s}',$class_name,$file_glob);
 
+    out::e($path,$file_glob);
+
     $file_list = glob($file_glob);
+    out::e($file_list);
     if(!empty($file_list)){
       foreach($file_list as $file){
         include($file);
@@ -110,62 +114,20 @@ class mingo_autoload {
    */
   public static function load($class_name){
   
+    $ret_bool = false;
     $path_list = self::$path_list;
-    
-    $class_postfix_list = self::$postfix_list;
-    $normalized_class_name = str_replace('_',DIRECTORY_SEPARATOR,$class_name);
+    $cwd = getcwd();
     
     foreach($path_list as $path)
     {
-      ///$ret_bool = self::checkPath($path,$class_name);
-    
-      $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(
-          $path,
-          FilesystemIterator::CURRENT_AS_FILEINFO | FilesystemIterator::KEY_AS_PATHNAME | FilesystemIterator::SKIP_DOTS
-        ),
-        RecursiveIteratorIterator::SELF_FIRST
-      );
-      foreach($iterator as $val)
-      {
-        ///$basename = $val->getBasename();
-        $base_path = $val->getPath();
-        
-        // for some reason, $val->isDir() was returning false for some folders...
-        if(is_dir($base_path))
-        {
-          $normalized_class_path = join(DIRECTORY_SEPARATOR,array($base_path,sprintf('%s.php',$normalized_class_name)));
-        
-          if(is_file($normalized_class_path))
-          {
-            include($normalized_class_path);
-            return true;
-          
-          }
-          else
-          {
-            foreach($class_postfix_list as $class_postfix)
-            {
-              $class_path = join(DIRECTORY_SEPARATOR,array($base_path,sprintf('%s%s',$class_name,$class_postfix)));
-          
-              if(is_file($class_path))
-              {
-                include($class_path);
-                return true;
-              
-              }//if
-              
-            }//foreach
-            
-          }//if/else
-        
-        }//if
-      
-      }//foreach
+      $ret_bool = self::checkPath($path,$class_name);
+      if($ret_bool){ break; }//if
       
     }//foreach
+    
+    chdir($cwd);
 
-    return false;
+    return $ret_bool;
     
   }//method
 
