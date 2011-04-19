@@ -1,5 +1,5 @@
 <?php
-class parse_sql extends SQL_Parser {
+class mingo_parse_sql extends SQL_Parser {
 
   function __construct($string = null, $dialect = 'Mingo'){
   

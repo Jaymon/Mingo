@@ -701,7 +701,7 @@ final class mingo_db {
     }catch(Exception $e){
       $this->handleException($e,$table);
     }//try/catch
-      
+    
     return $ret_bool;
     
   }//method

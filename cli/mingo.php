@@ -15,8 +15,6 @@ include(
 );
 mingo_autoload::register();
 
-include(join(DIRECTORY_SEPARATOR,array('SQL','Parser.php')));
-
 $required_argv_map = array(
   'interface' => null, // the interface to use to access mingo data
   'name' => null, // the database name

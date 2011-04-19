@@ -55,8 +55,8 @@ class cli_in
     
       // decide if this is the end of the command...
       $end_of_line_count = 0;
-      $line = preg_replace('#(\;|\\[gG])$#','',$line,1,$end_of_line_count);
-      $this->setDone($end_of_line_count > 0);
+      $line = preg_replace('#(\;|\\\\[gG])$#','',$line,1,$end_of_line_count);
+      $this->setDone(($end_of_line_count > 0) || preg_match('#^(?:exit|quit)#',$line));
       $this->input .= sprintf('%s%s',$line,PHP_EOL);
       
     }//if
@@ -129,7 +129,7 @@ class cli_in
       ///$this->parseSelect($input);
       ///out::x();
     
-      $sql_parser = new parse_sql($input,'Mingo');
+      $sql_parser = new mingo_parse_sql($input,'Mingo');
       $parse_map = $sql_parser->parse();
       
       if(isset($parse_map['table_names'][1])){

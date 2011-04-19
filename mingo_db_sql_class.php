@@ -615,16 +615,14 @@ abstract class mingo_db_sql extends mingo_db_interface {
    */
   public function setTable($table,mingo_schema $schema){
 
-    $ret_bool = $this->hasTable($table);
-    $query = '';
-    
-    if(!$ret_bool){
-    
-      $ret_bool = $this->createTable($table,$schema);
+    // canary...
+    if($this->hasTable($table)){ return true; }//if
+
+    $ret_bool = false;
+
+    if($this->createTable($table,$schema)){
       
-    }//if
-    
-    if($ret_bool){
+      $ret_bool = true;
       
       // add all the indexes for this table...
       if($schema->hasIndexes()){

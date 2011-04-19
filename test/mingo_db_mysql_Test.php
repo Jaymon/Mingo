@@ -31,6 +31,42 @@ class mingo_db_mysql_Test extends test_mingo_db_interface {
   }//method
   
   /**
+   *  we were having a problem with a Schema that had index [foo] and then another index
+   *  [foo,bar] where when you tried to select on fooo=? AND bar=? it would fail with
+   *  a "bar doesn't exist" error, but I can't seem to duplicate it      
+   *
+   *  @since  4-18-11
+   */
+  public function xtestBadIndex(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable(2);
+    $db->killTable($table);
+    ///$schema = $this->getSchema();
+    
+    $schema = new mingo_schema();
+    $schema->setIndex('foo');
+    $schema->setIndex('bar','baz');
+    $schema->setIndex('foo','baz');
+    
+    $db->setTable($table,$schema);
+    
+    $c = new mingo_criteria();
+    $c->isFoo(1);
+    $c->isBaz(2);
+    
+    try{
+    
+      $db->getOne($table,$schema,$c);
+      $this->fail(sprintf('$table %s exists and should not exist',$table));
+      
+    }catch(Exception $e){}//try/catch
+  
+    $db->setTable($table,$schema);
+  
+  }//method
+  
+  /**
    *  a bad kill is described as a kill where the main table has the row removed, but
    *  the sub tables don't have it removed   
    *      

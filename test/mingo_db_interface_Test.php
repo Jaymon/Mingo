@@ -434,8 +434,8 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   }//method
   
-  protected function getTable(){
-    return sprintf('%s_test',__CLASS__);
+  protected function getTable($postfix = ''){
+    return mb_strtolower(sprintf('%s%s_test',get_class($this),$postfix));
   }//method
   
   /**

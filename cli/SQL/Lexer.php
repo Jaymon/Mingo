@@ -24,8 +24,6 @@
 // $Id: Lexer.php,v 1.20 2004/05/07 12:33:35 busterb Exp $
 //
 
-include 'SQL/ctype.php';
-
 // {{{ token definitions
 // variables: 'ident', 'sys_var'
 // values:    'real_val', 'text_val', 'int_val', null
