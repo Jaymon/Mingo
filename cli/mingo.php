@@ -14,6 +14,7 @@ include(
   )
 );
 mingo_autoload::register();
+mingo_autoload::addIncludePath(__FILE__);
 
 // personal debugging stuff, ignore..
 $out_path_list = array(

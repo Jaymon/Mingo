@@ -3,7 +3,7 @@
 /**
  *  used in the command line and the testing stuff to autoload mingo dependant classes  
  * 
- *  @version 0.3
+ *  @version 0.4
  *  @author Jay Marcyes
  *  @since 10-5-10
  *  @package mingo 
@@ -21,6 +21,28 @@ class mingo_autoload {
     $postfix_list = (array)$postfix_list;
     self::$postfix_list = array_merge(self::$postfix_list,$postfix_list);
     
+  }//method
+  
+  /**
+   *  not only adds a path to the loader, but also to the include path
+   *
+   *  @since  4-21-11   
+   */
+  public static function addIncludePath($path_list)
+  {
+    self::addPath($path_list);
+    
+    $path_list = (array)$path_list;
+    foreach($path_list as $i => $path){
+      if(is_file($path)){ $path_list[$i] = dirname($path); }//if
+    }//if
+    
+    set_include_path(
+      get_include_path()
+      .PATH_SEPARATOR.
+      join(PATH_SEPARATOR,$path_list)
+    );
+  
   }//method
   
   public static function addPath($path_list)
