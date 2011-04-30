@@ -127,7 +127,10 @@ abstract class MingoMagic implements ArrayAccess {
    *  @param  string  $name the name of the field
    *  @param  mixed $val  the value of the field         
    */
-  public function setField($name,$val){ $this->field_map[$name] = $val; }//method
+  public function setField($name,$val){
+    $this->field_map[$name] = $val;
+    return $this;
+  }//method
   
   /**
    *  get a field
@@ -169,7 +172,16 @@ abstract class MingoMagic implements ArrayAccess {
   public function killField($name)
   {
     if(isset($this->field_map[$name])){ unset($this->field_map[$name]); }//if
+    return $this;
   }//method
+  
+  /**
+   *  return the defined fields
+   *  
+   *  @since  11-4-10   
+   *  @return array an array with field names as key and mingo_field instances as values
+   */
+  public function getFields(){ return $this->field_map; }//method
 
   /**
    *  get the best value for a field

@@ -1,14 +1,13 @@
 <?php
-
 /**
- *  allows you to define some stuff about how a mingo_orm should be set up (eg, indexes
+ *  allows you to define some stuff about how a MingoOrm's table should be set up (eg, indexes
  *  and the like)  
  *
  *  If you want certain fields to be required (eg, don't insert unless 'foo' is set,
- *  use the {@link mingo_field} class and set the required method, then pass it to {@link setField()}.
+ *  use the {@link MingoField} class and set the required method, then pass it to {@link setField()}.
  *  
  *  If you want to make sure certain fields are of a given type (eg, 'foo' must be an int) then
- *  use the {@link mingo_field} class with {@link setField()}
+ *  use the {@link MingoField} class with {@link setField()}
  *  
  *  If you want to set db interface specific options, use the {@link setOption()} method. It is
  *  up to the specific db interface to tell you what the options are, and not all options
@@ -20,48 +19,17 @@
  *  @since 11-18-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_schema extends mingo_base {
+class MingoSchema extends MingoMagic {
 
   const INDEX_ASC = 1;
   const INDEX_DESC = -1;
   const INDEX_SPATIAL = '2d';
-  
-  const FIELD_DEFAULT = 0;
-  const FIELD_INT = 1;
-  const FIELD_STR = 2;
-  const FIELD_POINT = 3;
-  const FIELD_LIST = 4;
-  const FIELD_MAP = 5;
-  const FIELD_OBJ = 6;
-  const FIELD_BOOL = 7;
 
   /**
    *  hold all the indexes
    *  @var  array
    */
   protected $index_map = array();
-  
-  /**
-   *  hold a spatial index field name if defined
-   *  
-   *  @since  10-15-10   
-   *  @var  array
-   */
-  protected $spatial_index = array();
-  
-  /**
-   *  handle the type hints
-   *  
-   *  tyope hints are used so Mingo can know what type of data it should expect the
-   *  field to be         
-   *  
-   *  uses the FIELD_* constants to allow type hints
-   *      
-   *  @see  setType()   
-   *  @since  10-19-10   
-   *  @var  array
-   */
-  protected $field_map = array();
   
   /**
    *  used to set fields that should be there when the db is set
@@ -83,43 +51,10 @@ class mingo_schema extends mingo_base {
    */
   protected $option_map = array();
 
-  ///public function __construct(){}//method
+  public function __construct(){}//method
 
   /**
-   *  get all the indexes (of any type) this schema contains
-   *
-   *  @since  10-15-10   
-   *  @return array   
-   */
-  public function getIndexes(){
-  
-    $ret_list = array();
-    if($this->hasSpatial()){
-      $ret_list[] = $this->getSpatial();
-    }//if
-    
-    if($this->hasIndex()){
-    
-      $ret_list = array_merge($ret_list,$this->getIndex());
-    
-    }//if
-  
-    return $ret_list;
-    
-  }//method
-
-  /**
-   *  true if this schema has indexes of any type
-   *  
-   *  @since  10-15-10   
-   *  @return boolean
-   */
-  public function hasIndexes(){
-    return $this->hasIndex() || $this->hasSpatial();
-  }//method
-
-  /**
-   *  set an index on the table this schema represents
+   *  add an index on the table this schema represents
    *
    *  @param  string|array  $field,...
    *                          1 - pass in a bunch of strings, each one representing
@@ -128,9 +63,9 @@ class mingo_schema extends mingo_base {
    *                              where the field's name is the key and the value is usually a direction
    *                              of either 1 (ASC) or -1 (DESC), or some other direction that the chosen 
    *                              interface can accept   
-   *  @return boolean   
+   *  @return MingoSchema
    */
-  public function setIndex(){
+  public function addIndex(){
   
     $args = func_get_args();
     
@@ -141,77 +76,89 @@ class mingo_schema extends mingo_base {
     $index_map = $this->normalizeIndex($args);
     
     // canary...
-    if(isset($index_map[mingo_orm::_ID])){
-      throw new UnexpectedValueException(
-        sprintf('a table index cannot include the %s field',mingo_orm::_ID)
-      );
+    if(isset($index_map['_id'])){
+      throw new UnexpectedValueException('a table index cannot include the _id field');
     }//if
     
     $this->index_map[] = $index_map;
     
-    return true;
+    return $this;
   
   }//method
+  public function setIndex(){
+    $args = func_get_args();
+    return call_user_func_array(array($this,'addIndex'),$args);
+  }//method
+  
+  /**
+   *  get all the indexes (of any type) this schema contains
+   *
+   *  @since  10-15-10   
+   *  @return array   
+   */
+  public function getIndexes(){ return $this->index_map; }//method
   
   /**
    *  return the index map
    *     
    *  @return array
    */
-  public function getIndex(){ return $this->index_map; }//method
-  public function hasIndex(){ return !empty($this->index_map); }//method
+  public function getIndex(){ return $this->getIndexes(); }//method
   
   /**
-   *  set a spatial index for this schema, this has the same argument list as {@link setIndex()}
-   *  except the first argument has to be a field name (string) that will be the point   
-   *
-   *  @see  setIndex()      
+   *  true if this schema has indexes of any type
+   *  
+   *  @since  10-15-10   
+   *  @return boolean
    */
-  public function setSpatial(){
+  public function hasIndexes(){ return !empty($this->index_map); }//method
+  public function hasIndex(){ return $this->hasIndexes(); }//method
   
-    $args = func_get_args();
-  
+  /**
+   *  Set a value given it's key e.g. $A['title'] = 'foo';
+   *  
+   *  Required definitions of interface ArrayAccess
+   *  @link http://www.php.net/manual/en/class.arrayaccess.php      
+   */
+  public function offsetSet($name,$val){
+    
     // canary...
-    if(empty($args)){ throw new InvalidArgumentException('no fields specified for the index'); }//if
-    if($this->hasSpatial()){
-      throw new OverflowException('only one spatial index per table is allowed');
-    }//if
-    if(!is_string($args[0])){
-      throw new UnexpectedValueException('the first arg for a spatial index must be a field name (string)');
+    if(($name === null) && ($val instanceof MingoField)){
+      $this->addField($val);
     }//if
     
-    $args[0] = $this->normalizeField($args[0]);
+    parent::offsetSet($name,$val);
+    
+  }//method
   
-    // canary, certain field names are reserved...
-    $invalid_field_list = array(
-      mingo_orm::_ID,
-      mingo_orm::ROW_ID,
-      mingo_orm::CREATED,
-      mingo_orm::UPDATED
-    );
-    
-    foreach($invalid_field_list as $invalid_name){
-    
-      if($args[0] === $invalid_name){
-      
-        throw new UnexpectedValueException(
-          sprintf('a spatial index cannot be set on the %s field',$invalid_name)
-        );
-      
-      }//if
-      
-    }//foreach
-    
-    $args[0] = array($args[0] => self::INDEX_SPATIAL);
-    $this->spatial_index = $this->normalizeIndex($args);
-    return true;
+  /**
+   *  set a field that this class can then use internally
+   *      
+   *  @since  4-26-11
+   *  @param  string  $name the name of the field
+   *  @param  integer $type the type of the field, one of the MingoField::TYPE_* constants         
+   */
+  public function setField($name,$type){
+  
+    $field = new MingoField($name);
+    $field->setType($type);
+    return $this->addField($field);
   
   }//method
   
-  public function getSpatial(){ return $this->spatial_index; }//method
-  public function hasSpatial(){ return !empty($this->spatial_index); }//method
-  
-  public function setField(mingo_field $field){
+  /**
+   *  add a field
+   *  
+   *  originally, I wanted this to be named setField but in order for this class to
+   *  extend MingoMagic I can't override the setField method to only take one parameter
+   *  (which is one of my least favorite things about php) and so addField was the
+   *  next best method name I could think of, but I also changed setIndex() to addIndex()
+   *  so it would match this method                      
+   *
+   *  @param  MingoField  $field  the field
+   *  @return MingoSchema   
+   */
+  public function addField(MingoField $field){
   
     // canary...
     if(!$field->hasName()){
@@ -226,6 +173,8 @@ class mingo_schema extends mingo_base {
   
     $this->field_map[$name] = $field;
     
+    return $this;
+    
   }//method
   
   /**
@@ -238,28 +187,17 @@ class mingo_schema extends mingo_base {
    *  @param  string|array  $name the field's name   
    *  @return mingo_field
    */
-  public function getField($name){
+  public function getField($name,$default_val = null){
   
-    $ret_instance = new mingo_field($name);
-    
-    $field_name = $ret_instance->getNameAsString();
-    if(!empty($this->field_map[$field_name])){
-    
-      $ret_instance = $this->field_map[$field_name];
-      
+    $ret_instance = parent::getField($name,null);
+    if($ret_instance === null){
+      $ret_instance = new MingoField($name);
+      $ret_instance->setDefaultVal($default_val);
     }//if
   
     return $ret_instance;
   
   }//method
-  
-  /**
-   *  return the defined fields
-   *  
-   *  @since  11-4-10   
-   *  @return array an array with field names as key and mingo_field instances as values
-   */
-  public function getFields(){ return $this->field_map; }//method
   
   /**
    *  return the required fields
@@ -326,6 +264,7 @@ class mingo_schema extends mingo_base {
   protected function normalizeIndex($field_list){
   
     $index_map = array();
+    $i = 0;
     
     foreach($field_list as $field){
     
@@ -333,35 +272,26 @@ class mingo_schema extends mingo_base {
       
         foreach($field as $field_name => $type){
         
-          $field_name = $this->normalizeField($field_name);
+          $field_name = $this->normalizeName($field_name);
           $index_map[$field_name] = $type;
+        
+          $i++;
         
         }//foreach
       
       }else{
       
-        $field = $this->normalizeField($field);
+        $field = $this->normalizeName($field);
         $index_map[$field] = self::INDEX_ASC;
       
       }//if/else
+    
+      $i++;
     
     }//foreach
   
     return $index_map;
   
-  }//method
-  
-  /**
-   *  make the field name consistent
-   *  
-   *  @param  string  $field  the field name
-   *  @return string|array  the $field, normalized
-   */
-  protected function normalizeField($field){
-    
-    $instance = new mingo_field($field);
-    return $instance->getName();
-    
   }//method
 
 }//class     

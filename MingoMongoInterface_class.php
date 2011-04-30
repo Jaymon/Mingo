@@ -43,12 +43,12 @@ class MingoMongoInterface extends MingoInterface {
     if(!empty($username) && !empty($password)){
       
       $connection = new MongoAuth($host);
-      $this->con_db = $connection->login($db_name,$username,$password);
+      $this->con_db = $connection->login($name,$username,$password);
 
     }else{
     
       $connection = new Mongo($host);
-      $this->con_db = $connection->selectDB($db_name);
+      $this->con_db = $connection->selectDB($name);
       
     }//if/else
   
@@ -272,7 +272,7 @@ class MingoMongoInterface extends MingoInterface {
    *  @see  killTable()
    *  @return boolean
    */
-  protected function _killTable($table)){
+  protected function _killTable($table){
 
     $ret_bool = false;
     $table = $this->getTable($table);
@@ -299,11 +299,10 @@ class MingoMongoInterface extends MingoInterface {
    *  
    *  http://www.mongodb.org/display/DOCS/Capped+Collections
    *      
-   *  @param  string  $table  the table to add to the db
-   *  @param  mingo_schema  a schema object that defines indexes, etc. for this   
+   *  @see  setTable()   
    *  @return boolean
    */
-  public function setTable($table,mingo_schema $schema){
+  protected function _setTable($table,MingoSchema $schema){
 
     $this->con_db->createCollection(
       $table,
@@ -335,10 +334,11 @@ class MingoMongoInterface extends MingoInterface {
   /**
    *  this loads the table so operations can be performed on it
    *  
-   *  @param  string|MongoCollection  $table  the table to connect to      
+   *  @param  string|MongoCollection  $table  the table to connect to
+   *  @param  MingoSchema $schema         
    *  @return MongoCollection the table connection
    */
-  protected function getTable($table,mingo_schema $schema = null){
+  protected function getTable($table,MingoSchema $schema = null){
   
     // canary...
     if($table instanceof MongoCollection){ return $table; }//if

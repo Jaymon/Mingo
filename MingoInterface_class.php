@@ -14,7 +14,7 @@
  *  @since 11-08-09
  *  @package mingo 
  ******************************************************************************/
-abstract class MingoInterface {
+abstract class MingoInterface extends MingoMagic {
   
   /**
    *  holds the actual db connection, established by calling {@link connect()}
@@ -83,7 +83,7 @@ abstract class MingoInterface {
   /**
    *  connect to the db
    *  
-   *  @param  string  $name  the db to use, defaults to {@link getName()}
+   *  @param  string  $name  the db name to use, defaults to {@link getName()}
    *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
    *                        port, attach it to host (eg, localhost:27017 or example.com:27017)            
    *  @param  string  $username the username to use, defaults to {@link getUsername()}
@@ -105,6 +105,7 @@ abstract class MingoInterface {
       
       // actually connect to the interface...
       $connected = $this->_connect(
+        $name,
         $host,
         $username,
         $password,
@@ -535,7 +536,7 @@ abstract class MingoInterface {
     
     // canary...
     $this->assure($table);
-    if(!$this->hasTable()){ return true; }//if
+    if(!$this->hasTable($table)){ return true; }//if
     
     $ret_bool = false;
     try{

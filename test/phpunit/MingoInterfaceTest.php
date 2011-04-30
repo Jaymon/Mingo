@@ -1,8 +1,8 @@
 <?php
 
-require_once('mingo_test_class.php');
+require_once('MingoTestBase_class.php');
 
-abstract class test_mingo_db_interface extends mingo_test {
+abstract class MingoInterfaceTest extends MingoTestBase {
   
   /**
    *  singleton db object
@@ -30,6 +30,11 @@ abstract class test_mingo_db_interface extends mingo_test {
    *  @return string  the database name
    */
   public function getDbName(){ return __CLASS__; }//method
+  
+  /**
+   *  @return string  the database connection options
+   */
+  public function getDbOptions(){ return array(); }//method
   
   /**
    *  this should create a mingo_db_interface object, then return it
@@ -67,7 +72,7 @@ abstract class test_mingo_db_interface extends mingo_test {
         'baz' => range(1,2)
       );
       
-      $map = $db->insert($table,$map,$schema);
+      $map = $db->set($table,$map,$schema);
       $this->fail('indexing 2 arrays should not currently work');
     
     }catch(PHPUnit_Framework_AssertionFailedError $e){
@@ -80,10 +85,10 @@ abstract class test_mingo_db_interface extends mingo_test {
       'baz' => time()
     );
     
-    $map = $db->insert($table,$map,$schema);
+    $map = $db->set($table,$map,$schema);
     $this->assertInternalType('array',$map);
     
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->isBar(1);
     $list = $db->get($table,$schema,$where_criteria);
     $this->assertInternalType('array',$list);
@@ -98,7 +103,7 @@ abstract class test_mingo_db_interface extends mingo_test {
     }//method
     
     // delete them...
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
     
     $bool = $db->kill($table,$schema,$where_criteria);
@@ -111,7 +116,7 @@ abstract class test_mingo_db_interface extends mingo_test {
       'baz' => time()
     );
     
-    $map = $db->insert($table,$map,$schema);
+    $map = $db->set($table,$map,$schema);
     $where_criteria = new mingo_criteria();
     $where_criteria->inField('bar.cells',array('foo','happy'));
     ///$where_criteria->inField('bar.categories','one');
@@ -126,7 +131,7 @@ abstract class test_mingo_db_interface extends mingo_test {
       'baz' => time()
     );
     
-    $map = $db->insert($table,$map,$schema);
+    $map = $db->set($table,$map,$schema);
     $this->assertInternalType('array',$map);
     
     $where_criteria = new mingo_criteria();
@@ -153,14 +158,14 @@ abstract class test_mingo_db_interface extends mingo_test {
     );
     
     // insert it twice because we want atleast 2 rows...
-    $db->insert($table,$map,$schema);
+    $db->set($table,$map,$schema);
     
-    // somehow mongo can set the id of the $map even though I don't do $map = $db->insert...
+    // somehow mongo can set the id of the $map even though I don't do $map = $db->set...
     if(isset($map['_id'])){ unset($map['_id']); }//if
     
-    $db->insert($table,$map,$schema);
+    $db->set($table,$map,$schema);
   
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->inField('bar',1,2);
     
     // get the count...
@@ -189,7 +194,7 @@ abstract class test_mingo_db_interface extends mingo_test {
         'foo' => $i
       );
       
-      $map = $db->insert($table,$map,$schema);
+      $map = $db->set($table,$map,$schema);
       
       $this->assertArrayHasKey('foo',$map);
       $this->assertArrayHasKey('_id',$map);
@@ -215,7 +220,7 @@ abstract class test_mingo_db_interface extends mingo_test {
     $db = $this->getDb();
     $table = $this->getTable();
     $schema = $this->getSchema();
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $list = $db->get($table,$schema,$where_criteria,array(10,0));
     $this->assertInternalType('array',$list);
   
@@ -235,7 +240,7 @@ abstract class test_mingo_db_interface extends mingo_test {
 
     foreach($_id_list as $_id){
 
-      $where_criteria = new mingo_criteria();
+      $where_criteria = new MingoCriteria();
       $where_criteria->is_id((string)$_id);
       $map = $db->getOne(
         $this->getTable(),
@@ -263,7 +268,7 @@ abstract class test_mingo_db_interface extends mingo_test {
     $table = $this->getTable();
     $schema = $this->getSchema();
     
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
     
     $total = $db->getCount($table,$schema,$where_criteria);
@@ -298,7 +303,7 @@ abstract class test_mingo_db_interface extends mingo_test {
     $this->assertContains((string)$map['_id'],$_id_list);
     
     // make sure counts and results are right when we have mutltiple ids...
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->in_id(
       array(
         $_id_list[0],
@@ -330,17 +335,18 @@ abstract class test_mingo_db_interface extends mingo_test {
     foreach($_id_list as $_id){
     
       $map = array(
+        '_id' => $_id,
         'bar' => $time
       );
     
-      $map = $db->update($table,$_id,$map,$schema);
+      $map = $db->set($table,$map,$schema);
       $this->assertInternalType('array',$map);
       $this->assertArrayHasKey('_id',$map);
       $this->assertArrayHasKey('bar',$map);
       $this->assertEquals($time,$map['bar']);
       
       // now pull to make sure it really did get updated...
-      $where_criteria = new mingo_criteria();
+      $where_criteria = new MingoCriteria();
       $where_criteria->is_id($_id);
       $map = $db->getOne($table,$schema,$where_criteria);
       $this->assertInternalType('array',$map);
@@ -364,7 +370,7 @@ abstract class test_mingo_db_interface extends mingo_test {
     $table = $this->getTable();
     $schema = $this->getSchema();
     
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
     $ret_bool = $db->kill($table,$schema,$where_criteria);
     $this->assertTrue($ret_bool);
@@ -397,11 +403,11 @@ abstract class test_mingo_db_interface extends mingo_test {
       $map['foo'] = $timestamp;
       $map['bar'] = $timestamp;
       $map['baz'] = $timestamp;
-      $db->insert($table,$map,$schema);
+      $db->set($table,$map,$schema);
     
     }//for */
   
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->isFoo($timestamp);
     $where_criteria->isBar($timestamp);
     $where_criteria->isBaz($timestamp);
@@ -427,7 +433,7 @@ abstract class test_mingo_db_interface extends mingo_test {
   
   protected function getSchema(){
   
-    $ret_schema = new mingo_schema();
+    $ret_schema = new MingoSchema();
     $ret_schema->setIndex('foo','bar','baz');
     $ret_schema->setIndex('bar','baz');
     return $ret_schema;
@@ -443,24 +449,17 @@ abstract class test_mingo_db_interface extends mingo_test {
    */
   protected function connect($db){
   
-    $db_name = $this->getDbName();
+    $name = $this->getDbName();
     $host = $this->getDbHost();
     $username = $this->getDbUsername();
     $password = $this->getDbPassword();
+    $options = $this->getDbOptions();
     
-    try{
+    ///out::e($name,$host,$username,$password,$options);
     
-      $ret_bool = $db->connect($db_name,$host,$username,$password);
-      $this->assertTrue($ret_bool);
+    $ret_bool = $db->connect($name,$host,$username,$password,$options);
+    $this->assertTrue($ret_bool);
 
-    }catch(Exception $e){
-      
-      $this->fail(
-        sprintf('connecting failed with exception %s "%s"',get_class($e),$e->getMessage())
-      );
-      
-    }//try/catch
-  
     return $db;
   
   }//method
