@@ -9,12 +9,12 @@
  *
  *  @link http://us2.php.net/mongo
  *  
- *  @version 0.1
+ *  @version 0.3
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-09-09
  *  @package mingo 
  ******************************************************************************/
-class mingo_db_mongo extends mingo_db_interface {
+class MingoMongoInterface extends MingoInterface {
 
   /**
    *  will contain the table names that have been verified this session
@@ -25,70 +25,59 @@ class mingo_db_mongo extends mingo_db_interface {
    */
   protected $table_verified_map = array();
 
-  protected function start(){}//method
-  
   /**
-   *  connect to the mongo db
-   *    
-   *  @param  string  $db_name  the db to use
-   *  @param  string  $host the host to use. if you want a specific port, 
-   *                        attach it to host (eg, localhost:27017 or example.com:27017)            
-   *  @param  string  $username the username to use
-   *  @param  string  $password the password to use
-   *  @param  array $options  any interface specific options you might want to use for connecting    
+   *  do the actual connecting of the interface
+   *
+   *  @see  connect()   
    *  @return boolean
    */
-  public function connect($db_name,$host,$username,$password,array $options = array()){
+  protected function _connect($name,$host,$username,$password,array $options){
     
     // canary, make sure certain things exist...
-    if(empty($host)){ throw new UnexpectedValueException('$host cannot be empty'); }//if
+    if(empty($host)){ throw new InvalidArgumentException('$host cannot be empty'); }//if
     
-    $this->con_map['db_name'] = $db_name;
-    $this->con_map['host'] = $host;
-    $this->con_map['username'] = $username;
-    $this->con_map['password'] = $password;
+    $connected = false;
+    $connection = null;
     
     // do the connecting...
     if(!empty($username) && !empty($password)){
       
-      $this->con_map['connection'] = new MongoAuth($host);
-      $this->con_db = $this->con_map['connection']->login($db_name,$username,$password);
+      $connection = new MongoAuth($host);
+      $this->con_db = $connection->login($db_name,$username,$password);
 
     }else{
     
-      $this->con_map['connection'] = new Mongo($host);
-      $this->con_db = $this->con_map['connection']->selectDB($db_name);
+      $connection = new Mongo($host);
+      $this->con_db = $connection->selectDB($db_name);
       
     }//if/else
   
-    $this->con_map['connected'] = true;
+    $connected = true;
+    $this->setField('connected',$connected);
+    $this->setField('connection',$connection);
     
     // turn off timeouts, if the user wants to do a long query, more power to them...
     MongoCursor::$timeout = -1;
     
-    return $this->con_map['connected'];
+    return $connected;
   
   }//method
   
   /**
-   *  get all the tables (collections) of the currently connected db
-   *  
-   *  @link http://us2.php.net/manual/en/mongodb.listcollections.php
-   *  
-   *  @param  string  $table  pass in if you want to filter by a certain table
-   *  @return array a list of table names
+   *  @see  getTables()
+   *  @return array
    */
-  public function getTables($table = ''){
+  protected function _getTables($table = ''){
   
     $ret_list = array();
     
     if(empty($table)){
     
-      $db_name = sprintf('%s.',$this->con_map['db_name']);
+      $name = sprintf('%s.',$this->getName());
     
       $table_list = $this->con_db->listCollections();
       foreach($table_list as $table){
-        $ret_list[] = str_replace($db_name,'',$table);
+        $ret_list[] = str_replace($name,'',$table);
       }//foreach
       
     }else{
@@ -104,20 +93,15 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  tell how many records match $where_criteria in $table
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema   
-   *  @param  mingo_criteria  $where_criteria
-   *  @param  array $limit  array($limit,$offset)
+   *  @see  getCount()   
    *  @return integer the count
    */
-  public function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
+  protected function _getCount($table,MingoSchema $schema,MingoCriteria $where_criteria = null,array $limit){
   
     $ret_int = 0;
     $table = $this->getTable($table,$schema);
     
-    if($where_criteria->hasWhere()){
+    if(!empty($where_criteria) && $where_criteria->hasWhere()){
     
       $cursor = $this->getCursor($table,$where_criteria,$limit);
       $ret_int = $cursor->count();
@@ -133,15 +117,10 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  get a list of rows matching $where_map
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema   
-   *  @param  mingo_criteria  $where_map
-   *  @param  array $limit  array($limit,$offset)   
+   *  @see  get()
    *  @return array   
    */
-  public function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
+  protected function _get($table,MingoSchema $schema,MingoCriteria $where_criteria = null,array $limit){
     
     $table = $this->getTable($table,$schema);
     $cursor = $this->getCursor($table,$where_criteria,$limit);
@@ -152,14 +131,10 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  get the first found row in $table according to $where_map find criteria
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema   
-   *  @param  mingo_criteria  $where_criteria
+   *  @see  getOne()
    *  @return array
    */
-  public function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
+  protected function _getOne($table,MingoSchema $schema,MingoCriteria $where_criteria = null){
     
     $list = $this->get($table,$schema,$where_criteria,array(1,0));
     return empty($list[0]) ? array() : $list[0];
@@ -175,17 +150,10 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  delete the records that match $where_criteria in $table
-   *  
-   *  this method will not delete an entire table's contents, you will have to do
-   *  that manually.         
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema     
-   *  @param  mingo_criteria  $where_criteria
+   *  @see  kill()
    *  @return boolean
    */
-  function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
+  protected function _kill($table,MingoSchema $schema,MingoCriteria $where_criteria){
   
     $table = $this->getTable($table,$schema);
     list($where_map) = $this->getCriteria($where_criteria);
@@ -203,11 +171,11 @@ class mingo_db_mongo extends mingo_db_interface {
    *  insert $map into $table
    *  
    *  @param  string  $table  the table name
-   *  @param  array $map  the key/value map that will be added to $table
-   *  @param  mingo_schema  $schema the table schema
-   *  @return array the $map that was just saved              
+   *  @param  array|mingo_criteria  $map  the key/value map that will be added to $table
+   *  @param  MingoSchema $schema the table schema   
+   *  @return array the $map that was just saved, with the _id set               
    */
-  public function insert($table,array $map,mingo_schema $schema){
+  protected function insert($table,array $map,MingoSchema $schema){
     
     $db_table = $this->getTable($table,$schema);
     $map = $this->getMap($map);
@@ -230,18 +198,16 @@ class mingo_db_mongo extends mingo_db_interface {
    *  @param  string  $table  the table name
    *  @param  string  $_id the _id attribute from $map   
    *  @param  array $map  the key/value map that will be added to $table
-   *  @param  mingo_schema  $schema the table schema      
+   *  @param  MingoSchema $schema the table schema      
    *  @return array the $map that was just saved with _id set
-   *     
-   *  @throws MongoException on any failure
    */
-  public function update($table,$_id,array $map,mingo_schema $schema){
+  protected function update($table,$_id,array $map,MingoSchema $schema){
 
     $table = $this->getTable($table,$schema);
     $map = $this->getMap($map);
     
     // convert the id to something Mongo understands...
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->is_id($_id);
     list($where_map) = $this->getCriteria($where_criteria);
     
@@ -267,16 +233,15 @@ class mingo_db_mongo extends mingo_db_interface {
   /**
    *  adds an index to $table
    *  
-   *  @link http://www.mongodb.org/display/DOCS/Indexes
-   *      
    *  @param  string  $table  the table to add the index to
-   *  @param  array $map  usually something like array('field_name' => 1)
+   *  @param  array $map  the keys are the field names, the values are the definitions for each field
+   *  @param  MingoSchema $schema the table schema      
    *  @return boolean
    */
-  public function setIndex($table,array $index_map,mingo_schema $schema){
+  protected function setIndex($table,array $index_map,MingoSchema $schema){
     
     // canary...
-    if(empty($index_map)){ throw new mingo_exception('$index_map cannot be empty'); }//if
+    if(empty($index_map)){ throw new InvalidArgumentException('$index_map cannot be empty'); }//if
     
     $table = $this->getTable($table,$schema);
     return $table->ensureIndex($index_map);
@@ -284,14 +249,10 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  get all the indexes of $table
-   *
-   *  @link http://us2.php.net/manual/en/mongocollection.getindexinfo.php
-   *                
-   *  @param  string  $table  the table to get the indexes from
-   *  @return array an array in the same format that {@link mingo_schema::getIndexes()} returns
+   *  @see  getIndexes()
+   *  @return array
    */
-  public function getIndexes($table){
+  protected function _getIndexes($table){
   
     $ret_list = array();
     $table = $this->getTable($table);
@@ -308,16 +269,11 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  deletes a table
-   *  
-   *  @param  string  $table  the table to delete from the db
+   *  @see  killTable()
    *  @return boolean
    */
-  public function killTable($table){
-    
-    // canary...
-    if(!$this->hasTable($table)){ return true; }//if
-    
+  protected function _killTable($table)){
+
     $ret_bool = false;
     $table = $this->getTable($table);
     
@@ -356,39 +312,15 @@ class mingo_db_mongo extends mingo_db_interface {
       $schema->getOption('table.max',0)
     );
     
-    // add all the indexes for this table...
-    if($schema->hasIndexes()){
-    
-      foreach($schema->getIndexes() as $index_map){
-      
-        $this->setIndex($table,$index_map,$schema);
-      
-      }//foreach
-    
-    }//if
-    
     return true;
   
   }//method
   
   /**
-   *  check to see if a table is in the db
-   *  
-   *  @param  string  $table  the table to check
-   *  @return boolean
+   *  @see  handleException()
+   *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
-  public function hasTable($table){
-
-    $table_list = $this->getTables($table);
-    return !empty($table_list);
-    
-  }//method
-  
-  /**
-   *  currently, all mongo does to error recovery is set the table, in case an index was missed
-   *  or something   
-   */
-  public function handleException(Exception $e,$table,mingo_schema $schema){
+  protected function _handleException(Exception $e,$table,MingoSchema $schema){
     
     // canary, check for infinite recursion...
     $traces = $e->getTrace();
@@ -409,9 +341,8 @@ class mingo_db_mongo extends mingo_db_interface {
   protected function getTable($table,mingo_schema $schema = null){
   
     // canary...
-    if(!$this->isConnected()){ throw new UnexpectedValueException('no db connection found'); }//if
-    if(empty($table)){ throw new InvalidArgumentException('no $table given'); }//if
     if($table instanceof MongoCollection){ return $table; }//if
+    $this->assure($table);
     if(empty($this->table_verified_map[$table]) && !empty($schema)){
     
       // create the table and all its indexes if it doesn't already exist...
@@ -429,13 +360,14 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  assures a $where_map contains the right information to make a call against a table
+   *  this should be used to take the generic $where_criteria and turn it into something
+   *  the interface can use (eg, for a SQL interface, the $where_criteria would be turned
+   *  into a valid SQL string).
    *  
-   *  @param  mingo_criteria  $where_criteria
-   *  @return array array($where_map,$sort_map), the $where_map and $sort_map are arrays 
-   *                with their values assured
+   *  @param  MingoCriteria $where_criteria
+   *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
    */
-  protected function getCriteria(mingo_criteria $where_criteria){
+  protected function getCriteria(MingoCriteria $where_criteria){
   
     $where_map = $where_criteria->getWhere();
     if(isset($where_map['_id'])){
@@ -469,22 +401,19 @@ class mingo_db_mongo extends mingo_db_interface {
   }//method
   
   /**
-   *  convert the $map passed into insert/delete into a proerly formatted map for mongo
+   *  convert the $map passed into insert/delete into a properly formatted map for mongo
    *    
    *  @since  10-11-10    
-   *  @param  array|mingo_criteria  $map
+   *  @param  array|MingoCriteria $map
    *  @return array      
    */
   protected function getMap($map){
   
     $ret_map = array();
   
-    if($map instanceof mingo_criteria){
+    if($map instanceof MingoCriteria){
     
-      $ret_map = array_merge(
-        $where_criteria->getOperations(),
-        $where_criteria->getWhere()
-      );
+      $ret_map = $where_criteria->getWhere();
       
     }else{
     
@@ -501,11 +430,11 @@ class mingo_db_mongo extends mingo_db_interface {
    *
    *  @since  10-11-10   
    *  @param  MongoCollection $table   
-   *  @param  mingo_criteria  $where_criteria
+   *  @param  MingoCriteria $where_criteria
    *  @param  array $limit  array($limit,$offset)   
    *  @return MongoCursor
    */
-  protected function getCursor(MongoCollection $table,mingo_criteria $where_criteria,$limit){
+  protected function getCursor(MongoCollection $table,MingoCriteria $where_criteria,$limit){
   
     list($where_map,$sort_map) = $this->getCriteria($where_criteria);
     

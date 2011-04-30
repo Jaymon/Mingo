@@ -1,8 +1,8 @@
 <?php
 
-require_once('mingo_test_class.php');
+require_once('MingoTestBase_class.php');
 
-class test_mingo_criteria extends mingo_test {
+class MingoCriteriaTest extends MingoTestBase {
 
   public function testNin(){
   
@@ -12,13 +12,13 @@ class test_mingo_criteria extends mingo_test {
       )
     );
   
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     $c->ninField('foo',1,2,3,4);
     $this->assertTrue($c->hasWhere());
     $where_map = $c->getWhere();
     $this->assertSame($test_map,$where_map);
     
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     $c->ninField('foo',array(1,2,3,4));
     $this->assertTrue($c->hasWhere());
     $where_map = $c->getWhere();
@@ -28,7 +28,7 @@ class test_mingo_criteria extends mingo_test {
   
   public function testNear(){
   
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     
     // sf...
     $lat = 37.775;
@@ -55,7 +55,7 @@ class test_mingo_criteria extends mingo_test {
    */
   public function testHas(){
   
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     
     $this->assertFalse($c->hasFoo());
     $c->isFoo(1);

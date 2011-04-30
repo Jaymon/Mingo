@@ -8,8 +8,7 @@
  *  the start() method 
  *
  *  this class reserves some keywords as special: 
- *    - row_id = the auto increment key, always set on SQL db, can be turned on with mongo 
- *               using $this->schema->setInc() in the child class's __construct() method
+ *    - row_id = the auto increment key, always set on SQL db
  *    - _id = the unique id of the row, always set for both mongo and sql
  *    - updated = holds a unix timestamp of the last time the row was saved into the db, always set
  *    - created = holds a unix timestamp of when the row was created, always set  

@@ -8,21 +8,21 @@ include_once(
   join(
     DIRECTORY_SEPARATOR,
     array(
-      join(DIRECTORY_SEPARATOR,array(dirname(__FILE__),'..')),
-      'mingo_autoload_class.php'
+      join(DIRECTORY_SEPARATOR,array(dirname(__FILE__),'..','..')),
+      'MingoAutoload_class.php'
     )
   )
 );
-mingo_autoload::register();
+MingoAutoload::register();
 
-class mingo_test extends PHPUnit_Framework_TestCase {
+class MingoTestBase extends PHPUnit_Framework_TestCase {
 
   /**
    *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
    */        
   public function getOrm(){
     
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     $t->append(
       array(
         'foo' => rand(0,PHP_INT_MAX),
@@ -38,4 +38,15 @@ class mingo_test extends PHPUnit_Framework_TestCase {
     );
   }//method
 
+}//class
+
+class MingoTestOrm {
+///class MingoTestOrm extends mingo_orm {
+
+  protected function start(){
+  
+    ///$this->schema->setIndex('foo','bar','baz');
+  
+  }//method
+  
 }//class

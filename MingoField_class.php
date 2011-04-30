@@ -9,7 +9,7 @@
  *  @since 10-19-10
  *  @package mingo 
  ******************************************************************************/
-class mingo_field {
+class MingoField {
   
   const TYPE_DEFAULT = 0;
   const TYPE_INT = 1;
@@ -290,7 +290,7 @@ class mingo_field {
     
     // canary...
     if(is_numeric($name)){
-      throw new UnexpectedValueException(sprintf('an all numeric $name like "%s" is not allowed',$name));
+      throw new InvalidArgumentException(sprintf('an all numeric $name like "%s" is not allowed',$name));
     }//if
     
     $ret_mix = null;

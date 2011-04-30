@@ -8,7 +8,7 @@
  *  @since 10-5-10
  *  @package mingo 
  ******************************************************************************/
-class mingo_autoload {
+class MingoAutoload {
 
   protected static $is_registered = false;
 
@@ -66,13 +66,30 @@ class mingo_autoload {
     self::$is_registered = true;
     
     self::addPath(__FILE__);
-    ///self::addPath(array_reverse(explode(PATH_SEPARATOR,get_include_path())));
+    self::addPath(array_reverse(explode(PATH_SEPARATOR,get_include_path())));
     
     self::addPostfix(
       array('_class.php','.class.php','.php','.inc','.class.inc')
     );
     
     return spl_autoload_register(array(__CLASS__,'load'));
+  
+  }//method
+  
+  protected static function checkPearPath($path,$class_name)
+  {
+    $ret_bool = false;
+    $normalized_class_name = sprintf('%s.php',str_replace('_',DIRECTORY_SEPARATOR,$class_name));
+    $normalized_class_path = join(DIRECTORY_SEPARATOR,array($path,$normalized_class_name));
+    
+    if(is_file($normalized_class_path))
+    {
+      include($normalized_class_path);
+      $ret_bool = true;
+    
+    }//if
+  
+    return $ret_bool;
   
   }//method
   
@@ -103,16 +120,8 @@ class mingo_autoload {
     
     if(!$ret_bool){
     
-      $normalized_class_name = str_replace('_',DIRECTORY_SEPARATOR,$class_name);
-      $normalized_class_path = join(DIRECTORY_SEPARATOR,array($path,sprintf('%s.php',$normalized_class_name)));
-    
-      if(is_file($normalized_class_path)){
+      if(!self::checkPearPath($path,$class_name)){
       
-        include($normalized_class_path);
-        $ret_bool = true;
-      
-      }else{
-        
         foreach(glob(sprintf('%s%s*',$path,DIRECTORY_SEPARATOR),GLOB_ONLYDIR) as $dir){
           $ret_bool = self::checkPath($dir,$class_name);
           if($ret_bool){ break; }//if
@@ -132,10 +141,9 @@ class mingo_autoload {
    *  @return boolean true if the class was found, false if not (so other autoloaders can have a chance)
    */
   public static function load($class_name){
-  
+
     $ret_bool = false;
     $path_list = self::$path_list;
-    $cwd = getcwd();
     
     foreach($path_list as $path)
     {
@@ -144,8 +152,22 @@ class mingo_autoload {
       
     }//foreach
     
-    chdir($cwd);
-
+    // check include paths for a normalized PEAR class name...
+    if(!$ret_bool)
+    {
+      $include_path_list = explode(PATH_SEPARATOR,get_include_path());
+      foreach($include_path_list as $include_path)
+      {
+        if(self::checkPearPath($include_path,$class_name))
+        {
+          $ret_bool = true;
+          break;
+        }//if
+        
+      }//foreach
+      
+    }//if
+    
     return $ret_bool;
     
   }//method
