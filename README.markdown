@@ -1,0 +1,164 @@
+# What is Mingo?
+
+Mingo is an easy to use database abstraction layer that uses the db as a dumb key/value storage engine based on [how Friendfeed uses MySql](http://bret.appspot.com/entry/how-friendfeed-uses-mysql).
+
+Currently, it can use either Mysql/sqlite, or Mongo Db as its backend. But other databases can easily be added by extending `mingo_interface` and implementing all the required methods (see `mingo_sql_interface` or `mingo_mongo_interface_class` for how to do that).
+
+# Using Mingo
+
+using it is as easy as creating a new class that extends mingo_orm. For our example we'll create a user class:
+
+<pre>
+class user extends mingo_orm {
+
+  /*
+   *  every child that extends mingo_orm needs to implement the start() method
+   */
+  protected function start(){
+    
+    // set up the this object's table schema...
+    $this->schema->setIndex('username','password');
+  
+  }//method
+
+}//class
+</pre>
+
+that's all the setup you really need to do, pretty much everything else is handled by mingo.
+
+Let's see our new user object in action, first we need to connect to our db:
+
+<pre>
+// sqlite...
+$db_interface = 'mingo_db_sqlite';
+$db_name = 'model.sqlite';
+$host = '';
+
+// mysql...
+$db_interface = 'mingo_db_mysql';
+$db_name = 'model';
+$host = 'localhost';
+$username = '';
+$password = '';
+
+// mongo db...
+$db_interface = 'mingo_db_mongo';
+$db_name = 'model';
+$host = 'localhost:27017';
+$username = '';
+$password = '';
+</pre>
+
+Now, let's do the actual connecting:
+
+<pre>
+// activate singleton...
+$db = mingo_db::getInstance();
+$db->setDebug(true); // activate mingo agile mode
+$db->connect($db_interface,$db_name,$host,$username,$password);
+</pre>
+
+Now that we're connected let's create a user and save it into the db:
+
+<pre>
+$user = new user();
+$user->setUsername('tester');
+$user->setPassword('1234');
+$user->set();
+</pre>
+
+and that's that, the user is now saved. To make sure, let's load him up into a new user instance:
+
+<pre>
+$user_load = new user();
+$user_load->load();
+foreach($user_load as $u){
+ echo $u->getUsername(),'<br />',$u->getPassword(),'<br />';
+}//foreach
+</pre>
+
+this is just a basic example, but it shows you the initial power of Mingo. each class extended from <code>mingo_orm</code> has many built in functions to make doing things easy, you just saw the set* and get* functions, but you also have has* functions to make sure a field exists and is non-empty (eg, <code>$user->hasPassword()</code> to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, <code>$user->bumpView($count)</code> where $count=1). And is* functions to see if a field contains a value (eg, <code>$user->isUsername('tester')</code>). You can also reach into arrays with all the methods:
+
+<pre>
+$user = new user();
+$user->setField('attributes',array('foo' => 1,'bar' => 2));
+$user->getField(array('attributes','foo')); // 1
+$user->isField(array('attributes','foo'),1); // true
+</pre>
+
+
+On top of that, the load() function takes a <code>mingo_criteria</code> instance to make loading from the db painless. For example, to load all users with certain usernames, you could:
+
+<pre>
+$c = new mingo_criteria
+$c->inUsername('tester','john','paul','homer','bart');
+$loaded = $user->load($c);
+echo 'loaded this many users: ',$loaded,'<br />';
+</pre>
+
+and, if you wanted to sort them in alphabetical order, you would just add this line to the criteria before calling load():
+
+<pre>
+$c->sortUsername(mingo_criteria::ASC);
+</pre>
+
+Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads and sets, and then they have another class that is the actual ORM for the db's table. I decided to combine the two and just have the one class, this will take some getting used to at first but is actually pretty cool when you start using it. And if you wanted to create a Peer class, you could:
+
+<pre>
+class user_peer {
+  static function getByUsername($list){
+  
+    $c = new mingo_criteria();
+    $c->inUsername($list);
+    $c->sortUsername(mingo_criteria::ASC);
+    $user = new user();
+    $user->load($c);
+    return $user->get();
+  
+  }//method
+
+}//class
+</pre>
+
+That will produce the traditional array list of user instances instead of having the one user instance handle all the loaded rows. When a user instance is handling more than one row, then any method calls, like setUsername(), set(), or kill() will affect all the rows that instance represents.
+
+the code is pretty well documented, so if you want to see what other magic functions <code>mingo_orm</code> and <code>mingo_criteria</code> have, just check the docblocks and code for each class's __call() method.
+
+h2. Installing Mingo
+
+I actually have only been using Mingo on php >=5.2.6 (including 5.3), but I think it might work with any php >=5.0. If you are using the SQL driver, you must have <code>PDO</code> (which I think is built-in with php >=5.0), if you are using Mongo, you must have installed the Mongo php extension. 
+
+Since Mingo was originally designed for Mongo that was the first part of the codebase I wrote, but I haven't actaully tested it in quite a while since I switched to the SQL development, so the Mongo code might actually be a little outdated, when I have some time, I'll update it and make sure it works like it should, but until then, you're on your own.
+
+h3. Using Mingo in a Development Environment
+
+When debug is on (E.G., <code>mingo_db::getInstance()->setDebug(true);</code>) Mingo is actually quite agile, meaning it will make sure tables exist and check indexes with every db call. This slows down the overall code because mingo is making extra db calls to make sure stuff exists, but allows you to make schema changes on the fly (like adding a new index you didn't know you needed until just now) without worrying about doing a db migration, index population, or anything.
+
+h3. Using Mingo in a Production Environment
+
+Mingo can try and recover if a given table isn't found by trying to create the table and creating any new indexes. Usually, it will only have to recover from not having a table once, this is great when not in a development environment since tables will be automatically generated the first time Mingo can't find them (kind of like an automatic install script).
+
+This allows you to push to production and not have to worry about running an install script or anything. However, you might need to do some custom stuff (like populating new index tables for an existing table when Mingo is using a SQL db). You can handle this use case by creating an install script:
+
+<pre>
+$user = new user();
+$user->install();
+// do any custom installing for the user like updating new index tables, etc.
+
+// repeat above code for every other ORM class you have created/added
+</pre>
+
+h3. Using Mingo with Symfony
+
+In the Symfony directory, the MingoPlugin folder is a Symfony compatible plugin, in order to use it, just copy all the mingo_* classes (eg, mingo_orm_class.php) into the <code>MingoPlugin/lib/</code> directory and place the MingoPlugin folder into your Symfony application's plugins folder. If you don't plan on using Mingo with Symfony, you can delete the MingoPlugin folder.
+
+h2. Other
+
+h3. Mingo in the press:
+
+"Techcrunch Jan, 12, 2010":http://www.techcrunch.com/2010/01/12/plancast-facebook-events/
+"Plancast has started using a 'No SQL' solution for some of their data. More tech-savvy readers may recognize that is also a solution FriendFeed is using on their backend, as Facebook's Bret Taylor wrote about at length "here":http://bret.appspot.com/entry/how-friendfeed-uses-mysql. Plancast has "open-sourced":http://github.com/Jaymon/Mingo their version of this."
+
+h3. Mingo in action
+
+"Plancast.com":http://plancast.com
