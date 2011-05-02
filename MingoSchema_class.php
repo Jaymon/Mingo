@@ -186,6 +186,7 @@ class MingoSchema extends MingoMagic {
   public function getField($name,$default_val = null){
   
     $ret_instance = parent::getField($name,null);
+    
     if($ret_instance === null){
       $ret_instance = new MingoField($name);
       $ret_instance->setDefaultVal($default_val);

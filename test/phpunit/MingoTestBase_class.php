@@ -23,7 +23,7 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
   public function getOrm(){
     
     $t = new MingoTestOrm();
-    $t->append(
+    $t->attach(
       array(
         'foo' => rand(0,PHP_INT_MAX),
         'bar' => array(
@@ -40,10 +40,9 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
 
 }//class
 
-class MingoTestOrm {
-///class MingoTestOrm extends mingo_orm {
+class MingoTestOrm extends MingoOrm {
 
-  protected function start(){
+  protected function populateSchema(MingoSchema $schema){
   
     ///$this->schema->setIndex('foo','bar','baz');
   

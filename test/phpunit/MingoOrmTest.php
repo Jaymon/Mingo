@@ -5,23 +5,23 @@
  *  and totals   
  */    
 
-require_once('mingo_test_class.php');
+require_once('MingoTestBase_class.php');
 
-class test_mingo_orm extends mingo_test {
+class MingoOrmTest extends MingoTestBase {
 
   /**
    * @dataProvider  getOrm
    */
-  public function testAppend($t){
+  public function testAttach($t){
   
     $this->assertFalse($t->isMulti());
     $this->assertSame(1,$t->getCount());
     $this->assertTrue($t->isCount(1));
   
-    // now test append and multi support...
+    // now test attach and multi support...
     $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->append($t2);
-    $t->append(array('foo' => 1,'bar' => array('baz' => 2)));
+    $t->attach($t2);
+    $t->attach(array('foo' => 1,'bar' => array('baz' => 2)));
     
     $list = $t->getList();
     $this->assertSame(3,count($list));
@@ -56,7 +56,7 @@ class test_mingo_orm extends mingo_test {
     
     $t2 = $t->get(0);
     
-    $this->assertInstanceOf('test_orm',$t2);
+    $this->assertInstanceOf('MingoTestOrm',$t2);
     $this->assertFalse($t->isMulti());
     $this->assertSame(1,$t->getCount());
     $this->assertTrue($t->isCount(1));
@@ -99,7 +99,7 @@ class test_mingo_orm extends mingo_test {
   
     $t = $this->getDbConnectedOrm();
     
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     $c->is_id($_id);
     $t->loadOne($c);
     $this->assertOrmStructure($t);
@@ -115,7 +115,7 @@ class test_mingo_orm extends mingo_test {
   
     $t = $this->getDbConnectedOrm();
     
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     $c->is_id($_id);
     $t->load($c);
     $this->assertOrmStructure($t);
@@ -131,7 +131,7 @@ class test_mingo_orm extends mingo_test {
   
     $t = $this->getDbConnectedOrm();
     
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     $c->is_id($_id);
     $t->loadOne($c);
     $this->assertOrmStructure($t);
@@ -140,7 +140,7 @@ class test_mingo_orm extends mingo_test {
     $this->assertEmpty($t->get_id(null));
     
     // try to load it again...
-    $c = new mingo_criteria();
+    $c = new MingoCriteria();
     $c->is_id($_id);
     $this->assertEquals(false,$t->loadOne($c));
     
@@ -158,19 +158,19 @@ class test_mingo_orm extends mingo_test {
   
   protected function getDbConnectedOrm(){
   
-    $test_db = new mingo_db_sqlite_Test();
+    $test_db = new MingoSQLiteInterfaceTest();
     ///$test_db = new test_mingo_db_mongo();
   
-    $db = mingo_db::getInstance();
-    $db->connect(
+    $db = $test_db->getDb();
+    /* $db->connect(
       $test_db->getDbInterface(),
       $test_db->getDbName(),
       $test_db->getDbHost(),
       $test_db->getDbUsername(),
       $test_db->getDbPassword()
-    );
+    ); */
     
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     $t->setDb($db);
     return $t;
   

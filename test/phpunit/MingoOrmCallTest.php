@@ -1,8 +1,8 @@
 <?php
 
-require_once('mingo_test_class.php');
+require_once('MingoTestBase_class.php');
 
-class test_mingo_orm_call extends mingo_test {
+class MingoOrmCallTest extends MingoTestBase {
 
   /**
    * @dataProvider  getSetVal
@@ -10,15 +10,15 @@ class test_mingo_orm_call extends mingo_test {
   public function testSimpleSetNotMulti($foo,$bar){
   
     // setup...
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     
-    try{
+    /* try{
       $t->setFoo();
       $this->fail('setting a blank value did not throw an exception');
-    }catch(InvalidArgumentException $e){}//try/catch
-    
+    }catch(InvalidArgumentException $e){}//try/catch */
+
     $t->setFoo($foo);
-    
+
     // test...
     $map = $t->getMap(0);
     $this->assertArrayHasKey('foo',$map);
@@ -46,9 +46,9 @@ class test_mingo_orm_call extends mingo_test {
   
     // setup...
     $val = 1;
-    $t = new test_orm();
-    $t->append(array());
-    $t->append(array());
+    $t = new MingoTestOrm();
+    $t->attach(array());
+    $t->attach(array());
     
     $t->setFoo($foo);
     $t->setBar($bar);
@@ -73,7 +73,7 @@ class test_mingo_orm_call extends mingo_test {
   public function testDepthSet($foo,$bar){
   
     // setup...
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     $t->setField(array('foo','baz'),$foo);
     
     // test...
@@ -108,7 +108,7 @@ class test_mingo_orm_call extends mingo_test {
   
     // setup...
     $val = rand(1,5000);
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     $t->bumpFoo($val);
     $t->bumpField(array('bar','baz'),($val + 1));
   
@@ -185,13 +185,13 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertSame('blah_blah_blah',$fake);
     
     $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->append($t2);
+    $t->attach($t2);
     
     $foo = $t->getFoo();
     $this->assertTrue(is_array($foo));
     $this->assertEquals(2,count($foo));
     
-    $t->append(array());
+    $t->attach(array());
     $foo = $t->getFoo('adsfsdf');
     $this->assertTrue(is_array($foo));
     $this->assertEquals(3,count($foo));
@@ -211,7 +211,7 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertFalse($t->hasField('blah_blah_blah'));
   
     $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->append($t2);
+    $t->attach($t2);
     
     $this->assertTrue($t->hasFoo());
     $this->assertTrue($t->hasBar());
@@ -220,7 +220,7 @@ class test_mingo_orm_call extends mingo_test {
     $t->setFoo(0);
     $this->assertFalse($t->hasFoo());
     
-    $t->append(array());
+    $t->attach(array());
     $this->assertFalse($t->hasFoo());
   
   }//method
@@ -240,20 +240,20 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertTrue($t->existsFoo());
   
     $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->append($t2);
+    $t->attach($t2);
     
     $this->assertTrue($t->existsFoo());
     $this->assertTrue($t->existsBar());
     $this->assertTrue($t->existsField(array('bar','baz')));
     
-    $t->append(array());
+    $t->attach(array());
     $this->assertFalse($t->existsFoo());
   
   }//method
   
   public function testIs(){
   
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     
     $t->setFoo(1);
     
@@ -264,11 +264,11 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertTrue($t->isField(array('bar','baz'),3));
     $this->assertFalse($t->isField(array('bar','baz'),2));
   
-    $t->append(array('foo' => 1));
+    $t->attach(array('foo' => 1));
     $this->assertTrue($t->isFoo(1));
     $this->assertFalse($t->isFoo(2));
     
-    $t->append(array('foo' => 2));
+    $t->attach(array('foo' => 2));
     $this->assertFalse($t->isFoo(1));
     $this->assertFalse($t->isFoo(2));
   
@@ -276,7 +276,7 @@ class test_mingo_orm_call extends mingo_test {
   
   public function testIn(){
   
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     
     $t->setFoo(1);
     
@@ -288,13 +288,13 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertFalse($t->inField(array('bar','baz'),2));
     $this->assertFalse($t->inField(array('bar','baz'),1,2));
   
-    $t->append(array('foo' => 4)); // foo: 1,4
+    $t->attach(array('foo' => 4)); // foo: 1,4
     $this->assertTrue($t->inFoo(1));
     $this->assertFalse($t->inFoo(2));
     $this->assertTrue($t->inFoo(1,4));
     $this->assertFalse($t->inFoo(1,2));
     
-    $t->append(array('foo' => 2));  // foo: 1,4,2
+    $t->attach(array('foo' => 2));  // foo: 1,4,2
     $this->assertTrue($t->inFoo(1));
     $this->assertTrue($t->inFoo(2));
     $this->assertTrue($t->inFoo(1,4,2));
@@ -302,7 +302,7 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertFalse($t->inFoo(1,4,3));
     
     // now test searching for in in the array...
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     $t->setFoo(array(1,2,3,4)); // foo: array(1,2,3,4)
     $this->assertTrue($t->inFoo(2));
     $this->assertTrue($t->inFoo(2,3));
@@ -310,31 +310,32 @@ class test_mingo_orm_call extends mingo_test {
     $this->assertFalse($t->inFoo(5));
     $this->assertFalse($t->inFoo(1,5));
     
-    // append another value...
-    $t->append(array('foo' => 5)); // foo: array(1,2,3,4), 5
+    // attach another value...
+    $t->attach(array('foo' => 5)); // foo: array(1,2,3,4), 5
     $this->assertTrue($t->inFoo(2));
     $this->assertTrue($t->inFoo(array(1,2,3,4)));
     $this->assertFalse($t->inFoo(6));
     $this->assertFalse($t->inFoo(1,6));
     
     // test an array of arrays...
-    $t->append(array('foo' => array(array(6)))); // foo: array(1,2,3,4), 5, array(array(6))
+    $t->attach(array('foo' => array(array(6)))); // foo: array(1,2,3,4), 5, array(array(6))
     $this->assertTrue($t->inFoo(array(6)));
   
   }//method
   
-  public function testAppend(){
+  public function testAttach(){
   
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     $t->setFoo(array(1,2,3));
-    $t->appendFoo(4);
+    $t->attachFoo(4);
     $this->assertEquals(array(1,2,3,4),$t->getFoo());
   
-    $t->appendFoo(5,6);
+    $t->attachFoo(5,6);
+    
     $this->assertEquals(array(1,2,3,4,5,6),$t->getFoo());
   
     $t->setBar('foo');
-    $t->appendBar('bar');
+    $t->attachBar('bar');
     $this->assertEquals('foobar',$t->getBar());
     
     // make sure the orm knows it should update itself...
@@ -345,18 +346,18 @@ class test_mingo_orm_call extends mingo_test {
   
   public function testClear(){
   
-    $t = new test_orm();
+    $t = new MingoTestOrm();
     $t->setFoo(array(1,2,3,4)); // foo: array(1,2,3,4)
     $t->clearFoo(4);
     $this->assertEquals(array(1,2,3),$t->getFoo());
   
-     // append another value...
-    $t->append(array('foo' => 3)); // foo: array(1,2,3), 3
+     // attach another value...
+    $t->attach(array('foo' => 3)); // foo: array(1,2,3), 3
     $t->clearFoo(3);
     $this->assertEquals(array(array(1,2),null),$t->getFoo());
     
-    $t->append(array('foo' => 1)); // foo: array(1,2), null, 1
-    $t->append(array('foo' => 2)); // foo: array(1,2), null, 1, 2
+    $t->attach(array('foo' => 1)); // foo: array(1,2), null, 1
+    $t->attach(array('foo' => 2)); // foo: array(1,2), null, 1, 2
     $t->clearFoo(1,2);
     $this->assertEquals(array(array(),null,null,null),$t->getFoo());
     

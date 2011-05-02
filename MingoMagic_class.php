@@ -35,16 +35,20 @@ abstract class MingoMagic implements ArrayAccess {
    */
   public function __call($method,array $args){
     
-    list($command,$field,$args) = $this->splitMethod($method,$args);
+    list($command,$name,$args) = $this->splitMethod($method,$args);
     
     // canary...
-    if(empty($field)){
+    if(empty($name)){
     ///if(!$field->hasName()){
-      throw new BadMethodCallException('field cannot be empty');
+      throw new BadMethodCallException(sprintf('NAME of %sNAME() cannot be empty',$command));
+    }//if
+    
+    if(array_key_exists($name,get_object_vars($this))){
+      throw new BadMethodCallException(sprintf('a field cannot have this name: %s',$field->getName()));
     }//if
     
     $call_method = sprintf('%sField',$command);
-    array_unshift($args,$field);
+    array_unshift($args,$name);
     
     return call_user_func_array(array($this,$call_method),$args);
   
@@ -128,6 +132,7 @@ abstract class MingoMagic implements ArrayAccess {
    *  @param  mixed $val  the value of the field         
    */
   public function setField($name,$val){
+    $name = $this->normalizeField($name)->getNameAsString();
     $this->field_map[$name] = $val;
     return $this;
   }//method
@@ -142,6 +147,7 @@ abstract class MingoMagic implements ArrayAccess {
    */
   public function getField($name,$default_val = null)
   {
+    $name = $this->normalizeField($name)->getNameAsString();
     return isset($this->field_map[$name]) ? $this->field_map[$name] : $default_val;
   }//method
   
@@ -152,7 +158,10 @@ abstract class MingoMagic implements ArrayAccess {
    *  @param  string  $name the name of the field
    *  @return boolean       
    */
-  public function hasField($name){ return !empty($this->field_map[$name]); }//method
+  public function hasField($name){
+    $name = $this->normalizeField($name)->getNameAsString();
+    return !empty($this->field_map[$name]);
+  }//method
   
   /**
    *  does a field exist
@@ -161,7 +170,10 @@ abstract class MingoMagic implements ArrayAccess {
    *  @param  string  $name the name of the field
    *  @return boolean       
    */
-  public function existsField($name){ return isset($this->field_map[$name]); }//method
+  public function existsField($name){
+    $name = $this->normalizeField($name)->getNameAsString();
+    return isset($this->field_map[$name]);
+  }//method
   
   /**
    *  remove a field
@@ -171,6 +183,7 @@ abstract class MingoMagic implements ArrayAccess {
    */
   public function killField($name)
   {
+    $name = $this->normalizeField($name)->getNameAsString();
     if(isset($this->field_map[$name])){ unset($this->field_map[$name]); }//if
     return $this;
   }//method
@@ -297,19 +310,27 @@ abstract class MingoMagic implements ArrayAccess {
    */
   protected function normalizeName($name)
   {
-    $normalized_name = '';
+    $field = $this->normalizeField($name);
+    $normalized_name = $field->getName(); 
+    return $normalized_name;
   
-    if($name instanceof MingoField)
+  }//method
+
+  /**
+   *  get a standard field
+   *  
+   *  @since  5-2-11
+   *  @param  string|MingoField  $name the name
+   *  @return MingoField
+   */
+  protected function normalizeField($field)
+  {
+    if(!($field instanceof MingoField))
     {
-      $normalized_name = $name->getName();
-    }else{
-      
-      $field = new MingoField($name);
-      $normalized_name = $field->getName();
-    
+      $field = new MingoField($field);
     }//if/else
     
-    return $normalized_name;
+    return $field;
   
   }//method
 
