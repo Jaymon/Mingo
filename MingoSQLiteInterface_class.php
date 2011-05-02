@@ -11,16 +11,14 @@
  *  @since 3-19-10
  *  @package mingo 
  ******************************************************************************/
-class mingo_db_sqlite extends mingo_db_sql {
-
-  protected function start(){}//method
+class MingoSQLiteInterface extends MingoSQLInterface {
   
   /**
    *  get all the tables of the currently connected db
    *  
    *  @return array a list of table names
    */
-  function getTables($table = ''){
+  public function getTables($table = ''){
   
     $ret_list = array();
     
@@ -52,16 +50,16 @@ class mingo_db_sqlite extends mingo_db_sql {
    *  get the dsn connection string that PDO will use to connect to the backend
    *   
    *  @since  10-18-10
-   *  @param  string  $db_name  the database name
+   *  @param  string  $name the database name
    *  @param  string  $host the host
    *  @return string  the dsn         
    */
-  protected function getDsn($db_name,$host){
+  protected function getDsn($name,$host){
   
     // for sqlite: PRAGMA encoding = "UTF-8"; from http://sqlite.org/pragma.html only good on db creation
     // http://stackoverflow.com/questions/263056/how-to-change-character-encoding-of-a-pdo-sqlite-connection-in-php
   
-    return sprintf('sqlite:%s',$db_name);
+    return sprintf('sqlite:%s',$name);
   
   }//method
   
@@ -72,7 +70,7 @@ class mingo_db_sqlite extends mingo_db_sql {
    */
   protected function onConnect(){}//method
   
-  protected function createTable($table,mingo_schema $schema){
+  protected function createTable($table,MingoSchema $schema){
   
     $query = sprintf('CREATE TABLE %s (
         row_id INTEGER NOT NULL PRIMARY KEY ASC,
@@ -115,9 +113,9 @@ class mingo_db_sqlite extends mingo_db_sql {
    *  @since  10-18-10
    *  @param  string  $table
    *  @param  array $index_map  the index structure
-   *  @param  mingo_schema  $schema the table schema   
+   *  @param  MingoSchema $schema the table schema   
    */
-  protected function createIndexTable($table,array $index_map,mingo_schema $schema){
+  protected function createIndexTable($table,array $index_map,MingoSchema $schema){
   
     $index_table = $this->getIndexTableName($table,$index_map);
     $field_list = array();
@@ -172,7 +170,7 @@ class mingo_db_sqlite extends mingo_db_sql {
 
       $ret_map = array();
       foreach($field_list as $field_map){
-        $ret_map[$field_map['name']] = 1; // all sql indexes sort asc
+        $ret_map[$field_map['name']] = self::INDEX_ASC; // all sql indexes sort asc
       }//foreach
       
       $ret_list[] = $ret_map;
@@ -211,35 +209,47 @@ class mingo_db_sqlite extends mingo_db_sql {
    *
    *  @since  10-19-10
    *  @param  string  $field  the field name
-   *  @param  mingo_schema  $schema the schema for the table         
+   *  @param  MingoSchema $schema the schema for the table         
    *  @return string
    */
-  protected function getSqlType($field,mingo_schema $schema){
+  protected function getSqlType($field,MingoSchema $schema){
   
     $ret_str = '';
     $field_instance = $schema->getField($field);
   
     switch($field_instance->getType()){
     
-      case mingo_field::TYPE_INT:
-      case mingo_field::TYPE_BOOL:
+      case MingoField::TYPE_INT:
+      case MingoField::TYPE_BOOL:
         $ret_str = 'INTEGER';
         break;
       
-      case mingo_field::TYPE_FLOAT:
+      case MingoField::TYPE_FLOAT:
       
         $ret_str = 'REAL';
         break;
       
-      case mingo_field::TYPE_POINT:
-      case mingo_field::TYPE_STR:
-      case mingo_field::TYPE_LIST:
-      case mingo_field::TYPE_MAP:
-      case mingo_field::TYPE_OBJ:
-      case mingo_field::TYPE_DEFAULT:
+      case MingoField::TYPE_POINT:
+      case MingoField::TYPE_STR:
+      case MingoField::TYPE_LIST:
+      case MingoField::TYPE_MAP:
+      case MingoField::TYPE_OBJ:
+      case MingoField::TYPE_DEFAULT:
       default:
         
-        $ret_str = 'VARCHAR(100) COLLATE NOCASE';
+        if($field_instance->hasRange())
+        {
+          if($field_instance->isFixedSize())
+          {
+            $ret_str = sprintf('CHAR(%s) COLLATE NOCASE',$field_instance->getMaxSize());
+          }else{
+            $ret_str = sprintf('VARCHAR(%s) COLLATE NOCASE',$field_instance->getMaxSize());
+          }//if/else
+        
+        }else{
+          $ret_str = 'VARCHAR(100) COLLATE NOCASE';
+        }//if/else
+        
         break;
     
     }//switch

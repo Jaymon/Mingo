@@ -1,8 +1,8 @@
 <?php
 
-require_once('mingo_db_interface_Test.php');
+require_once('MingoInterfaceTest.php');
 
-class mingo_db_sqlite_Test extends test_mingo_db_interface {
+class MingoSQLiteInterfaceTest extends MingoInterfaceTest {
 
   /**
    *  @return string  the database name
@@ -18,7 +18,7 @@ class mingo_db_sqlite_Test extends test_mingo_db_interface {
 
   public function getDbInterface(){
   
-    return 'mingo_db_sqlite';
+    return 'MingoSQLiteInterface';
   
   }//method
   

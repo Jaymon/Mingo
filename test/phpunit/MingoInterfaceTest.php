@@ -61,7 +61,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $db = $this->getDb();
     $table = $this->getTable();
     $schema = $this->getSchema();
-    
+
     // a map with 2 arrays can't be indexed (as per mongo), so an exception should
     // be thrown...
     try{
@@ -84,15 +84,15 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       'bar' => range(1,3),
       'baz' => time()
     );
-    
+ 
     $map = $db->set($table,$map,$schema);
     $this->assertInternalType('array',$map);
-    
+
     $where_criteria = new MingoCriteria();
     $where_criteria->isBar(1);
     $list = $db->get($table,$schema,$where_criteria);
     $this->assertInternalType('array',$list);
-    
+
     $_id_list = array();
     foreach($list as $list_map){
     
@@ -101,14 +101,14 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       $_id_list[] = $map['_id'];
     
     }//method
-    
+
     // delete them...
     $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
-    
+ 
     $bool = $db->kill($table,$schema,$where_criteria);
     $this->assertTrue($bool);
-    
+
     /**
     $map = array(
       'foo' => 'che',
@@ -392,25 +392,24 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $db = $this->getDb();
     $table = $this->getTable();
     $schema = $this->getSchema();
+    $foo = 'foo';
     $timestamp = time();
     
     for($i = 0; $i < 2000 ;$i++)
-    ///for($i = 0; $i < 501 ;$i++)
+    ///for($i = 0; $i < 201 ;$i++)
     {
       $timestamp += 1;
     
       $map = array();
-      $map['foo'] = $timestamp;
+      $map['foo'] = $foo;
       $map['bar'] = $timestamp;
       $map['baz'] = $timestamp;
       $db->set($table,$map,$schema);
     
     }//for */
-  
+
     $where_criteria = new MingoCriteria();
-    $where_criteria->isFoo($timestamp);
-    $where_criteria->isBar($timestamp);
-    $where_criteria->isBaz($timestamp);
+    $where_criteria->isFoo($foo);
   
     $db->kill($table,$schema,$where_criteria);
   

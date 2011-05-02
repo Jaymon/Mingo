@@ -21,10 +21,6 @@
  ******************************************************************************/
 class MingoSchema extends MingoMagic {
 
-  const INDEX_ASC = 1;
-  const INDEX_DESC = -1;
-  const INDEX_SPATIAL = '2d';
-
   /**
    *  hold all the indexes
    *  @var  array
@@ -59,10 +55,10 @@ class MingoSchema extends MingoMagic {
    *  @param  string|array  $field,...
    *                          1 - pass in a bunch of strings, each one representing
    *                              a field name: setIndex('field_1','field_2',...);
-   *                          2 - pass in an array with this structure: array('field_name' => direction,...)
-   *                              where the field's name is the key and the value is usually a direction
-   *                              of either 1 (ASC) or -1 (DESC), or some other direction that the chosen 
-   *                              interface can accept   
+   *                          2 - pass in an array with this structure: array('field_name' => options,...)
+   *                              where the field's name is the key and the value is anything your chosen
+   *                              interface can understand (bear in mind using options might limits 
+   *                              portability)      
    *  @return MingoSchema
    */
   public function addIndex(){
@@ -282,7 +278,8 @@ class MingoSchema extends MingoMagic {
       }else{
       
         $field = $this->normalizeName($field);
-        $index_map[$field] = self::INDEX_ASC;
+        ///$index_map[$field] = self::INDEX_ASC;
+        $index_map[$field] = '';
       
       }//if/else
     

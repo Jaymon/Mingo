@@ -16,6 +16,10 @@
  ******************************************************************************/
 class MingoMongoInterface extends MingoInterface {
 
+  const INDEX_ASC = 1;
+  const INDEX_DESC = -1;
+  const INDEX_SPATIAL = '2d';
+
   /**
    *  will contain the table names that have been verified this session
    *
@@ -121,7 +125,7 @@ class MingoMongoInterface extends MingoInterface {
    *  @return array   
    */
   protected function _get($table,MingoSchema $schema,MingoCriteria $where_criteria = null,array $limit){
-    
+
     $table = $this->getTable($table,$schema);
     $cursor = $this->getCursor($table,$where_criteria,$limit);
    
@@ -142,7 +146,7 @@ class MingoMongoInterface extends MingoInterface {
     /**
     using the findOne it doesn't look like you can sort it, which would be nice...    
     $table = $this->getTable($table);
-    list($where_map,$sort_map) = $this->getCriteria($where_criteria);
+    list($where_map,$sort_map) = $this->normalizeCriteria($where_criteria);
     $ret_map = $table->findOne($where_map);
     return empty($ret_map) ? array() : $ret_map;
     */
@@ -156,7 +160,7 @@ class MingoMongoInterface extends MingoInterface {
   protected function _kill($table,MingoSchema $schema,MingoCriteria $where_criteria){
   
     $table = $this->getTable($table,$schema);
-    list($where_map) = $this->getCriteria($where_criteria);
+    list($where_map) = $this->normalizeCriteria($where_criteria);
     
     $ret_mixed = $table->remove($where_map);
     if(is_array($ret_mixed)){
@@ -209,7 +213,7 @@ class MingoMongoInterface extends MingoInterface {
     // convert the id to something Mongo understands...
     $where_criteria = new MingoCriteria();
     $where_criteria->is_id($_id);
-    list($where_map) = $this->getCriteria($where_criteria);
+    list($where_map) = $this->normalizeCriteria($where_criteria);
     
     // always returns true, annoying...
     $table->update($where_map,$map);
@@ -231,20 +235,39 @@ class MingoMongoInterface extends MingoInterface {
   }//method
   
   /**
-   *  adds an index to $table
+   *  @see  setIndex()
    *  
-   *  @param  string  $table  the table to add the index to
-   *  @param  array $map  the keys are the field names, the values are the definitions for each field
-   *  @param  MingoSchema $schema the table schema      
+   *  @param  string  $table
+   *  @param  mixed $index  an index this interface understands
+   *  @param  MingoSchema $schema   
    *  @return boolean
    */
-  protected function setIndex($table,array $index_map,MingoSchema $schema){
-    
-    // canary...
-    if(empty($index_map)){ throw new InvalidArgumentException('$index_map cannot be empty'); }//if
+  protected function _setIndex($table,$index,MingoSchema $schema){
     
     $table = $this->getTable($table,$schema);
-    return $table->ensureIndex($index_map);
+    return $table->ensureIndex($index);
+  
+  }//method
+  
+  /**
+   *  convert an array index map into something this interface understands
+   *
+   *  @since  5-2-11
+   *  @return mixed whatever this interface will understand
+   */
+  protected function normalizeIndex(array $index_map,MingoSchema $schema){
+  
+    foreach($index_map as $field => $options){
+    
+      if(empty($options)){
+        $index_map[$field] = self::INDEX_ASC;
+      }else if(ctype_digit((string)$options)){
+        $index_map[$field] = ($options > 0) ? self::INDEX_ASC : self::INDEX_DESC;
+      }//if/else if
+    
+    }//foreach
+  
+    return $index_map;
   
   }//method
   
@@ -367,7 +390,7 @@ class MingoMongoInterface extends MingoInterface {
    *  @param  MingoCriteria $where_criteria
    *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
    */
-  protected function getCriteria(MingoCriteria $where_criteria){
+  protected function normalizeCriteria(MingoCriteria $where_criteria){
   
     $where_map = $where_criteria->getWhere();
     if(isset($where_map['_id'])){
@@ -436,7 +459,7 @@ class MingoMongoInterface extends MingoInterface {
    */
   protected function getCursor(MongoCollection $table,MingoCriteria $where_criteria,$limit){
   
-    list($where_map,$sort_map) = $this->getCriteria($where_criteria);
+    list($where_map,$sort_map) = $this->normalizeCriteria($where_criteria);
     
     $cursor = $table->find($where_map);
     

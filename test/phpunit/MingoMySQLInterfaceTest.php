@@ -1,8 +1,8 @@
 <?php
 
-require_once('mingo_db_interface_Test.php');
+require_once('MingoInterfaceTest.php');
 
-class mingo_db_mysql_Test extends test_mingo_db_interface {
+class MingoMySQLInterfaceTest extends MingoInterfaceTest {
   
   /**
    *  @return string  the database name
@@ -26,13 +26,13 @@ class mingo_db_mysql_Test extends test_mingo_db_interface {
 
   public function getDbInterface(){
   
-    return 'mingo_db_mysql';
+    return 'MingoMySQLInterface';
   
   }//method
   
   /**
    *  we were having a problem with a Schema that had index [foo] and then another index
-   *  [foo,bar] where when you tried to select on fooo=? AND bar=? it would fail with
+   *  [foo,bar] where when you tried to select on foo=? AND bar=? it would fail with
    *  a "bar doesn't exist" error, but I can't seem to duplicate it      
    *
    *  @since  4-18-11
@@ -84,10 +84,11 @@ class mingo_db_mysql_Test extends test_mingo_db_interface {
     $map['bar'] = $timestamp;
     $map['baz'] = $timestamp;
     
-    $ret_map = $db->insert($table,$map,$schema);
+    $ret_map = $db->set($table,$map,$schema);
     
     for($i = 0; $i < 5; $i++){
-      $db->insert($table,$map,$schema);
+      unset($map['_id']);
+      $db->set($table,$map,$schema);
     }//for
     
     $pdo = $db->getDb();
@@ -96,7 +97,7 @@ class mingo_db_mysql_Test extends test_mingo_db_interface {
     $stmt_handler->closeCursor();
     $this->assertTrue($ret_bool);
     
-    $where_criteria = new mingo_criteria();
+    $where_criteria = new MingoCriteria();
     $where_criteria->isFoo($map['foo']);
     
     $ret_list = $db->get($table,$schema,$where_criteria);

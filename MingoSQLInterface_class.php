@@ -1,5 +1,4 @@
 <?php
-
 /**
  *  handle relational db abstraction for mingo    
  *
@@ -12,12 +11,16 @@
  *      for better transaction support   
  *  
  *  @abstract 
- *  @version 0.7
+ *  @version 0.8
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-12-09
  *  @package mingo 
  ******************************************************************************/
-abstract class mingo_db_sql extends mingo_db_interface {
+abstract class MingoSQLInterface extends MingoInterface {
+
+  const INDEX_ASC = 1;
+  const INDEX_DESC = -1;
+  const INDEX_SPATIAL = '2d';
 
   /**
    *  everything is utf-8, I'm not even giving people a choice
@@ -25,9 +28,9 @@ abstract class mingo_db_sql extends mingo_db_interface {
   const CHARSET = 'UTF8';
   
   /**
-   *  these are directly correlated with mingo_criteria's $where_criteria internal
-   *  map that is returned from calling mingo_criteria::get(). These are used in
-   *  the {@link getCriteria()} method to change a where_criteria object into usable SQL      
+   *  these are directly correlated with MingoCriteria's $where_criteria internal
+   *  map that is returned from calling MingoCriteria::getWhere(). These are used in
+   *  the {@link normalizeCriteria()} method to change a MingoCriteria object into usable SQL      
    *
    *  @var  array   
    */
@@ -45,17 +48,53 @@ abstract class mingo_db_sql extends mingo_db_interface {
   );
   
   /**
+   *  executes the query and returns the result
+   *     
+   *  @see  getStatement()   
+   *  @param  string  $query  the query to prepare and run
+   *  @param  array $val_list the values list for the query, if the query has ?'s then 
+   *                          the values should be in this array           
+   *  @return mixed array of results if select query, last id if insert, update
+   */
+  public function getQuery($query,$val_list = array()){
+  
+    $ret_mixed = false;
+  
+    // prepare the statement and run the query...
+    // http://us2.php.net/manual/en/function.PDO-prepare.php
+    $stmt_handler = $this->getStatement($query,$val_list);
+
+    if(preg_match('#^(?:select|show|pragma)#iu',$query)){
+
+      // certain queries should always return an array...
+      $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
+      
+    }else{
+    
+      // all other queries should return whether they were successful, which if no
+      // exception was thrown, they were...
+      $ret_mixed = true;
+      
+    }//if/else
+    
+    $stmt_handler->closeCursor();
+
+    return $ret_mixed;
+  
+  }//method
+  
+  /**
    *  create a table
    *   
-   *  teh table should have atleast an _id (varchar(24)) and a body (blob) field, 
+   *  the table should have atleast an _id (varchar(24)) and a body (blob) field, 
    *  it can also have a row_id (integer), if it doesn't have those then nothing will
    *  work as expected   
    *      
    *  @see  setTable()
    *  @param  string  $table  the table name
-   *  @Param  mingo_schema  $schema the table's schema         
+   *  @Param  MingoSchema  $schema the table's schema         
    */
-  abstract protected function createTable($table,mingo_schema $schema);
+  abstract protected function createTable($table,MingoSchema $schema);
   
   /**
    *  create an index table for the given $table and $index_map      
@@ -63,9 +102,9 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @since  10-18-10
    *  @param  string  $table
    *  @param  array $index_map  the index structure
-   *  @param  mingo_schema  $schema the table schema   
+   *  @param  MingoSchema  $schema the table schema   
    */
-  abstract protected function createIndexTable($table,array $index_map,mingo_schema $schema);
+  abstract protected function createIndexTable($table,array $index_map,MingoSchema $schema);
   
   /**
    *  get the indexes for the given table
@@ -82,11 +121,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  get the dsn connection string that PDO will use to connect to the backend
    *   
    *  @since  10-18-10
-   *  @param  string  $db_name  the database name
+   *  @param  string  $name the database name
    *  @param  string  $host the host
    *  @return string  the dsn         
    */
-  abstract protected function getDsn($db_name,$host);
+  abstract protected function getDsn($name,$host);
   
   /**
    *  things to do once the connection is established
@@ -104,36 +143,38 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @return boolean
    */
   abstract protected function isNoTableException(Exception $e);
-  
+
   /**
-   *  connect to the db
-   *  
-   *  @param  string  $db_name  the db to use
-   *  @param  string  $host the host to use               
-   *  @param  string  $username the username to use
-   *  @param  string  $password the password to use
-   *  @param  array $options  any interface specific options you might want to use for connecting    
+   *  do the actual connecting of the interface
+   *
+   *  @see  connect()   
    *  @return boolean
    */
-  function connect($db_name,$host,$username,$password,array $options = array()){
-
-    $this->con_map['pdo_options'] = array(
+  protected function _connect($name,$host,$username,$password,array $options){
+  
+    $connected = false;
+    $pdo_options = array(
       PDO::ERRMODE_EXCEPTION => true,
       // references I can find of the exit code 1 error is here:
       // http://bugs.php.net/bug.php?id=43199
       // it's this bug: http://bugs.php.net/42643 and it only affects CLI on <=5.2.4...
-      PDO::ATTR_PERSISTENT => (strncasecmp(PHP_SAPI, 'cli', 3) === 0) ? false : true, 
+      ///PDO::ATTR_PERSISTENT => (strncasecmp(PHP_SAPI, 'cli', 3) === 0) ? false : true, 
       PDO::ATTR_EMULATE_PREPARES => true,
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-    ); 
+    );
+    
+    // passed in options take precedence...
+    if(isset($options['pdo_options'])){
+      $pdo_options = array_merge($pdo_options,$options['pdo_options']);
+    }//if
 
-    $dsn = $this->getDsn($db_name,$host);
+    $dsn = $this->getDsn($name,$host);
     $con_class = empty($options['pdo_class']) ? 'PDO' : $options['pdo_class'];
     
     try{
     
-      $this->con_db = new $con_class($dsn,$username,$password,$this->con_map['pdo_options']);
-      $this->con_map['connected'] = true;
+      $this->con_db = new $con_class($dsn,$username,$password,$pdo_options);
+      $connected = true;
       $this->onConnect();
       
     }catch(Exception $e){
@@ -143,7 +184,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
         $e_msg = array();
         
         $con_map_msg = array();
-        foreach($this->con_map['pdo_options'] as $key => $val){
+        foreach($pdo_options as $key => $val){
           $con_map_msg[] = sprintf('%s => %s',$key,$val);
         }//foreach
         
@@ -162,7 +203,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
           join(',',PDO::getAvailableDrivers())
         );
         
-        throw new mingo_exception(join("\r\n",$e_msg),$e->getCode(),$e);
+        throw new PDOException(join(PHP_EOL,$e_msg),$e->getCode());
         
       }else{
         throw $e;
@@ -170,101 +211,64 @@ abstract class mingo_db_sql extends mingo_db_interface {
     
     }//try/catch
     
-    return $this->con_map['connected'];
+    return $connected;
   
   }//method
   
   /**
-   *  delete the records that match $where_criteria in $table
-   *  
-   *  this method will not delete an entire table's contents, you will have to do
-   *  that manually.         
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema    
-   *  @param  mingo_criteria  $where_criteria
-   *  @return boolean
+   *  @see  getTables()
+   *  @return array
    */
-  function kill($table,mingo_schema $schema,mingo_criteria $where_criteria){
-  
-    $ret_bool = false;
-    $limit = 100; // SQLite has a 500 variable IN (...) limit
-    
-    try{
-    
-      $has_more = false;
-    
-      do{
-      
-        // begin the delete transaction, we're going to do this every iteration...
-        $this->con_db->beginTransaction();
-      
-        $_id_list = array();
-        $map = $this->getQueryInfo($table,$schema,$where_criteria,array($limit,0));
-        
-        if(empty($map['_id_list'])){
-        
-          $query_map = $map['query_map'];
-          $query_map['select'] = $map['is_index'] ? 'DISTINCT _id' : '_id';
-          
-          $query = $this->getSelectQuery($map['table'],$query_map);
-          
-          $stmt_handler = $this->getStatement($query,$map['val_list']);
-          $_id_list = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
-        
-        }else{
-        
-          $_id_list = $map['_id_list'];
-        
-        }//if/else
-        
-        if(!empty($_id_list)){
-          
-          // delete values from index tables...
-          $this->killIndexes($table,$_id_list,$schema);
-          
-          // delete values from main table...
-          $query = sprintf(
-            'DELETE FROM %s WHERE _id IN (%s)',
-            $this->handleTableSql($table),
-            join(',',array_fill(0,count($_id_list),'?'))
-          );
-          
-          $ret_bool = $this->getQuery($query,$_id_list);
-          
-        }//if
-        
-        $has_more = isset($_id_list[$limit - 1]);
-        
-        // finish the delete transaction for this iteration...
-        $this->con_db->commit();
-        
-      }while($has_more);
-        
-    }catch(Exception $e){
-
-      // get rid of any changes that were made since we failed...
-      $this->con_db->rollback();
-      
-      throw $e;
-    
-    }//try/catch
-  
-    return $ret_bool;
+  protected function _getTables($table = ''){
   
   }//method
   
   /**
-   *  get a list of rows matching $where_map
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema   
-   *  @param  mingo_criteria  $where_map
-   *  @param  array $limit  array($limit,$offset)   
+   *  @see  getCount()   
+   *  @return integer the count
+   */
+  protected function _getCount($table,MingoSchema $schema,MingoCriteria $where_criteria = null,array $limit){
+  
+    $ret_int = 0;
+    $result = array();
+    
+    $query = '';
+    $val_list = array();
+    $qi_map = $this->getQueryInfo($table,$schema,$where_criteria,$limit);
+    
+    if(empty($qi_map['_id_list']))
+    {
+      $query_map = $qi_map['query_map'];
+      $query_map['select'] = $qi_map['is_index'] ? 'count(DISTINCT _id) AS ct' : 'count(_id) AS ct';
+      $query = $this->getSelectQuery($qi_map['table'],$query_map);
+      $val_list = $qi_map['val_list'];
+      
+    }else{
+    
+      $query = $this->getSelectQuery(
+        $table,
+        array(
+          'select' => 'count(*) AS ct',
+          'where' => sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($qi_map['_id_list']),'?'))),
+          'limit' => $limit
+        )
+      );
+      $val_list = $qi_map['_id_list'];
+    
+    }//if/else
+    
+    $result = $this->getQuery($query,$val_list);
+    if(isset($result[0]['ct'])){ $ret_int = (int)$result[0]['ct']; }//if
+    return $ret_int;
+  
+  }//method
+  
+  /**
+   *  @see  get()
    *  @return array   
    */
-  function get($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
-    
+  protected function _get($table,MingoSchema $schema,MingoCriteria $where_criteria = null,array $limit){
+
     $ret_list = array();
     $_id_list = array();
     $order_map = array();
@@ -372,62 +376,86 @@ abstract class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
-   *  get the first found row in $table according to $where_map find criteria
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema   
-   *  @param  mingo_criteria  $where_criteria
+   *  @see  getOne()
    *  @return array
    */
-  function getOne($table,mingo_schema $schema,mingo_criteria $where_criteria = null){
-    
+  protected function _getOne($table,MingoSchema $schema,MingoCriteria $where_criteria = null){
+  
     $ret_list = $this->get($table,$schema,$where_criteria,array(1,0));
     return empty($ret_list) ? array() : $ret_list[0];
-
+  
   }//method
   
   /**
-   *  tell how many records match $where_criteria in $table
-   *  
-   *  @param  string  $table
-   *  @param  mingo_schema  $schema the table schema    
-   *  @param  mingo_criteria  $where_criteria
-   *  @param  integer|array $limit  array($limit,$offset)   
-   *  @return integer the count
+   *  @see  kill()
+   *  @return boolean
    */
-  function getCount($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array()){
+  protected function _kill($table,MingoSchema $schema,MingoCriteria $where_criteria){
   
-    $ret_int = 0;
-    $result = array();
+    $ret_bool = false;
+    $limit = 100; // SQLite has a 500 variable IN (...) limit
     
-    $query = '';
-    $val_list = array();
-    $qi_map = $this->getQueryInfo($table,$schema,$where_criteria,$limit);
+    try{
     
-    if(empty($qi_map['_id_list']))
-    {
-      $query_map = $qi_map['query_map'];
-      $query_map['select'] = $qi_map['is_index'] ? 'count(DISTINCT _id) AS ct' : 'count(_id) AS ct';
-      $query = $this->getSelectQuery($qi_map['table'],$query_map);
-      $val_list = $qi_map['val_list'];
+      $has_more = false;
+    
+      do{
       
-    }else{
+        // begin the delete transaction, we're going to do this every iteration...
+        $this->con_db->beginTransaction();
+      
+        $_id_list = array();
+        $map = $this->getQueryInfo($table,$schema,$where_criteria,array($limit,0));
+        
+        if(empty($map['_id_list'])){
+        
+          $query_map = $map['query_map'];
+          $query_map['select'] = $map['is_index'] ? 'DISTINCT _id' : '_id';
+          
+          $query = $this->getSelectQuery($map['table'],$query_map);
+          
+          $stmt_handler = $this->getStatement($query,$map['val_list']);
+          $_id_list = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
+        
+        }else{
+        
+          $_id_list = $map['_id_list'];
+        
+        }//if/else
+        
+        if(!empty($_id_list)){
+          
+          // delete values from index tables...
+          $this->killIndexes($table,$_id_list,$schema);
+          
+          // delete values from main table...
+          $query = sprintf(
+            'DELETE FROM %s WHERE _id IN (%s)',
+            $this->handleTableSql($table),
+            join(',',array_fill(0,count($_id_list),'?'))
+          );
+          
+          $ret_bool = $this->getQuery($query,$_id_list);
+          
+        }//if
+        
+        $has_more = isset($_id_list[$limit - 1]);
+        
+        // finish the delete transaction for this iteration...
+        $this->con_db->commit();
+        
+      }while($has_more);
+        
+    }catch(Exception $e){
+
+      // get rid of any changes that were made since we failed...
+      $this->con_db->rollback();
+      
+      throw $e;
     
-      $query = $this->getSelectQuery(
-        $table,
-        array(
-          'select' => 'count(*) AS ct',
-          'where' => sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($qi_map['_id_list']),'?'))),
-          'limit' => $limit
-        )
-      );
-      $val_list = $qi_map['_id_list'];
-    
-    }//if/else
-    
-    $result = $this->getQuery($query,$val_list);
-    if(isset($result[0]['ct'])){ $ret_int = (int)$result[0]['ct']; }//if
-    return $ret_int;
+    }//try/catch
+  
+    return $ret_bool;
   
   }//method
   
@@ -436,12 +464,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  
    *  @param  string  $table  the table name
    *  @param  array|mingo_criteria  $map  the key/value map that will be added to $table
-   *  @return array the $map that was just saved
-   *  @param  mingo_schema  $schema the table schema   
-   *  @throws mingo_exception on any failure               
+   *  @param  MingoSchema $schema the table schema   
+   *  @return array the $map that was just saved, with the _id set               
    */
-  function insert($table,array $map,mingo_schema $schema){
-    
+  protected function insert($table,array $map,MingoSchema $schema){
+  
     // insert into the main table, _id and body are all we care about...
     $field_map = array();
     $field_map['_id'] = $this->getUniqueId($table);
@@ -497,13 +524,11 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  @param  string  $table  the table name
    *  @param  string  $_id the _id attribute from $map   
    *  @param  array $map  the key/value map that will be added to $table
-   *  @param  mingo_schema  $schema the table schema      
+   *  @param  MingoSchema $schema the table schema      
    *  @return array the $map that was just saved with _id set
-   *     
-   *  @throws mingo_exception on any failure
    */
-  function update($table,$_id,array $map,mingo_schema $schema){
-    
+  protected function update($table,$_id,array $map,MingoSchema $schema){
+
     try{
     
       // we don't need to save the row_id into the body since it gets reset in get()...
@@ -542,17 +567,130 @@ abstract class mingo_db_sql extends mingo_db_interface {
     }//try/catch
     
     return $map;
+
+  }//method
+  
+  /**
+   *  @see  setIndex()
+   *  
+   *  @param  string  $table
+   *  @param  mixed $index  an index this interface understands
+   *  @param  MingoSchema $schema   
+   *  @return boolean
+   */
+  protected function _setIndex($table,$index,MingoSchema $schema){
+    
+    // canary, don't bother trying to re-create the index table if it already exists...
+    $index_table = $this->getIndexTableName($table,$index);
+    if($this->hasTable($index_table)){ return true; }//if
+  
+    $ret_bool = $this->createIndexTable($table,$index,$schema);
+
+    if($ret_bool){
+    
+      // if debugging is on it means we're in dev so go ahead and populate the index...
+      if($this->hasDebug()){
+        $this->populateIndex($table,$index_map,$schema);
+      }//if
+    
+    }//if
+    
+    return $ret_bool;
+    
+  }//method
+  
+  /**
+   *  convert an array index map into something this interface understands
+   *
+   *  @since  5-2-11
+   *  @return mixed whatever this interface will understand
+   */
+  protected function normalizeIndex(array $index_map,MingoSchema $schema){
+    return $index_map;
+  }//method
+  
+  /**
+   *  @see  getIndexes()
+   *  @return array
+   */
+  protected function _getIndexes($table){
+  
+    $ret_list = array();
+  
+    // get just the $table index tables...
+    $table_list = array();
+    foreach($this->getTables() as $table_name){
+    
+      if(($table_name === $table) || preg_match(sprintf('#^%s_[a-z0-9]{32,}#i',$table),$table_name)){
+      
+        $table_list[] = $table_name;
+      
+      }//if
+    
+    }//foreach
+    
+    foreach($table_list as $table_name){
+      
+      $index_list = $this->getTableIndexes($table_name);
+      
+      // only add indexes that haven't been seen before...
+      foreach($index_list as $index_map){
+      
+        if(!in_array($index_map,$ret_list,true)){
+          $ret_list[] = $index_map;
+        }//if
+      
+      }//foreach
+      
+    }//foreach
+    
+    return $ret_list;
   
   }//method
   
   /**
-   *  deletes a table
+   *  removes all the indexes for a given $_id
    *  
-   *  @param  string  $table  the table to delete from the db
+   *  this is called after updating the value and before calling {@link setIndexes()}
+   *
+   *  @param  string  $table
+   *  @param  string|array  $_id  either one _id or many in an array
+   *  @param  MingoSchema  $schema
    *  @return boolean
    */
-  function killTable($table){
-    
+  protected function killIndexes($table,$_id_list,MingoSchema $schema){
+  
+    $ret_bool = false;
+    $_id_list = (array)$_id_list;
+    $_id_sub_list = join(',',array_fill(0,count($_id_list),'?'));
+  
+    foreach($schema->getIndexes() as $index_map){
+      
+      $index_table = $this->getIndexTableName($table,$index_map);
+      if(!empty($index_table)){
+      
+        $query = sprintf(
+          'DELETE FROM %s WHERE _id IN (%s)',
+          $index_table,
+          $_id_sub_list
+        );
+        
+        $ret_bool = $this->getQuery($query,$_id_list);
+  
+      }//if
+      
+    }//foreach
+  
+    return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  @see  killTable()
+   *  @return boolean
+   */
+  protected function _killTable($table){
+
     $ret_bool = true;
     
     if($this->hasTable($table)){
@@ -569,7 +707,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
     }//if
     
     return $ret_bool;
-  
+
   }//method
   
   /**
@@ -607,13 +745,12 @@ abstract class mingo_db_sql extends mingo_db_interface {
   /**
    *  adds a table to the db
    *  
-   *  http://dev.mysql.com/doc/refman/5.0/en/storage-requirements.html
+   *  http://www.mongodb.org/display/DOCS/Capped+Collections
    *      
-   *  @param  string  $table  the table to add to the db
-   *  @param  mingo_schema  $schema the table schema    
+   *  @see  setTable()   
    *  @return boolean
    */
-  public function setTable($table,mingo_schema $schema){
+  protected function _setTable($table,MingoSchema $schema){
 
     // canary...
     if($this->hasTable($table)){ return true; }//if
@@ -638,174 +775,15 @@ abstract class mingo_db_sql extends mingo_db_interface {
     }//if
     
     return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  check to see if a table is in the db
-   *  
-   *  @param  string  $table  the table to check
-   *  @return boolean
-   */
-  public function hasTable($table){
-  
-    // get all the tables currently in the db...
-    $table_list = $this->getTables($table);
-    return !empty($table_list);
-    
-  }//method
-  
-  /**
-   *  executes the query and returns the result
-   *     
-   *  @see  getStatement()   
-   *  @param  string  $query  the query to prepare and run
-   *  @param  array $val_list the values list for the query, if the query has ?'s then 
-   *                          the values should be in this array           
-   *  @return mixed array of results if select query, last id if insert, update
-   */
-  public function getQuery($query,$val_list = array()){
-  
-    $ret_mixed = false;
-  
-    // prepare the statement and run the query...
-    // http://us2.php.net/manual/en/function.PDO-prepare.php
-    $stmt_handler = $this->getStatement($query,$val_list);
 
-    if(preg_match('#^(?:select|show|pragma)#iu',$query)){
-
-      // certain queries should always return an array...
-      $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
-      
-    }else{
-    
-      // all other queries should return whether they were successful, which if no
-      // exception was thrown, they were...
-      $ret_mixed = true;
-      
-    }//if/else
-    
-    $stmt_handler->closeCursor();
-
-    return $ret_mixed;
-  
   }//method
   
   /**
-   *  prepares and executes the query and returns the PDOStatement instance
-   *  
-   *  @param  string  $query  the query to prepare and run
-   *  @param  array $val_list the values list for the query, if the query has ?'s then 
-   *                          the values should be in this array      
-   *  @return PDOStatement
-   */
-  public function getStatement($query,$val_list = array()){
-  
-    $query = trim($query);
-  
-    // debugging stuff...
-    if($this->hasDebug()){
-      if(is_array($val_list)){
-        $debug_query = $query;
-        foreach($val_list as $key => $val){
-          if(!is_numeric($val)){
-            $val = $this->isBinaryString($val) ? "'[:BINARY STRING:]'" : sprintf("'%s'",$val); 
-          }//if
-          $debug_query = preg_replace('/\?/u',$val,$debug_query,1);
-        }//foreach
-        $this->query_list[] = $debug_query;
-      }else{
-        $this->query_list[] = $query;
-      }//if/else
-    }//if
-  
-    // prepare the statement and run the query...
-    // http://us2.php.net/manual/en/function.PDO-prepare.php
-    $stmt_handler = $this->con_db->prepare($query);
-  
-    // execute the query...
-    $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
-
-    if(!$is_success){
-    
-      $err_map = $stmt_handler->errorInfo();
-      
-      $stmt_handler->closeCursor();
-      
-      // we use the string version of the error code ($err_map[0]) because that is 
-      // what handleException expects because that is what a PDOException would have
-      // but we can't use PDOException because it won't take a string for the code,
-      // no idea why PHP gets away with that natively 
-      throw new mingo_exception(
-        sprintf('query "%s" failed execution with error: %s',
-          $query,
-          print_r($err_map,1)
-        ),
-        $err_map[0]
-      );
-    
-    }//if
-  
-    return $stmt_handler;
-  
-  }//method
-  
-  /**
-   *  get all the indexes of $table
-   *        
-   *  @param  string  $table  the table to get the indexes from
-   *  @return array an array in the same format that {@link mingo_schema::getIndexes()} returns
-   */
-  public function getIndexes($table){
-  
-    $ret_list = array();
-  
-    // get just the $table index tables...
-    $table_list = array();
-    foreach($this->getTables() as $table_name){
-    
-      if(($table_name === $table) || preg_match(sprintf('#^%s_[a-z0-9]{32,}#i',$table),$table_name)){
-      
-        $table_list[] = $table_name;
-      
-      }//if
-    
-    }//foreach
-    
-    foreach($table_list as $table_name){
-      
-      $index_list = $this->getTableIndexes($table_name);
-      
-      // only add indexes that haven't been seen before...
-      foreach($index_list as $index_map){
-      
-        if(!in_array($index_map,$ret_list,true)){
-          $ret_list[] = $index_map;
-        }//if
-      
-      }//foreach
-      
-    }//foreach
-    
-    return $ret_list;
-  
-  }//method
-  
-  /**
-   *  handle an error state
-   *  
-   *  this is handy for trying to add tables or indexes if they don't exist so the db
-   *  handler can then try the queries that errored out again
-   *  
-   *  this method will also try and fix any exception if a is*Exception method returns true       
-   *  
-   *  @param  Exception $e  the exception that was raised
-   *  @param  string  $table  the table name
-   *  @param  mingo_schema  $schema the table schema
+   *  @see  handleException()
    *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
-  function handleException(Exception $e,$table,mingo_schema $schema){
-  
+  protected function _handleException(Exception $e,$table,MingoSchema $schema){
+    
     $ret_bool = false;
     if($this->isNoTableException($e)){
     
@@ -815,459 +793,18 @@ abstract class mingo_db_sql extends mingo_db_interface {
     }//if
       
     return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  get the body that is the key/val pairs that will go in the body field of the table
-   *  
-   *  I zlib compress: http://www.php.net/manual/en/ref.zlib.php
-   *  Not really sure why except that Friendfeed does it, and I don't want to be different         
-   *
-   *  between version .1 and .2 this changed from json to serialize because of the
-   *  associative arrays becoming stdObjects problem
-   *      
-   *  @param  array $map  the key/value pairings
-   *  @return string  a zlib compressed json encoded string
-   */
-  protected function getBody($map){
-  
-    // get rid of table stuff...
-    if(isset($map['row_id'])){ unset($map['row_id']); }//if
-    if(isset($map['_id'])){ unset($map['_id']); }//if
-    
-    return gzcompress(serialize($map));
-  
-  }//method
-  
-  /**
-   *  opposite of {@link getBody()}
-   *  
-   *  between version .1 and .2 this changed from json to serialize because of the
-   *  associative arrays becoming stdObjects problem   
-   *      
-   *  @param  string  $body the getBody() compressed string, probably returned from a db call
-   *  @return array the key/value pairs restored to their former glory
-   */
-  protected function getMap($body){
-    return unserialize(gzuncompress($body));
-  }//method
-  
-  /**
-   *  update the index tables with the new values
-   *  
-   *  @param  string  $table
-   *  @param  string  $_id the _id of the $table where $map is found
-   *  @param  array $map  the key/value pairs found in $table's body field
-   *  @param  mingo_schema  $schema the table schema
-   *  @return boolean
-   */
-  protected function setIndexes($table,$_id,$map,$schema){
-        
-    $ret_bool = false;
-    
-    foreach($schema->getIndexes() as $index_map){
-    
-      $ret_bool = $this->insertIndex($table,$_id,$map,$index_map);
-      
-    }//foreach
-    
-    return $ret_bool;
     
   }//method
   
   /**
-   *  adds an index to $table
+   *  this should be used to take the generic $where_criteria and turn it into something
+   *  the interface can use (eg, for a SQL interface, the $where_criteria would be turned
+   *  into a valid SQL string).
    *  
-   *  @param  string  $table  the table to add the index to
-   *  @param  array $map  usually something like array('field_name' => 1), this isn't need for sql
-   *                      but it's the same way to keep compatibility with Mongo
-   *  @param  mingo_schema  $schema the table schema      
-   *  @return boolean
+   *  @param  MingoCriteria $where_criteria
+   *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
    */
-  public function setIndex($table,array $index_map,mingo_schema $schema){
-  
-    // canary, don't bother trying to re-created the index table if it already exists...
-    $index_table = $this->getIndexTableName($table,$index_map);
-    if($this->hasTable($index_table)){ return true; }//if
-  
-    $ret_bool = $this->createIndexTable($table,$index_map,$schema);
-
-    if($ret_bool){
-    
-      // if debugging is on it means we're in dev so go ahead and populate the index...
-      if($this->hasDebug()){
-        $this->populateIndex($table,$index_map,$schema);
-      }//if
-    
-    }//if
-    
-    return $ret_bool;
-    
-  }//method
-  
-  /**
-   *  removes all the indexes for a given $_id
-   *  
-   *  this is called after updating the value and before calling {@link setIndexes()}
-   *
-   *  @param  string  $table
-   *  @param  string|array  $_id  either one _id or many in an array
-   *  @param  mingo_schema  $schema
-   *  @return boolean
-   */
-  protected function killIndexes($table,$_id_list,$schema){
-  
-    $ret_bool = false;
-    $_id_list = (array)$_id_list;
-    $_id_sub_list = join(',',array_fill(0,count($_id_list),'?'));
-  
-    foreach($schema->getIndexes() as $index_map){
-      
-      $index_table = $this->getIndexTableName($table,$index_map);
-      if(!empty($index_table)){
-      
-        $query = sprintf(
-          'DELETE FROM %s WHERE _id IN (%s)',
-          $index_table,
-          $_id_sub_list
-        );
-        
-        $ret_bool = $this->getQuery($query,$_id_list);
-  
-      }//if
-      
-    }//foreach
-  
-    return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  get the index table name from the table and the list of fields the index comprises
-   *  
-   *  @param  string  $table  the main table's name
-   *  @param  array $field_list a list of the field names the index encompasses
-   *  @return string  the index table name
-   */
-  protected function getIndexTable($table,mingo_criteria $where_criteria,mingo_schema $schema){
-  
-    $ret_str = '';
-  
-    $where_map = $where_criteria->getWhere();
-    $sort_map = $where_criteria->getSort();
-    
-    $field_list = array_keys($where_map);
-    if(empty($field_list) && !empty($sort_map)){ $field_list = array_keys($sort_map); }//if
-  
-    // now go through the index and see if it matches...
-    foreach($schema->getIndexes() as $index_map){
-    
-      $field_i = 0;
-      $is_match = false;
-    
-      foreach($index_map as $field => $order){
-        
-        if(isset($field_list[$field_i])){
-        
-          if($field === $field_list[$field_i]){
-            $is_match = true;
-            $field_i++;
-          }else{
-            $is_match = false;
-            break;
-          }//if/else
-        
-        }else{
-        
-          break;
-          
-        }//if/else
-      
-      }//foreach
-      
-      if($is_match){
-      
-        // we're done, we found a match...
-        $ret_str = $this->getIndexTableName($table,$index_map);
-        break;
-        
-      }//if
-      
-    }//foreach
-    
-    return $ret_str;
-    
-  }//method
-  
-  /**
-   *  goes through the master $table and adds the contents to the index table      
-   *
-   *  @param  string  $table  the main table (not the index table)
-   *  @param  array $index_map  an index map, usually retrieved from the table schema
-   *  @param  mingo_schema  $schema just here so get() will work as expected    
-   */
-  protected function populateIndex($table,$index_map,mingo_schema $schema){
-  
-    $ret_bool = false;
-    $limit = 100;
-    $offset = 0;
-  
-    // get results from the table and add them to the index...
-    while($map_list = $this->get($table,$schema,null,array($limit,$offset))){
-    
-      foreach($map_list as $map){
-      
-        $ret_bool = $this->insertIndex($table,$map['_id'],$map,$index_map);
-      
-      }//foreach
-    
-      $offset += $limit;
-      
-    }//while
-    
-    return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  insert into an index table
-   *  
-   *  @see  recursiveInsertIndex()   
-   *  @param  string  $table  the master table, not the index table
-   *  @param  string  $_id the _id of the $table where $map is found
-   *  @param  array $map  the key/value pairs found in $table's body field
-   *  @param  array $index_map  the map that represents the index
-   *  @return boolean
-   */
-  protected function insertIndex($table,$_id,$map,$index_map){
-    
-    // canary, if this is a spatial index and the spatial field isn't set, then don't insert...
-    foreach($index_map as $field => $index_type){
-      if($this->isSpatialIndexType($index_type)){
-        if(!isset($map[$field])){
-          return false;
-        }//if
-      }//if
-    }//foreach
-    
-    $index_table = $this->getIndexTableName($table,$index_map);
-    
-    $state = new StdClass();
-    $state->depth = 0;
-    $state->arrField = '';
-    
-    return $this->recursiveInsertIndex(
-      $index_table,
-      $_id,
-      $map,
-      $index_map,
-      $state
-    );
-  
-  }//method
-  
-  /**
-   *  actually do the inserting into an index table
-   *  
-   *  @recursive   
-   *  @see  insertIndex   
-   *  @param  string  $table  the master table, not the index table
-   *  @param  string  $_id the _id of the $table where $map is found
-   *  @param  array $map  the key/value pairs found in $table's body field
-   *  @param  array $index_map  the map that represents the index
-   *  @param  StdClass  $state  the current state of the recrusion   
-   *  @return boolean
-   */
-  protected function recursiveInsertIndex($index_table,$_id,$map,array $index_map,StdClass $state){
-  
-    $ret_bool = false;
-    $field_list = array();
-    $field_bind_list = array();
-    $val_list = array();
-    $run_query = true;
-  
-    foreach($index_map as $field => $index_type){
-    
-      // canary...
-      if(!$run_query){ break; }//if
-      if(!isset($map[$field])){ continue; }//if
-      
-      if(is_array($map[$field]) && !$this->isSpatialIndexType($index_type)){
-      
-        if(!empty($state->arrField)){
-        
-          throw new DomainException(
-            sprintf('Cannot index parallel arrays [%s] [%s]',$state->arrField,$field)
-          );
-        
-        }//if
-      
-        $state->arrField = $field;
-        $state->depth++;
-        
-        $sql_name = $sql_val = $sql_bind = '';
-        $run_query = false;
-        $list = $map[$field];
-        foreach($list as $key => $val){
-        
-          // filter out nulls...
-          if(isset($list[$key])){
-          
-            $o = new StdClass();
-            $o->_is_recurse_ = true;
-            $o->key = $key;
-            $o->val = $val;
-            $map[$field] = $o;
-          
-            // recursively go through the individual array values...
-            $ret_bool = $this->recursiveInsertIndex($index_table,$_id,$map,$index_map,$state);
-            
-          }//if
-        
-        }//foreach
-        
-        $state->arrField = '';
-        $state->depth--;
-        
-        $map[$field] = $list;
-      
-      }else if(($map[$field] instanceof StdClass) && isset($map[$field]->_is_recurse_)){
-      
-        // canary...
-        if(is_array($map[$field]->val)){
-        
-          throw new DomainException(
-            sprintf(
-              'field [%s] is a multi-dimensional array which is not currently supported with this interface',
-              $field
-            )
-          );
-        
-        }//if
-      
-        ///out::i($map[$field]);  
-        list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql($field,$map[$field]->val,$index_type);
-      
-      }else{
-      
-        list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql($field,$map[$field],$index_type);
-        
-      }//if/else
-      
-      $field_list[] = $sql_name;
-      $val_list[] = $sql_val;
-      $field_bind_list[] = $sql_bind;
-        
-    }//foreach
-    
-    if($run_query){
-    
-      list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql(mingo_orm::_ID,$_id);
-      $field_list[] = $sql_name;
-      $val_list[] = $sql_val;
-      $field_bind_list[] = $sql_bind;
-      
-      $query = sprintf(
-        'INSERT INTO %s (%s) VALUES (%s)',
-        $this->handleTableSql($index_table),
-        join(',',$field_list),
-        join(',',$field_bind_list)
-      );
-      
-      $ret_bool = $this->getQuery($query,$val_list);
-      
-    }//if
-      
-    return $ret_bool;
-  
-  
-  }//method
-  
-  /**
-   *  get info about the index
-   *  
-   *  @param  string  $table   
-   *  @param  array $index_map
-   *  @return string  the index table name
-   */
-  protected function getIndexTableName($table,$index_map){
-          
-    $field_list = array_keys($index_map);
-    $field_list_str = join(',',$field_list);
-    $index_table = sprintf('%s_%s',$table,md5($field_list_str));
-    return $index_table;
-  
-  }//method
-  
-  /**
-   *  builds a select query suitable to be passed into {@link getQuery()}
-   *  
-   *  this function puts all the different parts together
-   *      
-   *  @param  string  $table  the table
-   *  @param  array $query_map  can have a number of keys:
-   *                            'select' - string - the fields to select from (usually * or count(*), or _id)
-   *                            'where' - string - the where part of the string (starts with WHERE ...)
-   *                            'sort' - string - the sort part of the string
-   *                            'limit' - array - array($limit,$offset)   
-   *  @return string  the built query         
-   */
-  protected function getSelectQuery($table,array $query_map){
-  
-    $query = 'SELECT';
-    $printf_vars = array();
-        
-    // build the query...
-    
-    if(empty($query_map['select'])){
-    
-      $query .= ' *';
-    
-    }else{
-    
-      $query .= ' %s';
-      $printf_vars[] = $query_map['select'];
-    
-    }//if/else
-    
-    $query .= ' FROM %s';
-    $printf_vars[] = $this->handleTableSql($table);
-    
-    if(!empty($query_map['where'])){
-    
-      $query .= ' %s';
-      $printf_vars[] = $query_map['where'];
-    
-    }//if
-    
-    // add sort...
-    if(!empty($query_map['sort'])){
-    
-      $query .= ' '.$query_map['sort'];
-    
-    }//if
-    
-    if(!empty($query_map['limit'][0])){
-      $query .= ' LIMIT %d OFFSET %d';
-      $printf_vars[] = (int)$query_map['limit'][0];
-      $printf_vars[] = (empty($query_map['limit'][1]) ? 0 : (int)$query_map['limit'][1]);
-    }//if
-    
-    return vsprintf($query,$printf_vars);
-    
-  }//method
-  
-  /**
-   *  convert the $criteria_where and the $criteria_sort into SQL
-   *  
-   *  the sql is suitable to be used in PDO, and so the string has ? where each value
-   *  should go, the value array will correspond to each of the ?      
-   *  
-   *  @param  mingo_criteria  $where_criteria   
-   *  @return array an array map with 'where_str', 'where_val', and 'sort_str' keys set      
-   */
-  protected function getCriteria(mingo_criteria $where_criteria){
+  protected function normalizeCriteria(MingoCriteria $where_criteria){
   
     $ret_map = array();
     $ret_map['where_str'] = ''; $ret_map[0] = &$ret_map['where_str'];
@@ -1278,7 +815,6 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
     $criteria_where = $where_criteria->getWhere();
     $criteria_sort = $where_criteria->getSort();
-    
     
     $command_symbol = $where_criteria->getCommandSymbol();
   
@@ -1396,6 +932,438 @@ abstract class mingo_db_sql extends mingo_db_interface {
   }//method
   
   /**
+   *  prepares and executes the query and returns the PDOStatement instance
+   *  
+   *  @param  string  $query  the query to prepare and run
+   *  @param  array $val_list the values list for the query, if the query has ?'s then 
+   *                          the values should be in this array      
+   *  @return PDOStatement
+   */
+  public function getStatement($query,$val_list = array()){
+  
+    $query = trim($query);
+  
+    // debugging stuff...
+    if($this->hasDebug()){
+      if(is_array($val_list)){
+        $debug_query = $query;
+        foreach($val_list as $key => $val){
+          if(!is_numeric($val)){
+            $val = $this->isBinaryString($val) ? "'[:BINARY STRING:]'" : sprintf("'%s'",$val); 
+          }//if
+          $debug_query = preg_replace('/\?/u',$val,$debug_query,1);
+        }//foreach
+        $this->query_list[] = $debug_query;
+      }else{
+        $this->query_list[] = $query;
+      }//if/else
+    }//if
+  
+    // prepare the statement and run the query...
+    // http://us2.php.net/manual/en/function.PDO-prepare.php
+    $stmt_handler = $this->con_db->prepare($query);
+  
+    // execute the query...
+    $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
+
+    if(!$is_success){
+    
+      $err_map = $stmt_handler->errorInfo();
+      
+      $stmt_handler->closeCursor();
+      
+      // we use the string version of the error code ($err_map[0]) because that is 
+      // what handleException expects because that is what a PDOException would have
+      // but we can't use PDOException because it won't take a string for the code,
+      // no idea why PHP gets away with that natively 
+      throw new UnexpectedValueException(
+        sprintf('query "%s" failed execution with error: %s',
+          $query,
+          print_r($err_map,1)
+        ),
+        $err_map[0]
+      );
+    
+    }//if
+  
+    return $stmt_handler;
+  
+  }//method
+  
+  /**
+   *  get the body that is the key/val pairs that will go in the body field of the table
+   *  
+   *  I zlib compress: http://www.php.net/manual/en/ref.zlib.php
+   *  Not really sure why except that Friendfeed does it, and I don't want to be different         
+   *
+   *  between version .1 and .2 this changed from json to serialize because of the
+   *  associative arrays becoming stdObjects problem
+   *      
+   *  @param  array $map  the key/value pairings
+   *  @return string  a zlib compressed json encoded string
+   */
+  protected function getBody($map){
+  
+    // get rid of table stuff...
+    if(isset($map['row_id'])){ unset($map['row_id']); }//if
+    if(isset($map['_id'])){ unset($map['_id']); }//if
+    
+    return gzcompress(serialize($map));
+  
+  }//method
+  
+  /**
+   *  opposite of {@link getBody()}
+   *  
+   *  between version .1 and .2 this changed from json to serialize because of the
+   *  associative arrays becoming stdObjects problem   
+   *      
+   *  @param  string  $body the getBody() compressed string, probably returned from a db call
+   *  @return array the key/value pairs restored to their former glory
+   */
+  protected function getMap($body){
+    return unserialize(gzuncompress($body));
+  }//method
+  
+  /**
+   *  update the index tables with the new values
+   *  
+   *  @param  string  $table
+   *  @param  string  $_id the _id of the $table where $map is found
+   *  @param  array $map  the key/value pairs found in $table's body field
+   *  @param  MingoSchema  $schema the table schema
+   *  @return boolean
+   */
+  protected function setIndexes($table,$_id,$map,MingoSchema $schema){
+        
+    $ret_bool = false;
+    
+    foreach($schema->getIndexes() as $index_map){
+    
+      $ret_bool = $this->insertIndex($table,$_id,$map,$index_map);
+      
+    }//foreach
+    
+    return $ret_bool;
+    
+  }//method
+  
+  /**
+   *  get the index table name from the table and the list of fields the index comprises
+   *  
+   *  @param  string  $table  the main table's name
+   *  @param  MingoCriteria $where_criteria
+   *  @param  MingoSchema $schema   
+   *  @return string  the index table name
+   */
+  protected function getIndexTable($table,MingoCriteria $where_criteria,MingoSchema $schema){
+  
+    $ret_str = '';
+  
+    $where_map = $where_criteria->getWhere();
+    $sort_map = $where_criteria->getSort();
+    
+    $field_list = array_keys($where_map);
+    if(empty($field_list) && !empty($sort_map)){ $field_list = array_keys($sort_map); }//if
+  
+    // now go through the index and see if it matches...
+    foreach($schema->getIndexes() as $index_map){
+    
+      $field_i = 0;
+      $is_match = false;
+    
+      foreach($index_map as $field => $order){
+        
+        if(isset($field_list[$field_i])){
+        
+          if($field === $field_list[$field_i]){
+            $is_match = true;
+            $field_i++;
+          }else{
+            $is_match = false;
+            break;
+          }//if/else
+        
+        }else{
+        
+          break;
+          
+        }//if/else
+      
+      }//foreach
+      
+      if($is_match){
+      
+        // we're done, we found a match...
+        $ret_str = $this->getIndexTableName($table,$index_map);
+        break;
+        
+      }//if
+      
+    }//foreach
+    
+    return $ret_str;
+    
+  }//method
+  
+   /**
+   *  goes through the master $table and adds the contents to the index table      
+   *
+   *  @param  string  $table  the main table (not the index table)
+   *  @param  array $index_map  an index map, usually retrieved from the table schema
+   *  @param  MingoSchema  $schema just here so get() will work as expected    
+   */
+  protected function populateIndex($table,array $index_map,MingoSchema $schema){
+  
+    $ret_bool = false;
+    $limit = 100;
+    $offset = 0;
+  
+    // get results from the table and add them to the index...
+    while($map_list = $this->get($table,$schema,null,array($limit,$offset))){
+    
+      foreach($map_list as $map){
+      
+        $ret_bool = $this->insertIndex($table,$map['_id'],$map,$index_map);
+      
+      }//foreach
+    
+      $offset += $limit;
+      
+    }//while
+    
+    return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  insert into an index table
+   *  
+   *  @see  recursiveInsertIndex()   
+   *  @param  string  $table  the master table, not the index table
+   *  @param  string  $_id the _id of the $table where $map is found
+   *  @param  array $map  the key/value pairs found in $table's body field
+   *  @param  array $index_map  the map that represents the index
+   *  @return boolean
+   */
+  protected function insertIndex($table,$_id,array $map,array $index_map){
+    
+    // canary, if this is a spatial index and the spatial field isn't set, then don't insert...
+    foreach($index_map as $field => $index_type){
+      if($this->isSpatialIndexType($index_type)){
+        if(!isset($map[$field])){
+          return false;
+        }//if
+      }//if
+    }//foreach
+    
+    $index_table = $this->getIndexTableName($table,$index_map);
+    
+    $state = new StdClass();
+    $state->depth = 0;
+    $state->arrField = '';
+    
+    return $this->recursiveInsertIndex(
+      $index_table,
+      $_id,
+      $map,
+      $index_map,
+      $state
+    );
+  
+  }//method
+  
+  /**
+   *  actually do the inserting into an index table
+   *  
+   *  @recursive   
+   *  @see  insertIndex   
+   *  @param  string  $table  the master table, not the index table
+   *  @param  string  $_id the _id of the $table where $map is found
+   *  @param  array $map  the key/value pairs found in $table's body field
+   *  @param  array $index_map  the map that represents the index
+   *  @param  StdClass  $state  the current state of the recursion   
+   *  @return boolean
+   */
+  protected function recursiveInsertIndex($index_table,$_id,$map,array $index_map,StdClass $state){
+  
+    $ret_bool = false;
+    $field_list = array();
+    $field_bind_list = array();
+    $val_list = array();
+    $run_query = true;
+  
+    foreach($index_map as $field => $index_type){
+    
+      // canary...
+      if(!$run_query){ break; }//if
+      if(!isset($map[$field])){ continue; }//if
+      
+      if(is_array($map[$field]) && !$this->isSpatialIndexType($index_type)){
+      
+        if(!empty($state->arrField)){
+        
+          throw new DomainException(
+            sprintf('Cannot index parallel arrays [%s] [%s]',$state->arrField,$field)
+          );
+        
+        }//if
+      
+        $state->arrField = $field;
+        $state->depth++;
+        
+        $sql_name = $sql_val = $sql_bind = '';
+        $run_query = false;
+        $list = $map[$field];
+        foreach($list as $key => $val){
+        
+          // filter out nulls...
+          if(isset($list[$key])){
+          
+            $o = new StdClass();
+            $o->_is_recurse_ = true;
+            $o->key = $key;
+            $o->val = $val;
+            $map[$field] = $o;
+          
+            // recursively go through the individual array values...
+            $ret_bool = $this->recursiveInsertIndex($index_table,$_id,$map,$index_map,$state);
+            
+          }//if
+        
+        }//foreach
+        
+        $state->arrField = '';
+        $state->depth--;
+        
+        $map[$field] = $list;
+      
+      }else if(($map[$field] instanceof StdClass) && isset($map[$field]->_is_recurse_)){
+      
+        // canary...
+        if(is_array($map[$field]->val)){
+        
+          throw new DomainException(
+            sprintf(
+              'field [%s] is a multi-dimensional array which is not currently supported with this interface',
+              $field
+            )
+          );
+        
+        }//if
+      
+        ///out::i($map[$field]);  
+        list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql($field,$map[$field]->val,$index_type);
+      
+      }else{
+      
+        list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql($field,$map[$field],$index_type);
+        
+      }//if/else
+      
+      $field_list[] = $sql_name;
+      $val_list[] = $sql_val;
+      $field_bind_list[] = $sql_bind;
+        
+    }//foreach
+    
+    if($run_query){
+    
+      list($sql_name,$sql_val,$sql_bind) = $this->handleInsertSql('_id',$_id);
+      $field_list[] = $sql_name;
+      $val_list[] = $sql_val;
+      $field_bind_list[] = $sql_bind;
+      
+      $query = sprintf(
+        'INSERT INTO %s (%s) VALUES (%s)',
+        $this->handleTableSql($index_table),
+        join(',',$field_list),
+        join(',',$field_bind_list)
+      );
+      
+      $ret_bool = $this->getQuery($query,$val_list);
+      
+    }//if
+      
+    return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  get info about the index
+   *  
+   *  @param  string  $table   
+   *  @param  array $index_map
+   *  @return string  the index table name
+   */
+  protected function getIndexTableName($table,array $index_map){
+          
+    $field_list = array_keys($index_map);
+    $field_list_str = join(',',$field_list);
+    $index_table = sprintf('%s_%s',$table,md5($field_list_str));
+    return $index_table;
+  
+  }//method
+  
+  /**
+   *  builds a select query suitable to be passed into {@link getQuery()}
+   *  
+   *  this function puts all the different parts together
+   *      
+   *  @param  string  $table  the table
+   *  @param  array $query_map  can have a number of keys:
+   *                            'select' - string - the fields to select from (usually * or count(*), or _id)
+   *                            'where' - string - the where part of the string (starts with WHERE ...)
+   *                            'sort' - string - the sort part of the string
+   *                            'limit' - array - array($limit,$offset)   
+   *  @return string  the built query         
+   */
+  protected function getSelectQuery($table,array $query_map){
+  
+    $query = 'SELECT';
+    $printf_vars = array();
+        
+    // build the query...
+    
+    if(empty($query_map['select'])){
+    
+      $query .= ' *';
+    
+    }else{
+    
+      $query .= ' %s';
+      $printf_vars[] = $query_map['select'];
+    
+    }//if/else
+    
+    $query .= ' FROM %s';
+    $printf_vars[] = $this->handleTableSql($table);
+    
+    if(!empty($query_map['where'])){
+    
+      $query .= ' %s';
+      $printf_vars[] = $query_map['where'];
+    
+    }//if
+    
+    // add sort...
+    if(!empty($query_map['sort'])){
+    
+      $query .= ' '.$query_map['sort'];
+    
+    }//if
+    
+    if(!empty($query_map['limit'][0])){
+      $query .= ' LIMIT %d OFFSET %d';
+      $printf_vars[] = (int)$query_map['limit'][0];
+      $printf_vars[] = (empty($query_map['limit'][1]) ? 0 : (int)$query_map['limit'][1]);
+    }//if
+    
+    return vsprintf($query,$printf_vars);
+    
+  }//method
+  
+  /**
    *  handle sql'ing a generic list: NAME SYMBOL (...)
    *  
    *  @param  string  $symbol the symbol to use in the sQL string
@@ -1504,10 +1472,10 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *
    *  @since  10-19-10
    *  @param  string  $field  the field name
-   *  @param  mingo_schema  $schema the schema for the table         
+   *  @param  MingoSchema  $schema the schema for the table         
    *  @return string
    */
-  protected function getSqlType($field,mingo_schema $schema){
+  protected function getSqlType($field,MingoSchema $schema){
     $ret_str = 'VARCHAR(100)';
     return $ret_str;
   }//method
@@ -1540,16 +1508,16 @@ abstract class mingo_db_sql extends mingo_db_interface {
    *  
    *  @since  12-20-10
    *  @param  string  $table  the table that is being queried on
-   *  @param  mingo_schema  $schema the table's schema
-   *  @param  mingo_criteria  the selection criteria to query the table
+   *  @param  MingoSchema  $schema the table's schema
+   *  @param  MingoCriteria  the selection criteria to query the table
    *  @param  array $limit   
    *  @return array a map with all kinds of info about the query that should be run
    */
-  protected function getQueryInfo($table,mingo_schema $schema,mingo_criteria $where_criteria = null,$limit = array())
+  protected function getQueryInfo($table,MingoSchema $schema,MingoCriteria $where_criteria = null,array $limit = array())
   {
     $ret_map = array();
   
-    $check_index_tables = ($where_criteria instanceof mingo_criteria)
+    $check_index_tables = ($where_criteria !== null)
       && ($where_criteria->hasWhere() || $where_criteria->hasSort());
   
     if($check_index_tables){
@@ -1558,7 +1526,7 @@ abstract class mingo_db_sql extends mingo_db_interface {
       $where_map = $where_criteria->getWhere();
       $sort_map = $where_criteria->getSort();
       
-      list($where_query,$val_list,$sort_query) = $this->getCriteria($where_criteria);
+      list($where_query,$val_list,$sort_query) = $this->normalizeCriteria($where_criteria);
       
       // now, find the right index table to select from...
       $index_table = $this->getIndexTable($table,$where_criteria,$schema);
@@ -1645,4 +1613,16 @@ abstract class mingo_db_sql extends mingo_db_interface {
   
   }//method
   
+  /**
+   *  returns true if the passed in $index_type is spatial
+   *  
+   *  @since  10-18-10
+   *  @param  string  $index_type
+   *  @return boolean
+   */
+  protected function isSpatialIndexType($index_type){
+    return $index_type === self::INDEX_SPATIAL;
+  }//method
+  
 }//class     
+

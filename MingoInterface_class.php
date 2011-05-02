@@ -1,13 +1,34 @@
 <?php
-
 /**
  *  handle mingo db connections transparently between the different interfaces, this
  *  class is used to establish the singleton, and then allow the map to interact
  *  with the db layer.
  *  
+ *  if you want to make an interface for mingo, just create a class that extends
+ *  this class and implement all the functions below.
+ *  
  *  the nice thing about this layer is that it handles all the error checking before
  *  passing anything to the interface, this allows interface developers to focus on the
- *  meat of their interface instead of worrying about error handling    
+ *  meat of their interface instead of worrying about error handling
+ *  
+ *  @notes
+ *    - when implementing the interface, you don't really have to worry about error checking
+ *      because the public methods handle all the error checking before passing anything 
+ *      to the interface, this allows interface developers to focus on the meat of 
+ *      their interface instead of worrying about error handling
+ *    - in php 5.3 you can set default values for any of the abstract method params without
+ *      an error being thrown, in php <5.3 the implemented method signatures have to match
+ *      the abstract signature exactly 
+ *    - there are certain reserved rows any implementation will have to deal with:
+ *      - _id = the unique id assigned to a newly inserted row, this is a 24 character
+ *              randomly created string, if you don't want to make your own, and there
+ *              isn't an included one (like mongo) then you can use {@link getUniqueId()}
+ *              defined in this class
+ *      - row_id = this is an auto increment row, ie, the row number. This technically only
+ *                 needs to be generated when the backend supports it and is set up (mongo ignores
+ *                 it, mysql and sqlite set it) 
+ *  
+ *  @link http://www.php.net/manual/en/language.oop5.abstract.php    
  *
  *  @version 0.5
  *  @author Jay Marcyes {@link http://marcyes.com}
@@ -261,13 +282,13 @@ abstract class MingoInterface extends MingoMagic {
    *  @param  mixed $args,... as many or as few as you want, it is up to the interface to error check
    *  @return mixed whatever the interface chooses to return
    */
-  public function getQuery()
+  /* public function getQuery()
   {
     throw new BadMethodCallException('tbi');
     $args = func_get_args();
     return $this->con_db->getQuery($args);
   
-  }//method
+  }//method */
   
   /**
    *  get a list of rows matching $where_criteria
@@ -749,7 +770,7 @@ abstract class MingoInterface extends MingoMagic {
    */
   public function __sleep(){
     $this->con_db = null;
-    $this->con_map['connected'] = false;
+    $this->setField('connected',false);
     return array_keys(get_object_vars($this));
   }//method
   
@@ -799,7 +820,35 @@ abstract class MingoInterface extends MingoMagic {
    *  @param  MingoSchema $schema the table schema      
    *  @return boolean
    */
-  abstract protected function setIndex($table,array $index_map,MingoSchema $schema);
+  protected function setIndex($table,array $index_map,MingoSchema $schema){
+  
+    // canary...
+    if(empty($index_map)){
+      throw new InvalidArgumentException('$index_map was empty');
+    }//if
+  
+    $index_map = $this->normalizeIndex($index_map,$schema);
+    return $this->_setIndex($table,$index_map,$schema);
+  
+  }//method
+  
+  /**
+   *  @see  setIndex()
+   *  
+   *  @param  string  $table
+   *  @param  mixed $index  an index this interface understands
+   *  @param  MingoSchema $schema   
+   *  @return boolean
+   */
+  abstract protected function _setIndex($table,$index,MingoSchema $schema);
+  
+  /**
+   *  convert an array index map into something this interface understands
+   *
+   *  @since  5-2-11
+   *  @return mixed whatever this interface will understand
+   */
+  abstract protected function normalizeIndex(array $index_map,MingoSchema $schema);
   
   /**
    *  this should be used to take the generic $where_criteria and turn it into something
@@ -809,7 +858,7 @@ abstract class MingoInterface extends MingoMagic {
    *  @param  MingoCriteria $where_criteria
    *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
    */
-  abstract protected function getCriteria(MingoCriteria $where_criteria);
+  abstract protected function normalizeCriteria(MingoCriteria $where_criteria);
   
   /**
    *  generates a 24 character unique id for the _id of an inserted row

@@ -8,7 +8,7 @@
  *  @since 3-19-10
  *  @package mingo 
  ******************************************************************************/
-class mingo_db_mysql extends mingo_db_sql {
+class MingoMySQLInterface extends MingoSQLInterface {
 
   /**
    *  this will be the default engine for all tables
@@ -59,7 +59,7 @@ class mingo_db_mysql extends mingo_db_sql {
   protected function getDsn($db_name,$host){
   
     // canary...
-    if(empty($host)){ throw new mingo_exception('no $host specified'); }//if
+    if(empty($host)){ throw new InvalidArgumentException('no $host specified'); }//if
   
     return sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db_name,self::CHARSET);
   
@@ -78,7 +78,7 @@ class mingo_db_mysql extends mingo_db_sql {
   
   }//method
   
-  protected function createTable($table,mingo_schema $schema){
+  protected function createTable($table,MingoSchema $schema){
   
     $query = sprintf('CREATE TABLE `%s` (
         `row_id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -91,7 +91,7 @@ class mingo_db_mysql extends mingo_db_sql {
   
   }//method
   
-  protected function createIndexTable($table,array $index_map,mingo_schema $schema){
+  protected function createIndexTable($table,array $index_map,MingoSchema $schema){
   
     $index_table = $this->getIndexTableName($table,$index_map);
     $printf_vars = array();
@@ -187,11 +187,11 @@ class mingo_db_mysql extends mingo_db_sql {
         
         if($index_map['Index_type'] === 'SPATIAL'){
         
-          $ret_map[$index_map['Column_name']] = mingo_schema::INDEX_SPATIAL;
+          $ret_map[$index_map['Column_name']] = self::INDEX_SPATIAL;
         
         }else{
         
-          $ret_map[$index_map['Column_name']] = 1;
+          $ret_map[$index_map['Column_name']] = self::INDEX_ASC;
         
         }//if/else
       
@@ -313,43 +313,78 @@ class mingo_db_mysql extends mingo_db_sql {
    *
    *  @since  10-19-10
    *  @param  string  $field  the field name
-   *  @param  mingo_schema  $schema the schema for the table         
+   *  @param  MingoSchema  $schema the schema for the table         
    *  @return string
    */
-  protected function getSqlType($field,mingo_schema $schema){
+  protected function getSqlType($field,MingoSchema $schema){
   
     $ret_str = '';
     $field_instance = $schema->getField($field);
   
     switch($field_instance->getType()){
     
-      case mingo_field::TYPE_INT:
-        $ret_str = 'INT(11)';
+      case MingoField::TYPE_INT:
+      
+        if($field_instance->hasRange())
+        {
+          $max_size = $this->getMaxSize();
+          // http://help.scibit.com/mascon/masconMySQL_Field_Types.html
+          if($max_size < 128)
+          {
+            $ret_str = 'TINYINT(4)';
+          }else if($max_size < 32768){
+            $ret_str = 'SMALLINT';
+          }else if($max_size < 8388608){
+            $ret_str = 'MEDIUMINT';
+          }else if($max_size < 2147483648){
+            $ret_str = 'INT(11)';
+          }else{
+            $ret_str = 'BIGINT';
+          }//if/else if.../else
+        
+        }else{
+        
+          $ret_str = 'INT(11)';
+        
+        }//if/else
+      
         break;
       
-      case mingo_field::TYPE_POINT:
+      case MingoField::TYPE_POINT:
       
         $ret_str = 'POINT';
         break;
       
-      case mingo_field::TYPE_BOOL:
+      case MingoField::TYPE_BOOL:
       
         $ret_str = 'TINYINT(4)';
         break;
       
-      case mingo_field::TYPE_FLOAT:
+      case MingoField::TYPE_FLOAT:
       
         $ret_str = 'FLOAT';
         break;
       
-      case mingo_field::TYPE_STR:
-      case mingo_field::TYPE_LIST:
-      case mingo_field::TYPE_MAP:
-      case mingo_field::TYPE_OBJ:
-      case mingo_field::TYPE_DEFAULT:
+      case MingoField::TYPE_STR:
+      case MingoField::TYPE_LIST:
+      case MingoField::TYPE_MAP:
+      case MingoField::TYPE_OBJ:
+      case MingoField::TYPE_DEFAULT:
       default:
         
-        $ret_str = 'VARCHAR(100)';
+        if($field_instance->hasRange())
+        {
+          if($field_instance->isFixedSize())
+          {
+            $ret_str = sprintf('CHAR(%s)',$field_instance->getMaxSize());
+          }else{
+            $ret_str = sprintf('VARCHAR(%s)',$field_instance->getMaxSize());
+          }//if/else
+        
+        }else{
+          $ret_str = 'VARCHAR(100)';
+        }//if/else
+        
         break;
     
     }//switch
@@ -375,8 +410,8 @@ class mingo_db_mysql extends mingo_db_sql {
     if($this->isSpatialIndexType($index_type)){
     
       // canary, check the field is properly formatted...
-      $mf = new mingo_field();
-      $mf->setType(mingo_field::TYPE_POINT);
+      $mf = new MingoField();
+      $mf->setType(MingoField::TYPE_POINT);
       $val = $mf->normalizeInVal($val);
   
       $val = sprintf(
@@ -401,5 +436,46 @@ class mingo_db_mysql extends mingo_db_sql {
    *  @return string  $table, formatted
    */
   protected function handleTableSql($table){ return sprintf('`%s`',$table); }//method
+  
+  /**
+   *  get a bounding box for a given $point using $miles
+   *  
+   *  the bounding box will basically be $miles from $point in any direction
+   *  
+   *  links that helped me calculate miles to a point:
+   *  http://mathforum.org/library/drmath/view/55461.html
+   *  http://wiki.answers.com/Q/How_many_miles_are_in_a_degree_of_longitude_or_latitude
+   *  http://answers.yahoo.com/question/index?qid=20070911165150AAQGeJc 
+   *  
+   *  @since  8-19-10   
+   *  @param  integer $miles  how many miles we want to go in any direction from $point
+   *  @param  array $point  array($lat,$long)
+   *  @return array basically 4 points: array($sw,$se,$ne,$nw)
+   */              
+  protected function getSpatialBoundingBox($miles,$point){
+  
+    // canary...
+    if(empty($miles)){ throw InvalidArgumentException('$miles should not be empty'); }//if
+  
+    list($latitude,$longitude) = $point;
+  
+    $latitude_miles = 69; // 1 degree of latitude, this is approximate but it's close enough
+    $latitude_bounding = ($miles / $latitude_miles);
+    
+    // get the longitude bounding using cosine...
+    $longitude_percentage = abs(cos($latitude * (pi()/180)));
+    $longitude_miles = $latitude_miles * $longitude_percentage;
+    $longitude_bounding = ($miles / $longitude_miles);
+    
+    // create a bounding rectangle...
+    // http://maisonbisson.com/blog/post/12148/find-stuff-by-minimum-bounding-rectangle/
+    $sw = array($latitude - $latitude_bounding,$longitude - $longitude_bounding);
+    $se = array($latitude - $latitude_bounding,$longitude + $longitude_bounding);
+    $ne = array($latitude + $latitude_bounding,$longitude + $longitude_bounding);
+    $nw = array($latitude + $latitude_bounding,$longitude - $longitude_bounding);
+    
+    return array($sw,$se,$ne,$nw);
+    
+  }//method
   
 }//class     

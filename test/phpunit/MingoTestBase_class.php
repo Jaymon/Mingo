@@ -15,7 +15,7 @@ include_once(
 );
 MingoAutoload::register();
 
-class MingoTestBase extends PHPUnit_Framework_TestCase {
+abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
 
   /**
    *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
