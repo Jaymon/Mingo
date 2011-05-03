@@ -38,9 +38,9 @@ class MingoAutoload {
     }//if
     
     set_include_path(
-      get_include_path()
-      .PATH_SEPARATOR.
       join(PATH_SEPARATOR,$path_list)
+      .PATH_SEPARATOR.
+      get_include_path()
     );
   
   }//method
@@ -66,7 +66,7 @@ class MingoAutoload {
     self::$is_registered = true;
     
     self::addPath(__FILE__);
-    self::addPath(array_reverse(explode(PATH_SEPARATOR,get_include_path())));
+    ///self::addPath(array_reverse(explode(PATH_SEPARATOR,get_include_path())));
     
     self::addPostfix(
       array('_class.php','.class.php','.php','.inc','.class.inc')
@@ -88,12 +88,12 @@ class MingoAutoload {
       $ret_bool = true;
     
     }//if
-  
+
     return $ret_bool;
   
   }//method
   
-  protected static function checkPath($path,$class_name){
+  protected static function checkPath($path,$class_name,$recursive = true){
   
     // canary...
     if(!is_dir($path)){ return false; }//if
@@ -120,12 +120,16 @@ class MingoAutoload {
     
     if(!$ret_bool){
     
-      if(!self::checkPearPath($path,$class_name)){
+      if(!($ret_bool = self::checkPearPath($path,$class_name))){
       
-        foreach(glob(sprintf('%s%s*',$path,DIRECTORY_SEPARATOR),GLOB_ONLYDIR) as $dir){
-          $ret_bool = self::checkPath($dir,$class_name);
-          if($ret_bool){ break; }//if
-        }//foreach
+        if($recursive){
+        
+          foreach(glob(sprintf('%s%s*',$path,DIRECTORY_SEPARATOR),GLOB_ONLYDIR) as $dir){
+            $ret_bool = self::checkPath($dir,$class_name);
+            if($ret_bool){ break; }//if
+          }//foreach
+          
+        }//if
         
       }//if/else
       
@@ -147,7 +151,7 @@ class MingoAutoload {
     
     foreach($path_list as $path)
     {
-      $ret_bool = self::checkPath($path,$class_name);
+      $ret_bool = self::checkPath($path,$class_name,true);
       if($ret_bool){ break; }//if
       
     }//foreach
@@ -165,6 +169,17 @@ class MingoAutoload {
         }//if
         
       }//foreach
+      
+      // last but not least, check just the included paths for any of the prefixes...
+      if(!$ret_bool){
+      
+        foreach($include_path_list as $include_path)
+        {
+          $ret_bool = self::checkPath($include_path,$class_name,false);
+          if($ret_bool){ break; }//if
+        }//foreach
+      
+      }//if
       
     }//if
     

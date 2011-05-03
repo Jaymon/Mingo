@@ -65,11 +65,11 @@ class MingoMongoInterfaceTest extends MingoInterfaceTest {
 
     $db = $this->getDb();
     $table = sprintf('%s_2',$this->getTable());
+    $schema = $this->getSchema();
     
-    $ret_bool = $db->killTable($table);
+    $ret_bool = $db->killTable($table,$schema);
     $this->assertTrue($ret_bool);
     
-    $schema = $this->getSchema();
     $this->assertFalse($db->hasTable($table));
     
     // insert something...
@@ -80,8 +80,12 @@ class MingoMongoInterfaceTest extends MingoInterfaceTest {
     $map['baz'] = $timestamp;
     $db->set($table,$map,$schema);
     
+    ///out::e($db->getIndexes($table));
+    
     // test the table was created...
     $this->assertTrue($db->hasTable($table));
+  
+    ///out::e($db->getIndexes($table));
   
     $index_list = $db->getIndexes($table);
     

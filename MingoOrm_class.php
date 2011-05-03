@@ -177,7 +177,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
       // via: http://us2.php.net/manual/en/function.get-parent-class.php#57548
       for($parent_list[] = $class; $class = get_parent_class($class); $parent_list[] = $class);
     
-      $this->setDb(mingo_db::getInstance($parent_list));
+      $this->setDb(MingoInterface::getInstance($parent_list));
       
       if(empty($this->db)){
         throw new UnexpectedValueException('a valid mingo_db instance could not be found');

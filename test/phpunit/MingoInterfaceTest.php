@@ -49,9 +49,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $interface = $this->getDbInterface();
     self::$db = new $interface();
     self::$db = $this->connect(self::$db);
-    
     $this->setTable();
-    
     return self::$db;
   
   }//method

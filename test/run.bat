@@ -1,1 +1,0 @@
-phpunit --tap --include-path "E:\Projects\sandbox\mingo" %*
