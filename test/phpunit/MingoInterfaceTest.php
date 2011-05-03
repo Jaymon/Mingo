@@ -58,7 +58,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   {
     $db = $this->getDb();
     $table = $this->getTable();
-    $schema = $this->getSchema();
 
     // a map with 2 arrays can't be indexed (as per mongo), so an exception should
     // be thrown...
@@ -70,7 +69,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
         'baz' => range(1,2)
       );
       
-      $map = $db->set($table,$map,$schema);
+      $map = $db->set($table,$map);
       $this->fail('indexing 2 arrays should not currently work');
     
     }catch(PHPUnit_Framework_AssertionFailedError $e){
@@ -83,12 +82,12 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       'baz' => time()
     );
  
-    $map = $db->set($table,$map,$schema);
+    $map = $db->set($table,$map);
     $this->assertInternalType('array',$map);
 
     $where_criteria = new MingoCriteria();
     $where_criteria->isBar(1);
-    $list = $db->get($table,$schema,$where_criteria);
+    $list = $db->get($table,$where_criteria);
     $this->assertInternalType('array',$list);
 
     $_id_list = array();
@@ -104,42 +103,8 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
  
-    $bool = $db->kill($table,$schema,$where_criteria);
+    $bool = $db->kill($table,$where_criteria);
     $this->assertTrue($bool);
-
-    /**
-    $map = array(
-      'foo' => 'che',
-      'bar' => array('cells' => array('foo','bar'),'categories' => array('one','two')),
-      'baz' => time()
-    );
-    
-    $map = $db->set($table,$map,$schema);
-    $where_criteria = new mingo_criteria();
-    $where_criteria->inField('bar.cells',array('foo','happy'));
-    ///$where_criteria->inField('bar.categories','one');
-    $where_criteria->gteField('baz',time() - 100000);
-    $list = $db->get($table,$schema,$where_criteria);
-    out::e($list);
-    out::x();
-    
-    $map = array(
-      'foo' => 'che',
-      'bar' => array(0 => array('testing' => 'happy',1 => 'sad'),1 => 'nothing'),
-      'baz' => time()
-    );
-    
-    $map = $db->set($table,$map,$schema);
-    $this->assertInternalType('array',$map);
-    
-    $where_criteria = new mingo_criteria();
-    ///$where_criteria->isField('bar.testing','happy'); // equivalent to bar.0.testing
-    $where_criteria->isField('bar','nothing'); // equivalent to bar.1.nothing
-    $list = $db->get($table,$schema,$where_criteria);
-    out::e($list);
-    out::x();
-    // **/
-    
     
   }//method
   
@@ -147,7 +112,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $schema = $this->getSchema();
   
     $map = array(
       'foo' => 'che',
@@ -156,23 +120,23 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     );
     
     // insert it twice because we want atleast 2 rows...
-    $db->set($table,$map,$schema);
+    $db->set($table,$map);
     
     // somehow mongo can set the id of the $map even though I don't do $map = $db->set...
     if(isset($map['_id'])){ unset($map['_id']); }//if
     
-    $db->set($table,$map,$schema);
+    $db->set($table,$map);
   
     $where_criteria = new MingoCriteria();
     $where_criteria->inField('bar',1,2);
     
     // get the count...
-    $count = $db->getCount($table,$schema,$where_criteria);
+    $count = $db->getCount($table,$where_criteria);
     $this->assertSame(2,$count);
     
     $where_criteria->setLimit(2);
     
-    $list = $db->get($table,$schema,$where_criteria,$where_criteria->getBounds());
+    $list = $db->get($table,$where_criteria,$where_criteria->getBounds());
     
     $this->assertSame(2,count($list));
     $this->assertNotEquals((string)$list[0]['_id'],(string)$list[1]['_id']);
@@ -183,7 +147,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $schema = $this->getSchema();
     $_id_list = array();
   
     for($i = 0; $i < 20 ;$i++){
@@ -192,7 +155,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
         'foo' => $i
       );
       
-      $map = $db->set($table,$map,$schema);
+      $map = $db->set($table,$map);
       
       $this->assertArrayHasKey('foo',$map);
       $this->assertArrayHasKey('_id',$map);
@@ -207,7 +170,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
-   *  this is just to make sure there are no problems raised when no criteria is used
+   *  this is just to make sure there are no problems raised when the criteria has nothing set
    *  
    *  I noticed a NOTICE was getting raised when doing this using the mysql interface
    *      
@@ -217,9 +180,8 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $schema = $this->getSchema();
     $where_criteria = new MingoCriteria();
-    $list = $db->get($table,$schema,$where_criteria,array(10,0));
+    $list = $db->get($table,$where_criteria,array(10,0));
     $this->assertInternalType('array',$list);
   
   }//method
@@ -230,19 +192,17 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    *  @since  3-3-11      
    */
   public function testGetOne($db_map){
-  
+
     $db = $db_map['db'];
     $_id_list = $db_map['_id_list'];
     $table = $this->getTable();
-    $schema = $this->getSchema();
 
     foreach($_id_list as $_id){
 
       $where_criteria = new MingoCriteria();
       $where_criteria->is_id((string)$_id);
       $map = $db->getOne(
-        $this->getTable(),
-        $this->getSchema(),
+        $table,
         $where_criteria
       );
       
@@ -264,19 +224,18 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $db = $db_map['db'];
     $_id_list = $db_map['_id_list'];
     $table = $this->getTable();
-    $schema = $this->getSchema();
     
     $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
     
-    $total = $db->getCount($table,$schema,$where_criteria);
+    $total = $db->getCount($table,$where_criteria);
     $this->assertEquals(20,$total);
     
     $_id_seen_list = array();
     
     for($page = 0,$max = count($_id_list); $page < $max ;$page += 10){
       
-      $list = $db->get($table,$schema,$where_criteria,array(10,$page));
+      $list = $db->get($table,$where_criteria,array(10,$page));
       $this->assertInternalType('array',$list);
       $this->assertEquals(10,count($list));
       
@@ -296,7 +255,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       
     }//for
     
-    $map = $db->getOne($table,$schema,$where_criteria);
+    $map = $db->getOne($table,$where_criteria);
     $this->assertArrayHasKey('_id',$map);
     $this->assertContains((string)$map['_id'],$_id_list);
     
@@ -309,10 +268,10 @@ abstract class MingoInterfaceTest extends MingoTestBase {
         $_id_list[0]
       )
     );
-    $list = $db->get($table,$schema,$where_criteria);
+    $list = $db->get($table,$where_criteria);
     $this->assertEquals(2,count($list));
     
-    $count = $db->getCount($table,$schema,$where_criteria);
+    $count = $db->getCount($table,$where_criteria);
     $this->assertEquals(2,$count);
   
     return $db_map;
@@ -327,7 +286,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $db = $db_map['db'];
     $_id_list = $db_map['_id_list'];
     $table = $this->getTable();
-    $schema = $this->getSchema();
     $time = microtime(true);
   
     foreach($_id_list as $_id){
@@ -337,7 +295,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
         'bar' => $time
       );
     
-      $map = $db->set($table,$map,$schema);
+      $map = $db->set($table,$map);
       $this->assertInternalType('array',$map);
       $this->assertArrayHasKey('_id',$map);
       $this->assertArrayHasKey('bar',$map);
@@ -346,7 +304,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       // now pull to make sure it really did get updated...
       $where_criteria = new MingoCriteria();
       $where_criteria->is_id($_id);
-      $map = $db->getOne($table,$schema,$where_criteria);
+      $map = $db->getOne($table,$where_criteria);
       $this->assertInternalType('array',$map);
       $this->assertArrayHasKey('_id',$map);
       $this->assertArrayHasKey('bar',$map);
@@ -366,14 +324,13 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $db = $db_map['db'];
     $_id_list = $db_map['_id_list'];
     $table = $this->getTable();
-    $schema = $this->getSchema();
     
     $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
-    $ret_bool = $db->kill($table,$schema,$where_criteria);
+    $ret_bool = $db->kill($table,$where_criteria);
     $this->assertTrue($ret_bool);
     
-    $list = $db->get($table,$schema,$where_criteria);
+    $list = $db->get($table,$where_criteria);
     $this->assertEmpty($list);
     
     return $db;
@@ -389,7 +346,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $schema = $this->getSchema();
     $foo = 'foo';
     $timestamp = time();
     
@@ -402,16 +358,16 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       $map['foo'] = $foo;
       $map['bar'] = $timestamp;
       $map['baz'] = $timestamp;
-      $db->set($table,$map,$schema);
+      $db->set($table,$map);
     
     }//for */
 
     $where_criteria = new MingoCriteria();
     $where_criteria->isFoo($foo);
   
-    $db->kill($table,$schema,$where_criteria);
+    $db->kill($table,$where_criteria);
   
-    $result = $db->get($table,$schema,$where_criteria,array(1,0));
+    $result = $db->get($table,$where_criteria,array(1,0));
     $this->assertEmpty($result);
   
   }//method
@@ -428,17 +384,14 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     
   }//method
   
-  protected function getSchema(){
-  
-    $ret_schema = new MingoSchema();
-    $ret_schema->setIndex('foo','bar','baz');
-    $ret_schema->setIndex('bar','baz');
-    return $ret_schema;
-  
-  }//method
-  
-  protected function getTable($postfix = ''){
-    return mb_strtolower(sprintf('%s%s_test',get_class($this),$postfix));
+  protected function getTable($name = ''){
+    
+    if(empty($name)){ $name = get_class($this); }//if
+    $table = new MingoTable($name);
+    $table->setIndex('foo','bar','baz');
+    $table->setIndex('bar','baz');
+    return $table;
+    
   }//method
   
   /**
@@ -465,22 +418,21 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $schema = $this->getSchema();
   
     // make sure the table doesn't exist before creating it...
-    $db->killTable($table,$schema);
+    $db->killTable($table);
   
-    $ret_bool = $db->setTable($table,$schema);
+    $ret_bool = $db->setTable($table);
     $this->assertTrue($ret_bool);
     $this->assertTrue($db->hasTable($table));
   
     // make sure the table exists...
     $table_list = $db->getTables();
-    $this->assertContains($table,$table_list);
+    $this->assertContains($table->getName(),$table_list);
   
     // make sure index exists...
     $index_list = $db->getIndexes($table);
-    $this->assertGreaterThanOrEqual(count($schema->getIndexes()),count($index_list));
+    $this->assertGreaterThanOrEqual(count($table->getIndexes()),count($index_list));
     
   }//method
   

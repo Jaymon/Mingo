@@ -64,10 +64,9 @@ class MingoMongoInterfaceTest extends MingoInterfaceTest {
   public function testAutoCreate(){
 
     $db = $this->getDb();
-    $table = sprintf('%s_2',$this->getTable());
-    $schema = $this->getSchema();
-    
-    $ret_bool = $db->killTable($table,$schema);
+    $table = $this->getTable(sprintf('%s_2',get_class($this)));
+
+    $ret_bool = $db->killTable($table);
     $this->assertTrue($ret_bool);
     
     $this->assertFalse($db->hasTable($table));
@@ -78,19 +77,15 @@ class MingoMongoInterfaceTest extends MingoInterfaceTest {
     $map['foo'] = $timestamp;
     $map['bar'] = $timestamp;
     $map['baz'] = $timestamp;
-    $db->set($table,$map,$schema);
-    
-    ///out::e($db->getIndexes($table));
+    $db->set($table,$map);
     
     // test the table was created...
     $this->assertTrue($db->hasTable($table));
   
-    ///out::e($db->getIndexes($table));
-  
     $index_list = $db->getIndexes($table);
     
     // the "- 1" is to compensate for the schema not having the _id index... 
-    $this->assertEquals(count($schema->getIndexes()),count($index_list) - 1);
+    $this->assertEquals(count($table->getIndexes()),count($index_list) - 1);
   
     $ret_bool = $db->killTable($table);
     $this->assertTrue($ret_bool);

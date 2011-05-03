@@ -63,6 +63,8 @@ class MingoTable extends MingoMagic {
   
   }//method
   
+  public function __toString(){ return $this->getName(); }//method
+  
   /**
    *  set the table's name
    *  
@@ -70,7 +72,7 @@ class MingoTable extends MingoMagic {
    */
   protected function setName($val){
     $val = $this->normalizeName($val);
-    $this->name = $val;
+    $this->name = (string)$val;
     return $this;
   }//method
   
