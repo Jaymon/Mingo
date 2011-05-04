@@ -14,11 +14,12 @@
 class MingoSQLiteInterface extends MingoSQLInterface {
   
   /**
-   *  get all the tables of the currently connected db
+   *  @see  getTables()
    *  
-   *  @return array a list of table names
+   *  @param  MingoTable  $table  
+   *  @return array
    */
-  public function getTables($table = ''){
+  protected function _getTables(MingoTable $table = null){
   
     $ret_list = array();
     
@@ -27,7 +28,7 @@ class MingoSQLiteInterface extends MingoSQLInterface {
     // SELECT name FROM sqlite_master WHERE type = \'table\'' from: http://www.litewebsite.com/?c=49
     $query = 'Select * FROM sqlite_master WHERE type=?';
     $query_vars = array('table');
-    if(!empty($table)){
+    if($table !== null){
       $query .= ' AND name=?';
       $query_vars[] = $table;
     }//if
@@ -70,7 +71,12 @@ class MingoSQLiteInterface extends MingoSQLInterface {
    */
   protected function onConnect(){}//method
   
-  protected function createTable($table,MingoSchema $schema){
+  /**
+   *  @see  setTable()
+   *  @param  MingoTable  $table       
+   *  @return boolean
+   */
+  protected function _setTable(MingoTable $table){
   
     $query = sprintf('CREATE TABLE %s (
         row_id INTEGER NOT NULL PRIMARY KEY ASC,
@@ -90,13 +96,13 @@ class MingoSQLiteInterface extends MingoSQLInterface {
   
   }//method
   
-  protected function createIndex($table,array $index_map){
+  protected function createIndex($table,array $index){
   
     // SQLite has a different index creation syntax...
     //  http://www.sqlite.org/lang_createindex.html create index [if not exists] name ON table_name (col_one[,col...])
     
     // the order bit is ignored for sql, so we just need the keys...
-    $field_list = array_keys($index_map);
+    $field_list = array_keys($index);
     $field_list_str = join(',',$field_list);
     $index_name = 'i'.md5($field_list_str);
     
@@ -112,19 +118,18 @@ class MingoSQLiteInterface extends MingoSQLInterface {
    *      
    *  @since  10-18-10
    *  @param  string  $table
-   *  @param  array $index_map  the index structure
-   *  @param  MingoSchema $schema the table schema   
+   *  @param  array $index  the index structure
    */
-  protected function createIndexTable($table,array $index_map,MingoSchema $schema){
+  protected function createIndexTable($table,array $index){
   
-    $index_table = $this->getIndexTableName($table,$index_map);
+    $index_table = $this->getIndexTableName($table,$index);
     $field_list = array();
     $printf_vars = array();
     $query = array();
     $query[] = 'CREATE TABLE %s (';
     $printf_vars[] = $index_table;
     
-    foreach($index_map as $field => $index_type){
+    foreach($index as $field => $index_type){
     
       if($this->isSpatialIndexType($index_type)){
         throw new RuntimeException('SPATIAL indexes are currently unsupported in SQLite');
@@ -134,7 +139,7 @@ class MingoSQLiteInterface extends MingoSQLInterface {
       
       $field_list[] = $field;
       $printf_vars[] = $field;
-      $printf_vars[] = $this->getSqlType($field,$schema);
+      $printf_vars[] = $this->getSqlType($table,$field);
     
     }//foreach
 
@@ -212,10 +217,10 @@ class MingoSQLiteInterface extends MingoSQLInterface {
    *  @param  MingoSchema $schema the schema for the table         
    *  @return string
    */
-  protected function getSqlType($field,MingoSchema $schema){
+  protected function getSqlType(MingoTable $table,$field){
   
     $ret_str = '';
-    $field_instance = $schema->getField($field);
+    $field_instance = $table->getField($field);
   
     switch($field_instance->getType()){
     

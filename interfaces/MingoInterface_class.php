@@ -285,47 +285,48 @@ abstract class MingoInterface extends MingoMagic {
   /**
    *  allows a raw query to be run on the interface
    *  
-   *  all this method does is pull out any passed in args, and pass them as a list
-   *  to the interface's getQuery() method.   
-   *      
-   *  It is not recommended that you use this because it is up to the interface 
-   *  to decide what params need to be passed in and how they are formatted, so it
-   *  locks you into the interface, however, sometimes you just have to run custom
-   *  queries on your backend, and this allows you to do that.
-   *  
-   *  @since  10-8-10   
-   *  @param  mixed $args,... as many or as few as you want, it is up to the interface to error check
-   *  @return mixed whatever the interface chooses to return
+   *  @since  10-8-10
+   *  @param  mixed $query  a query the interface can understand
+   *  @param  array $options  any options for this query
+   *  @return mixed         
    */
-  /* public function getQuery()
+  public function getQuery($query,array $options = array())
   {
-    throw new BadMethodCallException('tbi');
-    $args = func_get_args();
-    return $this->con_db->getQuery($args);
+    // canary...
+    if(empty($query)){ throw new InvalidArgumentException('$query was empty'); }//if
+    
+    return $this->_getQuery($query,$options);
+    
+  }//method
   
-  }//method */
+  /**
+   *  @see  getQuery()
+   *  @param  mixed $query  a query the interface can understand
+   *  @param  array $options  any options for this query
+   *  @return mixed      
+   */
+  abstract protected function _getQuery($query,array $options = array());
   
   /**
    *  get a list of rows matching $where_criteria
    *  
-   *  @param  MingoTable  $table    
-   *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
+   *  @param  MingoTable  $table
+   *  @param  MingoCriteria $where_criteria   
    *  @return array
    */
-  public function get(MingoTable $table,MingoCriteria $where_criteria = null,$limit = 0){
+  public function get(MingoTable $table,MingoCriteria $where_criteria = null){
     
     // canary...
     $this->assure($table);
     
     $ret_list = array();
-    list($limit,$offset) = $this->getLimit($limit);
     
     $itable = $this->normalizeTable($table);
     $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
     
     try{
     
-      $ret_list = $this->_get($itable,$iwhere_criteria,array($limit,$offset));
+      $ret_list = $this->_get($itable,$iwhere_criteria);
       
       if($this->hasDebug()){
         if(!is_array($ret_list)){
@@ -336,7 +337,7 @@ abstract class MingoInterface extends MingoMagic {
     }catch(Exception $e){
     
       if($this->handleException($e,$table)){
-        $ret_list = $this->get($table,$where_criteria,array($limit,$offset));
+        $ret_list = $this->get($table,$where_criteria);
       }//if
     
     }//try/catch
@@ -352,7 +353,7 @@ abstract class MingoInterface extends MingoMagic {
    *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
    *  @return array   
    */
-  abstract protected function _get($table,$where_criteria,array $limit);
+  abstract protected function _get($table,$where_criteria);
   
   /**
    *  get the first found row in $table according to $where_criteria
@@ -363,53 +364,28 @@ abstract class MingoInterface extends MingoMagic {
    */
   public function getOne(MingoTable $table,MingoCriteria $where_criteria = null){
     
-    // canary...
-    $this->assure($table);
+    // set up to only select 1...
+    if($where_criteria === null){ $where_criteria = new MingoCriteria(); }//if
+    $where_criteria->setLimit(1);
+    $where_criteria->setPage(0);
+    $where_criteria->setOffset(0);
     
-    $ret_map = array();
-    $itable = $this->normalizeTable($table);
-    $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
-    
-    try{
-    
-      $ret_map = $this->_getOne($itable,$iwhere_criteria);
-      
-      if($this->hasDebug()){
-        if(!is_array($ret_map)){
-          throw new UnexpectedValueException(sprintf('%s is not the expected return type of array',gettype($ret_map)));
-        }//if
-      }//if
-    
-    }catch(Exception $e){
-    
-      if($this->handleException($e,$table)){
-        $ret_map = $this->getOne($table,$where_criteria);
-      }//if
-    
-    }//try/catch
+    $ret_list = $this->get($table,$where_criteria);
+    $ret_map = reset($ret_list);
+    if($ret_map === false){ $ret_map = array(); }//if
     
     return $ret_map;
     
   }//method
   
   /**
-   *  @see  getOne()
-   *  
-   *  @param  mixed $table  the table ran through {@link normalizeTable()}
-   *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
-   *  @return array
-   */
-  abstract protected function _getOne($table,$where_criteria);
-  
-  /**
    *  tell how many records match $where_criteria in $table
    *  
    *  @param  MingoTable  $table    
-   *  @param  MingoCriteria $where_criteria
-   *  @param  integer|array $limit  either something like 10, or array($limit,$offset)   
+   *  @param  MingoCriteria $where_criteria   
    *  @return integer the count   
    */
-  public function getCount(MingoTable $table,MingoCriteria $where_criteria = null,$limit = 0){
+  public function getCount(MingoTable $table,MingoCriteria $where_criteria = null){
   
     // canary...
     $this->assure($table);
@@ -420,11 +396,10 @@ abstract class MingoInterface extends MingoMagic {
     $ret_int = 0;
     $itable = $this->normalizeTable($table);
     $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
-    list($limit,$offset) = $this->getLimit($limit);
     
     try{
     
-      $ret_int = $this->_getCount($itable,$iwhere_criteria,array($limit,$offset));
+      $ret_int = $this->_getCount($itable,$iwhere_criteria);
       
       if($this->hasDebug()){
         if(!is_int($ret_int)){
@@ -435,7 +410,7 @@ abstract class MingoInterface extends MingoMagic {
     }catch(Exception $e){
     
       if($this->handleException($e,$table)){
-        $ret_int = $this->getCount($table,$where_criteria,array($limit,$offset));
+        $ret_int = $this->getCount($table,$where_criteria);
       }//if
     
     }//try/catch
@@ -451,7 +426,7 @@ abstract class MingoInterface extends MingoMagic {
    *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
    *  @return integer the count
    */
-  abstract protected function _getCount($table,$where_criteria,array $limit);
+  abstract protected function _getCount($table,$where_criteria);
   
   /**
    *  insert $map into $table
@@ -698,7 +673,9 @@ abstract class MingoInterface extends MingoMagic {
     $ret_bool = false;
     try{
     
-      $ret_bool = $this->_setTable($table);
+      if(!($ret_bool = $this->hasTable($table))){
+        $ret_bool = $this->_setTable($table);
+      }//if
       
       if($this->hasDebug()){
         if(!is_bool($ret_bool)){
@@ -773,35 +750,6 @@ abstract class MingoInterface extends MingoMagic {
     $this->query_list[] = $query;
   
     return true;
-  
-  }//method
-  
-  /**
-   *  set the limit/page
-   *  
-   *  this basically normalizes the limit and the page so you don't have to worry about one or the other
-   *  not being present in the implemenations         
-   *  
-   *  @param  integer|array $limit  can be either int (eg, limit=10) or array (eg, array($limit,$offset)
-   *  @return array array($limit,$offset)
-   */
-  protected function getLimit($limit){
-  
-    // canary...
-    if(empty($limit)){ return array(0,0); }//if
-  
-    $ret_limit = $ret_offset = 0;
-  
-    if(is_array($limit)){
-      $ret_limit = (int)$limit[0];
-      if(isset($limit[1])){
-        $ret_offset = (int)$limit[1];
-      }//if
-    }else{
-      $ret_limit = (int)$limit;
-    }//if/else
-  
-    return array($ret_limit,$ret_offset);
   
   }//method
   

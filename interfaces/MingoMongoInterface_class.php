@@ -107,13 +107,13 @@ class MingoMongoInterface extends MingoInterface {
    *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
    *  @return integer the count
    */
-  protected function _getCount($table,$where_criteria,array $limit){
+  protected function _getCount($table,$where_criteria){
   
     $ret_int = 0;
     
     if(!empty($where_criteria)){
     
-      $cursor = $this->getCursor($table,$where_criteria,$limit);
+      $cursor = $this->getCursor($table,$where_criteria);
       $ret_int = $cursor->count();
     
     }else{
@@ -133,33 +133,12 @@ class MingoMongoInterface extends MingoInterface {
    *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
    *  @return array   
    */
-  protected function _get($table,$where_criteria,array $limit){
+  protected function _get($table,$where_criteria){
 
-    $cursor = $this->getCursor($table,$where_criteria,$limit);
+    $cursor = $this->getCursor($table,$where_criteria);
    
     ///while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
     return array_values(iterator_to_array($cursor));
-
-  }//method
-  
-  /**
-   *  @see  getOne()
-   *  
-   *  @param  mixed $table  the table ran through {@link normalizeTable()}
-   *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
-   *  @return array
-   */
-  protected function _getOne($table,$where_criteria){
-    
-    $list = $this->get($table['table'],$where_criteria['where_criteria'],array(1,0));
-    return empty($list[0]) ? array() : $list[0];
-    
-    /**
-    using the findOne it doesn't look like you can sort it, which would be nice...    
-    list($where_map,$sort_map) = $this->normalizeCriteria($where_criteria);
-    $ret_map = $table->findOne($where_map);
-    return empty($ret_map) ? array() : $ret_map;
-    */
 
   }//method
   
@@ -402,7 +381,8 @@ class MingoMongoInterface extends MingoInterface {
     $ret_map = array(
       'where_criteria' => $where_criteria,
       'where_map' => array(),
-      'sort_map' => array()
+      'sort_map' => array(),
+      'limit' => array(0,0)
     );
   
     // canary...
@@ -415,6 +395,7 @@ class MingoMongoInterface extends MingoInterface {
     
     $ret_map['where_map'] = $where_map;
     $ret_map['sort_map'] = $where_criteria->getSort();
+    $ret_map['limit'] = $where_criteria->getBounds();
   
     return $ret_map;
       
@@ -448,10 +429,9 @@ class MingoMongoInterface extends MingoInterface {
    *  @since  10-11-10   
    *  @param  mixed $table  the table ran through {@link normalizeTable()}  
    *  @param  array $where_criteria the criteria returned from {@link normalizeCriteria()}
-   *  @param  array $limit  array($limit,$offset)   
    *  @return MongoCursor
    */
-  protected function getCursor(array $table,array $where_criteria,$limit){
+  protected function getCursor(array $table,array $where_criteria){
   
     $where_map = $where_criteria['where_map'];
     $sort_map = $where_criteria['sort_map'];
@@ -463,6 +443,8 @@ class MingoMongoInterface extends MingoInterface {
     if(!empty($sort_map)){ $cursor->sort($sort_map); }//if
   
     // do the limit stuff...
+    $limit = $where_criteria['limit'];
+    
     if(!empty($limit[0])){ $cursor->limit($limit[0]); }//if
     if(!empty($limit[1])){ $cursor->skip($limit[1]); }//if
   

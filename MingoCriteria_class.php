@@ -316,6 +316,7 @@ class MingoCriteria extends MingoMagic {
   public function setPage($val){ $this->map_bounds['page'] = (int)$val; }//method
   public function getPage(){ return empty($this->map_bounds['page']) ? 0 : $this->map_bounds['page']; }//method
   public function hasPage(){ return !empty($this->map_bounds['page']); }//method
+  public function existsPage(){ return isset($this->map_bounds['page']); }//method
   
   /**
    *  set the page that will be used to calculate the offset
@@ -328,6 +329,7 @@ class MingoCriteria extends MingoMagic {
   public function setOffset($val){ $this->map_bounds['offset'] = (int)$val; }//method
   public function getOffset(){ return empty($this->map_bounds['offset']) ? 0 : $this->map_bounds['offset']; }//method
   public function hasOffset(){ return !empty($this->map_bounds['offset']); }//method
+  public function existsOffset(){ return isset($this->map_bounds['offset']); }//method
   
   /**
    *  takes either 2 values or an array to set the bounds (ie, limit and page) for
@@ -377,7 +379,7 @@ class MingoCriteria extends MingoMagic {
       
     }//method
     
-    if($this->hasOffset()){
+    if($this->existsOffset()){
     
       $offset = $this->getOffset();
     
@@ -389,7 +391,7 @@ class MingoCriteria extends MingoMagic {
       }//if
       
     }//if/else
-    
+
     return array($limit,$offset,$limit_paginate);
     
   }//method

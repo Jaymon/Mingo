@@ -231,11 +231,13 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $total = $db->getCount($table,$where_criteria);
     $this->assertEquals(20,$total);
     
+    $where_criteria->setLimit(10);
     $_id_seen_list = array();
     
-    for($page = 0,$max = count($_id_list); $page < $max ;$page += 10){
+    for($offset = 0,$max = count($_id_list); $offset < $max ;$offset += 10){
       
-      $list = $db->get($table,$where_criteria,array(10,$page));
+      $where_criteria->setOffset($offset);
+      $list = $db->get($table,$where_criteria);
       $this->assertInternalType('array',$list);
       $this->assertEquals(10,count($list));
       
@@ -367,8 +369,42 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db->kill($table,$where_criteria);
   
-    $result = $db->get($table,$where_criteria,array(1,0));
+    $result = $db->getOne($table,$where_criteria);
     $this->assertEmpty($result);
+  
+  }//method
+  
+  public function testKillLots2(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $foo = 'foo2';
+    $timestamp = time();
+  
+    // now let's make sure _id deletion works also...
+    $_id_list = array();
+    for($i = 0; $i < 201 ;$i++)
+    {
+      $timestamp += 1;
+    
+      $map = array();
+      $map['foo'] = $foo;
+      $map['bar'] = $timestamp;
+      $map['baz'] = $timestamp;
+      $ret_map = $db->set($table,$map);
+      $_id_list[] = $ret_map['_id'];
+    
+    }//for */
+  
+    $where_criteria = new MingoCriteria();
+    $where_criteria->in_id($_id_list);
+  
+    $db->kill($table,$where_criteria);
+  
+    $result = $db->getOne($table,$where_criteria);
+    $this->assertEmpty($result);
+  
+  
   
   }//method
   

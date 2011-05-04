@@ -22,6 +22,21 @@ class MingoSQLiteInterfaceTest extends MingoInterfaceTest {
   
   }//method
   
+  public function xtestBlah()
+  {
+    $db = $this->getDb();
+    $table = $this->getTable();
+    
+    $c = new MingoCriteria();
+    $c->inFoo(1,2,3,4);
+    $c->setBounds(10,1);
+    
+    $db->get($table,$c);
+  
+  
+  
+  }//method
+  
   /* public static function tearDownAfterClass(){
   
     $that = new self();
