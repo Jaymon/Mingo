@@ -25,28 +25,33 @@ class MingoMongoInterfaceTest extends MingoInterfaceTest {
    *  
    *  @since  4-18-11
    */
-  public function xtestType(){
+  public function testType(){
   
     $db = $this->getDb();
-    $table = $this->getTable(2);
+    $table = $this->getTable(sprintf('%s_%s_2',__CLASS__,__FUNCTION__));
     $db->killTable($table);
     
-    $schema = new MingoSchema();
-    $schema->setIndex('foo');
+    $table->setIndex('foo');
     
     $f = new MingoField('foo',MingoField::TYPE_INT);
-    $schema->setField($f);
+    $table->addField($f);
     
     $map = array(
       'foo' => 1
     );
     
-    $db->set($table,$map,$schema);
+    $db->set($table,$map);
     
     $c = new MingoCriteria();
     $c->isField('foo','1');
     
-    $ret_map = $db->getOne($table,$schema,$c);
+    ///var_dump($c->getWhere());
+    
+    ///$c->normalizeFields($table);
+    
+    ///var_dump($c->getWhere());
+    
+    $ret_map = $db->getOne($table,$c);
 
     $this->assertArrayHasKey('foo',$ret_map);
     $this->assertEquals(1,$ret_map['foo']);

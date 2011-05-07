@@ -249,6 +249,7 @@ abstract class MingoInterface extends MingoMagic {
     $ret_bool = false;
     $where_criteria->killSort(); // no need to sort when you're deleting
   
+    $where_criteria->normalizeFields($table);
     $itable = $this->normalizeTable($table);
     $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
   
@@ -321,6 +322,7 @@ abstract class MingoInterface extends MingoMagic {
     
     $ret_list = array();
     
+    if(!empty($where_criteria)){ $where_criteria->normalizeFields($table); }//if
     $itable = $this->normalizeTable($table);
     $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
     
@@ -390,6 +392,7 @@ abstract class MingoInterface extends MingoMagic {
     // canary...
     $this->assure($table);
     if(!empty($where_criteria)){
+      $where_criteria->normalizeFields($table);
       $where_criteria->killSort(); // no need to sort when you're counting
     }//if
     

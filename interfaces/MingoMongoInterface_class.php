@@ -143,6 +143,34 @@ class MingoMongoInterface extends MingoInterface {
   }//method
   
   /**
+   *  @see  getQuery()
+   *  @param  mixed $query  a query the interface can understand
+   *  @param  array $options  any options for this query
+   *  @return mixed      
+   */
+  protected function _getQuery($query,array $options = array()){
+  
+    // canary...
+    if(empty($options['table'])){
+      throw new InvalidArgumentException('options did not have a table key');
+    }//if
+  
+    $table = array();
+    $table['collection'] = $this->normalizeTable(new MingoTable($options['table']));
+  
+    $where_criteria = array();
+    $where_criteria['where_map'] = $query;
+    $where_criteria['sort_map'] = empty($options['sort_map']) ? array() : $options['sort_map'];
+    $where_criteria['limit'] = empty($options['limit']) ? array() : $options['limit'];
+    
+    $cursor = $this->getCursor($table,$where_criteria);
+   
+    ///while($cursor->hasNext()){ $ret_list[] = $cursor->getNext(); }//while
+    return array_values(iterator_to_array($cursor));
+  
+  }//method
+  
+  /**
    *  @see  kill()
    *  @param  mixed $table  the table ran through {@link normalizeTable()}
    *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
