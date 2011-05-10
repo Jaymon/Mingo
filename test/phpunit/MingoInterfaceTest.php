@@ -54,6 +54,28 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
+  /**
+   *  test the ability of the interface to autocreate the table
+   *
+   *  @since  5-9-11   
+   */        
+  public function testAutoCreateTable(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable(sprintf('%s_%s',__FUNCTION__,rand(0,9)));
+    $db->killTable($table);
+    
+    $this->assertFalse($db->hasTable($table));
+    
+    $where_criteria = new MingoCriteria();
+    $where_criteria->isFoo(1);
+    
+    $db->get($table,$where_criteria);
+    
+    $this->assertTrue($db->hasTable($table));
+  
+  }//method
+  
   public function testInsertIndexArray()
   {
     $db = $this->getDb();
@@ -176,13 +198,17 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    *      
    *  @since  1-6-11      
    */
-  public function testGetAll(){
+  public function testGetWithNoWhere(){
   
     $db = $this->getDb();
     $table = $this->getTable();
+    $limit = 5;
     $where_criteria = new MingoCriteria();
-    $list = $db->get($table,$where_criteria,array(10,0));
+    $where_criteria->setBounds($limit,0);
+    
+    $list = $db->get($table,$where_criteria);
     $this->assertInternalType('array',$list);
+    $this->assertLessThanOrEqual($limit,count($list));
   
   }//method
   
@@ -417,16 +443,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     
     $table_list = $db->getTables($table);
     $this->assertNotContains($table,$table_list);
-    
-  }//method
-  
-  protected function getTable($name = ''){
-    
-    if(empty($name)){ $name = get_class($this); }//if
-    $table = new MingoTable($name);
-    $table->setIndex('foo','bar','baz');
-    $table->setIndex('bar','baz');
-    return $table;
     
   }//method
   

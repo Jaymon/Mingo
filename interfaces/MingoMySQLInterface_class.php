@@ -18,17 +18,18 @@ class MingoMySQLInterface extends MingoSQLInterface {
   protected function start(){}//method
   
   /**
-   *  get all the tables of the currently connected db
+   *  @see  getTables()
    *  
-   *  @return array a list of table names
+   *  @param  MingoTable  $table  
+   *  @return array
    */
-  public function getTables($table = ''){
+  protected function _getTables(MingoTable $table = null){
   
     $ret_list = array();
     
     $query = 'SHOW TABLES';
     $query_vars = array();
-    if(!empty($table)){
+    if($table !== null){
       $query .= ' LIKE ?';
       $query_vars[] = $table;
     }//if
@@ -52,16 +53,16 @@ class MingoMySQLInterface extends MingoSQLInterface {
    *  get the dsn connection string that PDO will use to connect to the backend
    *   
    *  @since  10-18-10
-   *  @param  string  $db_name  the database name
+   *  @param  string  $name  the database name
    *  @param  string  $host the host
    *  @return string  the dsn         
    */
-  protected function getDsn($db_name,$host){
+  protected function getDsn($name,$host){
   
     // canary...
     if(empty($host)){ throw new InvalidArgumentException('no $host specified'); }//if
   
-    return sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$db_name,self::CHARSET);
+    return sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$name,self::CHARSET);
   
   }//method
   
@@ -78,20 +79,32 @@ class MingoMySQLInterface extends MingoSQLInterface {
   
   }//method
   
-  protected function createTable($table,MingoSchema $schema){
+  /**
+   *  @see  setTable()
+   *  @param  MingoTable  $table       
+   *  @return boolean
+   */
+  protected function _setTable(MingoTable $table){
   
     $query = sprintf('CREATE TABLE `%s` (
-        `row_id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        `_id` VARCHAR(24) NOT NULL,
-        `body` LONGBLOB,
-        UNIQUE KEY (`_id`)
+      `row_id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `_id` VARCHAR(24) NOT NULL,
+      `body` LONGBLOB,
+      UNIQUE KEY (`_id`)
     ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
     
     return $this->getQuery($query);
   
   }//method
   
-  protected function createIndexTable($table,array $index_map,MingoSchema $schema){
+  /**
+   *  create an index table for the given $table and $index_map      
+   *   
+   *  @since  10-18-10
+   *  @param  string  $table
+   *  @param  array $index_map  the index structure 
+   */
+  protected function createIndexTable($table,array $index_map){
   
     $index_table = $this->getIndexTableName($table,$index_map);
     $printf_vars = array();
@@ -125,7 +138,7 @@ class MingoMySQLInterface extends MingoSQLInterface {
         
         $query[] = '`%s` %s,';
         $printf_vars[] = $field;
-        $printf_vars[] = $this->getSqlType($field,$schema);
+        $printf_vars[] = $this->getSqlType($table,$field);
         $pk_field_list[] = $field;
         
         
@@ -313,13 +326,13 @@ class MingoMySQLInterface extends MingoSQLInterface {
    *
    *  @since  10-19-10
    *  @param  string  $field  the field name
-   *  @param  MingoSchema  $schema the schema for the table         
+   *  @param  MingoSchema $schema the schema for the table         
    *  @return string
    */
-  protected function getSqlType($field,MingoSchema $schema){
+  protected function getSqlType(MingoTable $table,$field){
   
     $ret_str = '';
-    $field_instance = $schema->getField($field);
+    $field_instance = $table->getField($field);
   
     switch($field_instance->getType()){
     

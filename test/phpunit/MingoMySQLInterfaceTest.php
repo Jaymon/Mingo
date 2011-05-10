@@ -40,7 +40,7 @@ class MingoMySQLInterfaceTest extends MingoInterfaceTest {
   public function xtestBadIndex(){
   
     $db = $this->getDb();
-    $table = $this->getTable(2);
+    $table = $this->getTable(sprintf('%s_%s_2',__CLASS__,__FUNCTION__));
     $db->killTable($table);
     ///$schema = $this->getSchema();
     
@@ -76,7 +76,6 @@ class MingoMySQLInterfaceTest extends MingoInterfaceTest {
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $schema = $this->getSchema();
     $timestamp = time();
     
     $map = array();
@@ -84,11 +83,11 @@ class MingoMySQLInterfaceTest extends MingoInterfaceTest {
     $map['bar'] = $timestamp;
     $map['baz'] = $timestamp;
     
-    $ret_map = $db->set($table,$map,$schema);
+    $ret_map = $db->set($table,$map);
     
     for($i = 0; $i < 5; $i++){
       unset($map['_id']);
-      $db->set($table,$map,$schema);
+      $db->set($table,$map);
     }//for
     
     $pdo = $db->getDb();
@@ -100,21 +99,8 @@ class MingoMySQLInterfaceTest extends MingoInterfaceTest {
     $where_criteria = new MingoCriteria();
     $where_criteria->isFoo($map['foo']);
     
-    $ret_list = $db->get($table,$schema,$where_criteria);
+    $ret_list = $db->get($table,$where_criteria);
     $this->assertEquals(5,count($ret_list));
-  
-  
-  
-  }//method
-  
-  protected function getSchema(){
-  
-    $ret_schema = parent::getSchema();
-    
-    // add a spatial index also...
-    ///$ret_schema->setSpatial('location','bar','baz');
-    
-    return $ret_schema;
   
   }//method
 

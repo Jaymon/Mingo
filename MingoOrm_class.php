@@ -49,9 +49,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  holds the table that this class will access in the db
    *  
    *  @see  getTable(), setTable()      
-   *  @var  string
+   *  @var  MingoTable
    */
-  protected $table = '';
+  protected $table = null;
   
   /**
    *  holds the pointer to the current map in {@link $list}
@@ -83,17 +83,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @var  integer
    */
   protected $total = 0;
-  
-  /**
-   *  hold the schema object for this instance
-   *  
-   *  usually, the schema will be populated/defined in the child class's {@link populateSchema()}
-   *  
-   *  @see  getSchema(), setSchema()   
-   *  @var  MingoSchema            
-   */
-  protected $schema = null;
-  
+
   /**
    *  set to true if you want this instance to act like an array even if {@link hasCount()}
    *  equals 1 (ie, this instance only represents one row)
@@ -191,38 +181,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     
   }//method
   
-  public function setSchema(MingoSchema $schema){ $this->schema = $schema; }//method
-  public function getSchema(){
-    
-    // canary...
-    if(!empty($this->schema)){ return $this->schema; }//if
-  
-    $schema = new MingoSchema();
-    
-    // set some of the default fields...
-    $schema->setField(self::CREATED,MingoField::TYPE_INT);
-    $schema->setField(self::UPDATED,MingoField::TYPE_INT);
-  
-    $this->populateSchema($schema);
-  
-    $this->setSchema($schema);
-  
-    return $this->schema;
-    
-  }//method
-  
-  /**
-   *  add indexes and fields that this orm should know about to the schema
-   *  
-   *  it isn't, by default, required to add anything, but it makes Mingo more aware of the data
-   *  it will be wrapping and also might be required by certain Interfaces         
-   *
-   *  @since  5-2-11
-   *  @param  MingoSchema $schema the schema instance this class uses when interacting
-   *                              with the interface      
-   */
-  abstract protected function populateSchema(MingoSchema $schema);
-  
   /**
    *  if the instance has loaded any rows then the criteria that was used should be 
    *  stored using this method
@@ -243,7 +201,17 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     // canary...
     if(!empty($this->table)){ return $this->table; }//if 
   
-    $this->setTable(get_class($this));
+    $table = new MingoTable(get_class($this));
+    
+    // set some of the default fields...
+    $table->setField(self::CREATED,MingoField::TYPE_INT);
+    $table->setField(self::CREATED,MingoField::TYPE_INT);
+    
+    // let some custom stuff be added...
+    $this->populateTable($table);
+    
+    $this->setTable($table);
+    
     return $this->table;
   
   }//method
@@ -252,16 +220,20 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  set the table
    *
    *  @since  10-25-10
-   *  @param  string  $table  the table name   
+   *  @param  MingoTable  $table  the table with information set
    */
-  protected function setTable($table){
+  protected function setTable(MingoTable $table){ $this->table = $table; }//method
   
-    // canary...
-    if(empty($table)){ throw new InvalidArgumentException('$table cannot be empty'); }//if
-  
-    $this->table = mb_strtolower($table);
-    
-  }//method
+  /**
+   *  add indexes and fields that this orm should know about to the table
+   *  
+   *  it isn't, by default, required to add anything, but it makes Mingo more aware of the data
+   *  it will be wrapping and also might be required by certain Interfaces         
+   *
+   *  @since  5-2-11
+   *  @param  MingoTable  $table
+   */
+  abstract protected function populateTable(MingoTable $table);
   
   /**
    *  pass in true to make this instance act like it is a list no matter what
@@ -387,7 +359,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  save this instance into the db
    *  
    *  @return boolean
-   *  @throws mingo_exception   
    */
   function set(){
   
@@ -401,8 +372,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
       
         $this->list[$key]['map'] = $db->set(
           $this->getTable(),
-          $this->list[$key]['map'],
-          $this->getSchema()
+          $this->list[$key]['map']
         );
         $this->list[$key]['modified'] = false; // reset
       
@@ -432,7 +402,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     
     $db = $this->getDb();
     $this->setTotal(
-      $db->getCount($this->getTable(),$this->getSchema(),$where_criteria,$where_criteria->getBounds())
+      $db->getCount($this->getTable(),$where_criteria)
     );
     
     return $this->getTotal();
@@ -457,7 +427,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *                                  results matching $where_criteria, getTotal() will return 100      
    *  @return integer how many rows were loaded
    */
-  function load(MingoCriteria $where_criteria = null,$set_load_total = false){
+  public function load(MingoCriteria $where_criteria = null,$set_load_total = false){
   
     // go back to square one...
     $this->reset();
@@ -465,21 +435,20 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     $ret_int = 0;
     $db = $this->getDb();
     $limit = $offset = $limit_paginate = 0;
-    $this->setCriteria($where_criteria);
-  
+
     // figure out what criteria to use on the load...
-    if(!empty($where_criteria)){
+    if($where_criteria !== null){
     
       list($limit,$offset,$limit_paginate) = $where_criteria->getBounds();
+      $where_criteria->setLimit($limit_paginate);
+      $where_criteria->setOffset($offset);
     
     }//if
     
     // get stuff from the db...
     $list = $db->get(
       $this->getTable(),
-      $this->getSchema(),
-      $where_criteria,
-      array($limit_paginate,$offset)
+      $where_criteria
     );
     
     // re-populate this instance...
@@ -503,6 +472,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
           $this->setTotal($ret_int);
         }//if/else
         
+        $where_criteria->setLimit($limit);
+        
       }else{
       
         $this->setMore(false);
@@ -511,7 +482,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
       }//if/else
       
       // we attach so that the structure of the internal map is maintained...
-      foreach($list as $map){ $this->attach($map); }//foreach
+      array_map(array($this,'attach'),$list);
+      ///foreach($list as $map){ $this->attach($map); }//foreach
       
     }//if
     
@@ -525,6 +497,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
       
     }//if
     
+    $this->setCriteria($where_criteria);
     return $ret_int;
   
   }//method
@@ -553,7 +526,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     // get stuff from the db...
     $map = $db->getOne(
       $this->getTable(),
-      $this->getSchema(),
       $where_criteria
     );
     
@@ -611,7 +583,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   
     if($where_criteria !== null){
     
-      $ret_bool = $db->kill($this->getTable(),$this->getSchema(),$where_criteria);
+      $ret_bool = $db->kill($this->getTable(),$where_criteria);
         
     }else{
   
@@ -638,7 +610,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
         
         $where_criteria = new MingoCriteria();
         $where_criteria->inField(self::_ID,$_id_list);
-        if($db->kill($this->getTable(),$this->getSchema(),$where_criteria)){
+        if($db->kill($this->getTable(),$where_criteria)){
           $this->reset();
           $ret_bool = true;
         }//if
@@ -654,7 +626,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  the install method for the class
    *  
-   *  using the {@link $schema} instance, this method will go through and create
+   *  using the {@link $table} instance, this method will go through and create
    *  the table and add indexes, etc.
    *  
    *  @param  boolean $drop_table true if you want to drop the table if it exists               
@@ -667,9 +639,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     if($drop_table){ $db->killTable($this->getTable()); }//if
 
     // create the table...
-    if(!$db->setTable($this->getTable(),$this->getSchema())){
+    if(!$db->setTable($this->getTable())){
     
-      throw new mingo_exception(sprintf('failed in table %s creation',$this->getTable()));
+      throw new UnexpectedValueException(sprintf('failed in table %s creation',$this->getTable()));
     
     }//if/else
     
@@ -918,8 +890,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    */
   protected function handleCall($command,$name,$args,$ret_mixed = null){
   
-    $schema = $this->getSchema();
-    $field_instance = $schema->getField($name);
+    $table = $this->getTable();
+    $field_instance = $table->getField($name);
   
     $field_list = (array)$field_instance->getName();
     $ret_val_list = array();

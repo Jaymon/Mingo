@@ -37,14 +37,24 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
       array($t)
     );
   }//method
+  
+  protected function getTable($name = ''){
+    
+    if(empty($name)){ $name = get_class($this); }//if
+    $table = new MingoTable($name);
+    $table->setIndex('foo','bar','baz');
+    $table->setIndex('bar','baz');
+    return $table;
+    
+  }//method
 
 }//class
 
 class MingoTestOrm extends MingoOrm {
 
-  protected function populateSchema(MingoSchema $schema){
+  protected function populateTable(MingoTable $table){
   
-    ///$this->schema->setIndex('foo','bar','baz');
+    ///$table->setIndex('foo','bar','baz');
   
   }//method
   

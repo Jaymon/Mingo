@@ -125,6 +125,40 @@ class MingoOrmTest extends MingoTestBase {
   }//method
   
   /**
+   *  load a whole bunch and make sure hasMore and the like work
+   *  
+   *  @since  5-9-11
+   */
+  public function testLoadMany(){
+  
+    $total = 10;
+
+    $table = $this->getTable(sprintf('%s_%s',__FUNCTION__,rand(0,9)));    
+    for($i = 0; $i < $total ;$i++){
+    
+      $t = $this->getDbConnectedOrm();
+      $t->setTable($table);
+      $this->assertTrue($t->set());
+    
+    }//for
+    ///$table = new MingoTable('testloadmany_1');
+    
+    $c = new MingoCriteria();
+    $t = $this->getDbConnectedOrm();
+    
+    $total_load = $t->loadTotal($c);
+    $this->assertGreaterThanOrEqual($total,$total_load);
+    
+    $limit = 5;
+    
+    $c->setLimit($limit);
+    $count = $t->load($c);
+    $this->assertEquals($limit,$count);
+    $this->assertTrue($t->hasMore());
+  
+  }//method
+  
+  /**
    *  @depends  testLoad
    */
   public function testKill($_id){

@@ -683,28 +683,17 @@ abstract class MingoSQLInterface extends MingoInterface {
     // http://us2.php.net/manual/en/function.PDO-prepare.php
     $stmt_handler = $this->con_db->prepare($query);
   
-    // execute the query...
-    $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
-
-    if(!$is_success){
+    try{
     
-      $err_map = $stmt_handler->errorInfo();
+      // execute the query...
+      $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
       
+    }catch(Exception $e){
+    
       $stmt_handler->closeCursor();
-      
-      // we use the string version of the error code ($err_map[0]) because that is 
-      // what handleException expects because that is what a PDOException would have
-      // but we can't use PDOException because it won't take a string for the code,
-      // no idea why PHP gets away with that natively 
-      throw new UnexpectedValueException(
-        sprintf('query "%s" failed execution with error: %s',
-          $query,
-          print_r($err_map,1)
-        ),
-        $err_map[0]
-      );
+      throw $e;
     
-    }//if
+    }//try/catch
   
     return $stmt_handler;
   
@@ -1135,11 +1124,13 @@ abstract class MingoSQLInterface extends MingoInterface {
     $ret_map = array();
     
     $ret_map['where_criteria'] = $where_criteria;
-  
-    $check_index_tables = ($where_criteria !== null)
-      && ($where_criteria->hasWhere() || $where_criteria->hasSort());
-  
+    
     $limit = array(0,0);
+    $check_index_tables = false;
+    if($where_criteria !== null){
+      $check_index_tables = ($where_criteria->hasWhere() || $where_criteria->hasSort());
+      $limit = array($where_criteria->getLimit(),$where_criteria->getOffset());
+    }//if
   
     if($check_index_tables){
       
@@ -1151,7 +1142,6 @@ abstract class MingoSQLInterface extends MingoInterface {
       $where_query = $sql_map['where_str'];
       $val_list = $sql_map['where_val'];
       $sort_query = $sql_map['sort_str'];
-      $limit = array($where_criteria->getLimit(),$where_criteria->getOffset());
       
       // now, find the right index table to select from...
       $index_table = $this->getIndexTable($table,$where_criteria);
