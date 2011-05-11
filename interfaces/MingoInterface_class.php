@@ -57,62 +57,7 @@ abstract class MingoInterface extends MingoMagic {
    */
   private $connected = false;
   
-  /**
-   *  used by {@link getInstance()} to keep a singleton object, the {@link getInstance()} 
-   *  method should be the only place this is ever messed with so if you want to touch it, DON'T!  
-   *  @var array  an array of mingo_db instances
-   */
-  private static $instance_map = array();
-  
   public function __construct(){}//method
-  
-  /**
-   *  can force class to follow the singelton pattern 
-   *  
-   *  this allows multiple MingoOrm's to connect to any number of different Interfaces
-   *  all in the same request, each time the {@link MingoOrm::getDb()} is called it
-   *  will use this method to find the appropriate Interface depending on the MingoOrm
-   *  and the MingoOrm's parent classes         
-   *      
-   *  {@link http://en.wikipedia.org/wiki/Singleton_pattern}
-   *  and keeps all db classes to one instance, {@link $instance_map} should only 
-   *  be messed with in this function
-   *   
-   *  @param  string|array  $class_list return an instance for the given class, if you pass in
-   *                                    an array then it would usually be a list of the class and
-   *                                    all its parents so inheritance can be respected and a child
-   *                                    will receive the right instance if it inherits from a defined 
-   *                                    parent         
-   *  @return mingo_db  null on failure
-   */
-  public static function getInstance($class_list = array()){
-  
-    // canary...
-    if(empty($class_list)){
-      $class_list = array('MingoOrm');
-    }else{
-      $class_list = (array)$class_list;
-    }//if/else
-    
-    $ret_instance = null;
-    
-    // look for a matching instance for the classes...
-    foreach($class_list as $class){
-      if(!empty(self::$instance_map[$class])){
-        $ret_instance = self::$instance_map[$class];
-        break;
-      }//if
-    }//foreach
-  
-    // if we couldn't find a match, create a new entry...
-    if($ret_instance === null){
-      self::$instance_map[$class_list[0]] = new self;
-      $ret_instance = self::$instance_map[$class_list[0]];
-    }//if
-    
-    return $ret_instance;
-    
-  }//method
   
   /**
    *  connect to the db
@@ -597,7 +542,8 @@ abstract class MingoInterface extends MingoMagic {
    */
   public function getTables(MingoTable $table = null){
   
-    if(!$this->isConnected()){ throw new UnexpectedValueException('no db connection found'); }//if
+    // canary...
+    $this->assure();
     
     $ret_list = array();
     try{
@@ -888,10 +834,21 @@ abstract class MingoInterface extends MingoMagic {
    *  @param  MingoTable  $table
    *  @return boolean
    */
-  protected function assure(MingoTable $table){
+  protected function assure(MingoTable $table = null){
   
-    if(!$table->hasName()){ throw new InvalidArgumentException('no $table specified'); }//if
-    if(!$this->isConnected()){ throw new UnexpectedValueException('no db connection found'); }//if
+    // make sure table is valid...
+    if($table !== null){
+      if(!$table->hasName()){ throw new UnexpectedValueException('no $table specified'); }//if
+    }//if
+    
+    // make sure connection is valid...
+    if(!$this->isConnected()){
+      if(!$this->connect()){
+        throw new UnexpectedValueException('no db connection found');
+      }//if
+    }//if
+    
+    
     return true;
   
   }//method

@@ -361,13 +361,13 @@ abstract class MingoSQLInterface extends MingoInterface {
    *  @return boolean
    */
   protected function _kill($table,$where_criteria){
-    
+
     $ret_bool = false;
     $limit = 100; // SQLite has a 500 variable IN (...) limit
     $offset = 0;
 
     try{
-    
+
       $has_more = false;
     
       do{
@@ -417,7 +417,7 @@ abstract class MingoSQLInterface extends MingoInterface {
         $this->con_db->commit();
         
       }while($has_more);
-        
+
     }catch(Exception $e){
 
       // get rid of any changes that were made since we failed...
@@ -439,7 +439,10 @@ abstract class MingoSQLInterface extends MingoInterface {
    *  @return array the $map that was just saved, with the _id set               
    */
   protected function insert($table,array $map){
-    
+
+    out::b();
+    out::p('insert');
+
     // insert into the main table, _id and body are all we care about...
     $field_map = array();
     $field_map['_id'] = $this->getUniqueId($table);
@@ -448,21 +451,21 @@ abstract class MingoSQLInterface extends MingoInterface {
     // insert the saved map into the table...
     $field_name_str = join(',',array_keys($field_map));
     $field_val_str = join(',',array_fill(0,count($field_map),'?'));
-    
+
     try{
-    
+
       // begin the insert transaction...
       $this->con_db->beginTransaction();
-      
+   
       $query = sprintf('INSERT INTO %s (%s) VALUES (%s)',$table,$field_name_str,$field_val_str);
       $val_list = array_values($field_map);
       $ret_bool = $this->getQuery($query,$val_list);
-      
+  
       if($ret_bool){
-      
+   
         // get the row id...
         $map['row_id'] = $this->con_db->lastInsertId();
-      
+
         // we need to add to all the index tables...
         if($table->hasIndexes()){
         
@@ -471,12 +474,12 @@ abstract class MingoSQLInterface extends MingoInterface {
         }//if
         
         $map['_id'] = $field_map['_id'];
-        
-        // finish the insert transaction...
-        $this->con_db->commit();
-        
-      }//if
       
+      }//if
+    
+      // finish the insert transaction...
+      $this->con_db->commit();
+  
     }catch(Exception $e){
     
        // get rid of any changes that were made since we failed...
@@ -484,7 +487,9 @@ abstract class MingoSQLInterface extends MingoInterface {
       throw $e;
     
     }//try/catch
-    
+  
+    out::p();
+  
     return $map;
     
   }//method

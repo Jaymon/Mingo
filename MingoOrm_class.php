@@ -155,26 +155,14 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  return the db object that this instance is using
    *  
-   *  @return mingo_db  an instance of the db object that will be used
+   *  @see  setDb()   
+   *  @return MingoInterface  an instance of the db object that will be used
    */
   public function getDb(){
     
-    if($this->db === null){
-    
-      // get all the names of this class and all parents in order to find the right instance...
-      $class = get_class($this);
-      $parent_list = array();
-      // via: http://us2.php.net/manual/en/function.get-parent-class.php#57548
-      for($parent_list[] = $class; $class = get_parent_class($class); $parent_list[] = $class);
-    
-      $this->setDb(MingoInterface::getInstance($parent_list));
-      
-      if(empty($this->db)){
-        throw new UnexpectedValueException('a valid mingo_db instance could not be found');
-      }//if
-      
-      if(!$this->db->isConnected()){ $this->db->connect(); }//if
-      
+    // canary...
+    if(empty($this->db)){
+      throw new UnexpectedValueException('a valid MingoInterface instance has not been set using setDb()');
     }//if
     
     return $this->db;

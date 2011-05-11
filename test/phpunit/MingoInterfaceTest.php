@@ -370,13 +370,15 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    *   
    *  @since  12-19-10
    */
-  public function testKillLots(){
+  public function testKillLots1(){
   
     $db = $this->getDb();
+    ///$db->setDebug(false);
+    
     $table = $this->getTable();
     $foo = 'foo';
     $timestamp = time();
-    
+
     for($i = 0; $i < 2000 ;$i++)
     ///for($i = 0; $i < 201 ;$i++)
     {
@@ -392,9 +394,9 @@ abstract class MingoInterfaceTest extends MingoTestBase {
 
     $where_criteria = new MingoCriteria();
     $where_criteria->isFoo($foo);
-  
+
     $db->kill($table,$where_criteria);
-  
+ 
     $result = $db->getOne($table,$where_criteria);
     $this->assertEmpty($result);
   
