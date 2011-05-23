@@ -47,6 +47,8 @@ abstract class MingoSQLInterface extends MingoInterface {
     'sort' => array('arg' => 'handleSortSql')
   );
   
+  ///protected $statement_map = array();
+  
   /**
    *  create an index table for the given $table and $index_map      
    *   
@@ -440,8 +442,8 @@ abstract class MingoSQLInterface extends MingoInterface {
    */
   protected function insert($table,array $map){
 
-    out::b();
-    out::p('insert');
+    ///out::b();
+    ///out::p('insert');
 
     // insert into the main table, _id and body are all we care about...
     $field_map = array();
@@ -488,7 +490,7 @@ abstract class MingoSQLInterface extends MingoInterface {
     
     }//try/catch
   
-    out::p();
+    ///out::p();
   
     return $map;
     
@@ -687,10 +689,20 @@ abstract class MingoSQLInterface extends MingoInterface {
     // prepare the statement and run the query...
     // http://us2.php.net/manual/en/function.PDO-prepare.php
     $stmt_handler = $this->con_db->prepare($query);
+    /* 
+    // caching the statement didn't make a material impact when running the testKillLots1() test
+    if(isset($this->statement_map[$query])){
+      $stmt_handler = $this->statement_map[$query];
+    }else{
+      $stmt_handler = $this->con_db->prepare($query);
+      $this->statement_map[$query] = $stmt_handler;
+    }//if/else */
   
     try{
     
       // execute the query...
+      // passing in the values this way instead of doing bindValue() seems to
+      // work fine even though all the values get treated like a string
       $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
       
     }catch(Exception $e){
