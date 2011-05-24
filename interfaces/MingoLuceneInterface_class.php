@@ -66,9 +66,6 @@ class MingoLuceneInterface extends MingoInterface {
    */
   protected function _getTables(MingoTable $table = null){
   
-    // canary...
-    ///if($table !== null){ return array($table->getName()); }//if
-  
     $path[] = $this->getField('path');
     $path[] = empty($table) ? '*' : $table->getName();
     
@@ -85,10 +82,10 @@ class MingoLuceneInterface extends MingoInterface {
    *  @return integer the count
    */
   protected function _getCount($table,$where_criteria){
-  
-    $lucene = $this->getLucene($table);
-    return count($lucene->find($where_criteria['query']));
-  
+
+    // set limit, 0 is unlimited...
+    return count($this->find($table['lucene'],$where_criteria));
+    
   }//method
   
   /**
@@ -100,14 +97,10 @@ class MingoLuceneInterface extends MingoInterface {
    */
   protected function _get($table,$where_criteria){
 
-    $lucene = $this->getLucene($table);
-    
-    // set limit...
-    if(!empty($where_criteria['limit'][0])){
-      Zend_Search_Lucene::setResultSetLimit($where_criteria['limit'][0]);
-    }//if
+    // set limit, 0 is unlimited...
+    Zend_Search_Lucene::setResultSetLimit($where_criteria['limit'][0]);
 
-    $list = $lucene->find($where_criteria['query']);
+    $list = $this->find($table['lucene'],$where_criteria);
     
     // get rid of the offset that was added to limit...
     if(!empty($where_criteria['limit'][1])){
@@ -132,7 +125,13 @@ class MingoLuceneInterface extends MingoInterface {
    */
   protected function _kill($table,$where_criteria){
   
+    $list = $this->find($table['lucene'],$where_criteria);
     
+    foreach($list as $i => $hit){
+      $table['lucene']->delete($hit->id);
+    }//foreach
+  
+    return true;
   
   }//method
   
@@ -143,6 +142,11 @@ class MingoLuceneInterface extends MingoInterface {
    *  @return mixed      
    */
   protected function _getQuery($query,array $options = array()){
+  
+    $where_criteria = new MingoCriteria();
+    $where_criteria->is_q($query);
+    $where_criteria = $this->normalizeCriteria($options['table'],$where_criteria);
+    ///out::i($where_criteria['query']);
   
   }//method
   
@@ -155,14 +159,16 @@ class MingoLuceneInterface extends MingoInterface {
    */
   protected function insert($table,array $map){
     
-    $map['_id'] = $this->getUniqueId($table);
-    $document = $this->normalizeMap($table,$map);
+    if(empty($map['_id'])){ $map['_id'] = $this->getUniqueId(); }//if
+    $document = $this->normalizeMap($table['table'],$map);
+
+    $precount = $table['lucene']->numDocs();
+    ///$precount = $table['lucene']->count();
     
-    $lucene = $this->getLucene($table);
-    $precount = $lucene->count();
-    $lucene->addDocument($document);
-    $lucene->commit(); // http://framework.zend.com/manual/en/zend.search.lucene.advanced.html
-    $postcount = $lucene->count();
+    $table['lucene']->addDocument($document);
+    $table['lucene']->commit(); // http://framework.zend.com/manual/en/zend.search.lucene.advanced.html
+    ///$postcount = $table['lucene']->count();
+    $postcount = $table['lucene']->numDocs();
     
     if($postcount <= $precount){
       throw new UnexpectedValueException(
@@ -183,6 +189,18 @@ class MingoLuceneInterface extends MingoInterface {
    *  @return array the $map that was just saved with _id set
    */
   protected function update($table,$_id,array $map){
+
+    // delete the old as per:
+    // http://framework.zend.com/manual/en/zend.search.lucene.best-practice.html#zend.search.lucene.best-practice.unique-id
+    // http://framework.zend.com/manual/en/zend.search.lucene.index-creation.html#zend.search.lucene.index-creation.document-updating
+    $term = new Zend_Search_Lucene_Index_Term($_id,'_id');
+    $id_list  = $index->termDocs($term);
+    foreach($id_list as $id){
+      $table['lucene']->delete($id);
+    }//foreach
+
+    $map['_id'] = $_id;
+    return $this->insert($table,$map);
 
   }//method
   
@@ -206,7 +224,7 @@ class MingoLuceneInterface extends MingoInterface {
   protected function _getIndexes($table){
   
     // everything in lucene is an index, so just return whatever the table has...
-    return $table->getIndexes();
+    return $table['table']->getIndexes();
   
   }//method
   
@@ -217,18 +235,14 @@ class MingoLuceneInterface extends MingoInterface {
    *  @return boolean
    */
   protected function _killTable($table){
-
-    $table_name = $table->getName();
+  
+    $table_name = $table['table']->getName();
     if(isset($this->con_db[$table_name])){
-      $this->con_db[$table_name] = null;
+      $this->con_db[$table_name]->__destruct();
       unset($this->con_db[$table_name]);
     }//if
-  
-    ///$lucene = $this->getLucene($table);
-    ///$lucene = null;
-    ///unset($lucene);
-  
-    return $this->removePath(join(DIRECTORY_SEPARATOR,array($this->getField('path'),$table)));
+
+    return $this->removePath(join(DIRECTORY_SEPARATOR,array($this->getField('path'),$table_name)));
     
   }//method
 
@@ -266,17 +280,27 @@ class MingoLuceneInterface extends MingoInterface {
     $path[] = $this->getField('path');
     $path[] = $table_name;
     $index_path = join(DIRECTORY_SEPARATOR,$path);
-    
-    // install the index if it doesn't already exist...
-    if(is_dir($index_path)){
 
-      $ret_instance = Zend_Search_Lucene::open($index_path);  
+    try{
+      
+      // install the index if it doesn't already exist...
+      if(is_dir($index_path)){
+  
+        $ret_instance = Zend_Search_Lucene::open($index_path);
+      
+      }else{
+      
+        $ret_instance = Zend_Search_Lucene::create($index_path);
+      
+      }//if/else
+      
+    }catch(Zend_Search_Lucene_Exception $e){
     
-    }else{
-    
+      clearstatcache();
+      usleep(10);
       $ret_instance = Zend_Search_Lucene::create($index_path);
-    
-    }//if/else
+      
+    }//try/catch 
   
     if($ret_instance !== null){
         
@@ -324,7 +348,7 @@ class MingoLuceneInterface extends MingoInterface {
     $document = new Zend_Search_Lucene_Document();
     
     // add some fields that will be present in all documents...
-    $document->addField(Zend_Search_Lucene_Field::unStored('_id',$map['_id'],$this->charset));
+    $document->addField(Zend_Search_Lucene_Field::unStored('_id',$map['_id']));
     $document->addField(Zend_Search_Lucene_Field::binary('body',$this->getBody($map)));
     
     // add all the indexes into the document...
@@ -335,7 +359,14 @@ class MingoLuceneInterface extends MingoInterface {
         // use array_key... to account for null values...
         if(array_key_exists($name,$map)){
       
-          $document->addField(Zend_Search_Lucene_Field::UnStored($name,$map[$name],$this->charset));  
+          $val = null;
+          if(is_array($map[$name])){
+            $val = join(' ',$map[$name]);
+          }else{
+            $val = $map[$name];
+          }//if/else
+      
+          $document->addField(Zend_Search_Lucene_Field::UnStored($name,$val));  
         
           // let's not try and add it twice...
           unset($map[$name]);
@@ -348,6 +379,22 @@ class MingoLuceneInterface extends MingoInterface {
   
     return $document;
   
+  }//method
+  
+  /**
+   *  turn the table into something the interface can understand
+   *  
+   *  @param  MingoTable  $table 
+   *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
+   */
+  protected function normalizeTable(MingoTable $table){
+    
+    $ret_map = array();
+    $ret_map['lucene'] = $this->getLucene($table);
+    $ret_map['table'] = $table;
+  
+    return $ret_map;
+    
   }//method
   
   /**
@@ -365,75 +412,84 @@ class MingoLuceneInterface extends MingoInterface {
     
     $ret_map = array();
     $ret_map['where_criteria'] = $where_criteria;
+    $ret_map['limit'] = array(0,0);
     
     $query = new Zend_Search_Lucene_Search_Query_Boolean();
     
-    // add all the required search keys and their values...
-    $criteria_where = $where_criteria->getWhere();
-  
-    foreach($criteria_where as $name => $map){
+    if($where_criteria !== null){
+      
+      // add all the required search keys and their values...
+      $criteria_where = $where_criteria->getWhere();
     
-      $where_sql = '';
-      $where_val = array();
-    
-      if(is_array($map)){
+      foreach($criteria_where as $name => $map){
       
-        $command = $where_criteria->getCommand('in');
-        if(isset($map[$command])){
-          $subquery = $this->handleMulti($name,$map[$command],true);
-        }//if 
+        $where_sql = '';
+        $where_val = array();
       
-        $command = $where_criteria->getCommand('nin');
-        if(isset($map[$command])){
-          $subquery = $this->handleMulti($name,$map[$command],false);
-        }//if
+        if(is_array($map)){
         
-        $command = $where_criteria->getCommand('not');
-        if(isset($map[$command])){
-          $subquery = $this->handleEquals($name,$map[$command],false);
-        }//if
+          $command = $where_criteria->getCommand('in');
+          if(isset($map[$command])){
+            $subquery = $this->handleMulti($name,$map[$command],true);
+          }//if 
         
-        $command1 = $where_criteria->getCommand('gte');
-        $command2 = $where_criteria->getCommand('lte');
-        if(isset($map[$command1]) && isset($map[$command2])){
-          $subquery = $this->handleRange($name,$map[$command1],$map[$command2],true);
-        }//if
-        
-        if(isset($map[$command1])){
-          $subquery = $this->handleRange($name,$map[$command1],null,true);
-        }//if
-      
-        if(isset($map[$command2])){
-          $subquery = $this->handleRange($name,null,$map[$command2],true);
-        }//if
-        
-        $command = $where_criteria->getCommand('gt');
-        if(isset($map[$command])){
-          $subquery = $this->handleRange($name,$map[$command],null,false);
-        }//if
-      
-        $command = $where_criteria->getCommand('lt');
-        if(isset($map[$command])){
-          $subquery = $this->handleRange($name,null,$map[$command],false);
-        }//if
-        
-      }else{
-      
-        if($name === '_q'){
-        
-          $subquery = Zend_Search_Lucene_Search_QueryParser::parse($map);
-        
-        }else{
-      
-          $subquery = $this->handleEquals($name,$map,true);
+          $command = $where_criteria->getCommand('nin');
+          if(isset($map[$command])){
+            $subquery = $this->handleMulti($name,$map[$command],false);
+          }//if
           
+          $command = $where_criteria->getCommand('not');
+          if(isset($map[$command])){
+            $subquery = $this->handleEquals($name,$map[$command],false);
+          }//if
+          
+          $command1 = $where_criteria->getCommand('gte');
+          $command2 = $where_criteria->getCommand('lte');
+          if(isset($map[$command1]) && isset($map[$command2])){
+            $subquery = $this->handleRange($name,$map[$command1],$map[$command2],true);
+          }//if
+          
+          if(isset($map[$command1])){
+            $subquery = $this->handleRange($name,$map[$command1],null,true);
+          }//if
+        
+          if(isset($map[$command2])){
+            $subquery = $this->handleRange($name,null,$map[$command2],true);
+          }//if
+          
+          $command = $where_criteria->getCommand('gt');
+          if(isset($map[$command])){
+            $subquery = $this->handleRange($name,$map[$command],null,false);
+          }//if
+        
+          $command = $where_criteria->getCommand('lt');
+          if(isset($map[$command])){
+            $subquery = $this->handleRange($name,null,$map[$command],false);
+          }//if
+          
+        }else{
+        
+          if($name === '_q'){
+          
+            $subquery = Zend_Search_Lucene_Search_QueryParser::parse($map);
+          
+          }else{
+        
+            $subquery = $this->handleEquals($name,$map,true);
+            
+          }//if/else
+        
         }//if/else
+        
+        $query->addSubquery($subquery,true);
+        
+      }//foreach
       
-      }//if/else
+      // limit offset...
+      $offset = $where_criteria->getOffset();
+      $ret_map['limit'] = array($where_criteria->getLimit() + $offset,$offset);
       
-      $query->addSubquery($subquery,true);
-      
-    }//foreach
+    }//if
     
     $ret_map['query'] = $query;
     
@@ -458,13 +514,6 @@ class MingoLuceneInterface extends MingoInterface {
     
     }//foreach
     */
-    
-    // limit offset...
-    $offset = $where_criteria->getOffset();
-    $ret_map['limit'] = array(
-      $where_criteria->getLimit() + $offset,
-      $offset
-    );
     
     return $ret_map;
     
@@ -510,12 +559,22 @@ class MingoLuceneInterface extends MingoInterface {
   
   protected function handleMulti($name,$val,$required){
   
-    $subquery = new Zend_Search_Lucene_Search_Query_MultiTerm();
+    /* $subquery = new Zend_Search_Lucene_Search_Query_MultiTerm();
               
     foreach($val as $v){
       $subquery->addTerm(
-        new Zend_Search_Lucene_Index_Term($v,$name),
-        $required
+        new Zend_Search_Lucene_Index_Term($v,$name)
+        ///$required
+      );
+    }//foreach */
+    
+    $subquery = new Zend_Search_Lucene_Search_Query_Boolean();
+    foreach($val as $v){
+      $subquery->addSubquery(
+        new Zend_Search_Lucene_Search_Query_Term(
+          new Zend_Search_Lucene_Index_Term($v,$name)
+          ///$required
+        )
       );
     }//foreach
   
@@ -535,15 +594,7 @@ class MingoLuceneInterface extends MingoInterface {
    *  @param  array $map  the key/value pairings
    *  @return string  a zlib compressed json encoded string
    */
-  protected function getBody(array $map){
-  
-    // get rid of table stuff...
-    ///if(isset($map['row_id'])){ unset($map['row_id']); }//if
-    ///if(isset($map['_id'])){ unset($map['_id']); }//if
-    
-    return gzcompress(serialize($map));
-  
-  }//method
+  protected function getBody(array $map){ return gzcompress(serialize($map)); }//method
   
   /**
    *  opposite of {@link getBody()}
@@ -554,9 +605,7 @@ class MingoLuceneInterface extends MingoInterface {
    *  @param  string  $body the getBody() compressed string, probably returned from a db call
    *  @return array the key/value pairs restored to their former glory
    */
-  protected function getMap($body){
-    return unserialize(gzuncompress($body));
-  }//method
+  protected function getMap($body){ return unserialize(gzuncompress($body)); }//method
   
   /**
    *  recursively clear an entire directory, files, folders, everything
@@ -591,6 +640,17 @@ class MingoLuceneInterface extends MingoInterface {
     $ret_bool = rmdir($path);
     return $ret_bool;
     
+  }//method
+  
+  /**
+   *
+   *  @since  5-24-11
+   */        
+  protected function find(Zend_Search_Lucene_Proxy $lucene,array $where_criteria){
+  
+    Zend_Search_Lucene::setResultSetLimit($where_criteria['limit'][0]);
+    return $lucene->find($where_criteria['query']);
+  
   }//method
   
 }//class     
