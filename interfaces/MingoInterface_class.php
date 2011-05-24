@@ -703,11 +703,12 @@ abstract class MingoInterface extends MingoMagic {
   }//method
   
   /**
-   *  takes any exception and maps it to a mingo_exception
+   *  decide what to do with the exception
    *  
    *  this will also try and resolve the exception if $table is given, if solving
    *  it returns true then this method will return true allowing the failed code to try again         
    *  
+   *  @see  _handleException()   
    *  @param  Exception $e  any exception
    *  @param  MingoTable  $table  the table the exception was encountered on
    *  @return boolean true if the exception was resolved, false if it wasn't
@@ -746,7 +747,7 @@ abstract class MingoInterface extends MingoMagic {
    *  @param  MingoTable  $table     
    *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
-  abstract protected function _handleException(Exception $e,MingoTable $table);
+  protected function _handleException(Exception $e,MingoTable $table){ return false; }//method
   
   /**
    *  adds an index to $table

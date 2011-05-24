@@ -10,8 +10,9 @@ class MingoLuceneInterfaceTest extends MingoInterfaceTest {
   public function getDbName(){
     
     return sprintf(
-      '%s_lucene',
-      join(DIRECTORY_SEPARATOR,array(sys_get_temp_dir(),__CLASS__))
+      '%s%s_lucene',
+      sys_get_temp_dir(),
+      __CLASS__
     );
     
   }//method

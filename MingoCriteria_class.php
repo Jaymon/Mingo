@@ -293,7 +293,16 @@ class MingoCriteria extends MingoMagic {
    *
    *  @return string   
    */
-  function getCommandSymbol(){ return $this->command_symbol; }//method
+  public function getCommandSymbol(){ return $this->command_symbol; }//method
+  
+  /**
+   *  true if the passed in val is a command
+   * 
+   *  @since  5-23-11    
+   *  @param  string  $val
+   *  @return boolean
+   */
+  public function isCommand($val){ return ($val[0] === $this->command_symbol); }//method
 
   public function getWhere(){ return $this->map_where; }//method
   public function hasWhere(){ return !empty($this->map_where); }//method

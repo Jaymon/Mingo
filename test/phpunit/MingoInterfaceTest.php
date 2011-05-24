@@ -49,7 +49,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $interface = $this->getDbInterface();
     self::$db = new $interface();
     self::$db = $this->connect(self::$db);
-    $this->setTable();
+    ///$this->setTable($table);
     return self::$db;
   
   }//method
@@ -76,7 +76,11 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
-  public function testInsertIndexArray()
+  /**
+   *  test adding to a table when one of the index values is actually an array of
+   *  values
+   */    
+  public function testIndexArrayInsert()
   {
     $db = $this->getDb();
     $table = $this->getTable();
@@ -439,12 +443,20 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   public function testKillTable(){
   
     $db = $this->getDb();
-    $table = $this->getTable();
+    $table = new MingoTable(__FUNCTION__);
     $ret_bool = $db->killTable($table);
     $this->assertTrue($ret_bool);
     
+    $this->assertFalse($db->hasTable($table));
+    
     $table_list = $db->getTables($table);
     $this->assertNotContains($table,$table_list);
+    
+    $this->assertTrue($db->setTable($table));
+    $this->assertTrue($db->hasTable($table));
+    $ret_bool = $db->killTable($table);
+    $this->assertTrue($ret_bool);
+    $this->assertFalse($db->hasTable($table));
     
   }//method
   
@@ -468,10 +480,9 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
 
-  protected function setTable(){
+  protected function setTable(MingoTable $table){
   
     $db = $this->getDb();
-    $table = $this->getTable();
   
     // make sure the table doesn't exist before creating it...
     $db->killTable($table);
@@ -481,8 +492,8 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $this->assertTrue($db->hasTable($table));
   
     // make sure the table exists...
-    $table_list = $db->getTables();
-    $this->assertContains($table->getName(),$table_list);
+    ///$table_list = $db->getTables();
+    ///$this->assertContains($table->getName(),$table_list);
   
     // make sure index exists...
     $index_list = $db->getIndexes($table);
