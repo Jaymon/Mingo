@@ -9,24 +9,12 @@ include(
     DIRECTORY_SEPARATOR,
     array(
       join(DIRECTORY_SEPARATOR,array(dirname(__FILE__),'..')),
-      'mingo_autoload_class.php'
+      'MingoAutoload_class.php'
     )
   )
 );
-mingo_autoload::register();
-mingo_autoload::addIncludePath(__FILE__);
-
-// personal debugging stuff, ignore..
-$out_path_list = array(
-  'out_class.php',
-  'C:\Projects\Plancast\_active\lib\out_class.php',
-  'E:\Projects\sandbox\out\git_repo\out_class.php'
-);
-foreach($out_path_list as $out_path){
-  if(is_file($out_path)){ include_once($out_path); break; }//if
-}//foreach
-
-///bla::h(); out::x();
+MingoAutoload::register();
+MingoAutoload::addIncludePath(__FILE__);
 
 $required_argv_map = array(
   'interface' => null, // the interface to use to access mingo data
@@ -40,13 +28,13 @@ $required_argv_map = array(
 try{
 
   // parse the command line arguments and make sure they work...
-  $cli_handler = new cli($argv,$required_argv_map);
+  $cli_handler = new Cli($argv,$required_argv_map);
   $argv_map = $cli_handler->get();
   
   // connect to the db using the command line arguments...
-  $db = mingo_db::getInstance();
+  $interface = $argv_map['interface'];
+  $db = new $interface();
   $db->connect(
-    $argv_map['interface'],
     $argv_map['name'],
     $argv_map['host'],
     $argv_map['username'],
@@ -55,7 +43,7 @@ try{
   $db->setDebug($argv_map['debug']);
   
   // this will handle all the input from the user...
-  $cli_in = new cli_in($db);
+  $cli_in = new CliIn($db);
   
   // get input from the user...
   while(true){
@@ -76,7 +64,7 @@ try{
         // output the found results...
         $cli_out->handle();
         
-      }catch(cli_stop_exception $e){
+      }catch(CliStopException $e){
 
         echo 'Bye',PHP_EOL;
         exit();

@@ -7,4 +7,4 @@
  *  @since 7-13-10
  *  @package cli_tools
  ******************************************************************************/
-class cli_stop_exception extends cli_exception {}//class
+class CliStopException extends Exception {}//class

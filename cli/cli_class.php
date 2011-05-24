@@ -7,7 +7,7 @@
  *  @since 6-8-10
  *  @package cli_tools
  ******************************************************************************/
-class cli
+class Cli
 {
   protected $argv_map = array();
 

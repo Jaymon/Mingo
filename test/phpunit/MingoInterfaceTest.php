@@ -395,7 +395,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    *   
    *  @since  12-19-10
    */
-  public function xtestKillLots1(){
+  public function testKillLots1(){
   
     $db = $this->getDb();
     ///$db->setDebug(false);
@@ -427,7 +427,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
-  public function xtestKillLots2(){
+  public function testKillLots2(){
   
     $db = $this->getDb();
     $table = $this->getTable();
@@ -480,6 +480,119 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $this->assertFalse($db->hasTable($table));
     
   }//method
+  
+  /**
+   *  @since  5-24-11
+   */
+  public function testCriteriaIn(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+    
+    $_id_list = $this->addRows($db,$table,5);
+    
+    $where_criteria = new MingoCriteria();
+    $where_criteria->inFoo(1,2);
+    
+    $list = $db->get($table,$where_criteria);
+    $this->assertEquals(2,count($list));
+    
+    $this->assertSubset($list,$_id_list);
+  
+  }//method
+  
+  /**
+   *  @since  5-24-11
+   */
+  public function testCriteriaNin(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+    
+    $_id_list = $this->addRows($db,$table,5);
+    
+    $where_criteria = new MingoCriteria();
+    $where_criteria->ninFoo(1,2);
+    
+    $list = $db->get($table,$where_criteria);
+    $this->assertEquals(3,count($list));
+    
+    $this->assertSubset($list,$_id_list);
+  
+  }//method
+  
+  /**
+   *  make sure the interface is sorting returned results right
+   *  
+   *  basically, add some rows and then get them back in reverse order
+   *  
+   *  @since  5-24-11
+   */
+  public function testSort(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+    $count = 20;
+    
+    $_id_list = $this->addRows($db,$table,$count);
+    
+    $where_criteria = new MingoCriteria();
+    ///$where_criteria->in_id($_id_list);
+    $where_criteria->descFoo();
+    ///$where_criteria->ascFoo();
+    
+    $list = $db->get($table,$where_criteria);
+    ///out::e($list);
+    $this->assertEquals($count,count($list));
+    $this->assertSubset($list,$_id_list);
+    
+    $last_val = $count;
+    foreach($list as $map){
+    
+      $this->assertEquals($map['foo'],$last_val - 1);
+      $last_val = $map['foo'];
+    
+    }//foreach
+    
+    $this->assertSubset($list,$_id_list);
+  
+  }//method
+  
+  protected function assertSubset(array $list,array $_id_list){
+  
+    foreach($list as $map){
+    
+      $this->assertArrayHasKey('_id',$map);
+      $this->assertContains($map['_id'],$_id_list);
+    
+    }//foreach
+  
+  }//method
+  
+  protected function addRows(MingoInterface $db,MingoTable $table,$count){
+  
+    $_id_list = array();
+  
+    for($i = 0; $i < $count ;$i++){
+    
+      $map = array(
+        'foo' => $i
+      );
+      
+      $map = $db->set($table,$map);
+      
+      $this->assertArrayHasKey('foo',$map);
+      $this->assertArrayHasKey('_id',$map);
+      $this->assertEquals(24,mb_strlen($map['_id']));
+      $this->assertNotContains($map['_id'],$_id_list);
+      $_id_list[] = (string)$map['_id'];
+    
+    }//for
+  
+    return $_id_list;
+  
+  }//method
+  
   
   /**
    *  connect to the db

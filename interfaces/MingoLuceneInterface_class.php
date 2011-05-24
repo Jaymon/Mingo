@@ -143,10 +143,14 @@ class MingoLuceneInterface extends MingoInterface {
    */
   protected function _getQuery($query,array $options = array()){
   
-    $where_criteria = new MingoCriteria();
-    $where_criteria->is_q($query);
-    $where_criteria = $this->normalizeCriteria($options['table'],$where_criteria);
-    ///out::i($where_criteria['query']);
+    $query = Zend_Search_Lucene_Search_QueryParser::parse($query);
+    $table = $this->normalizeTable($options['table']);
+    
+    $where_criteria = array();
+    $where_criteria['query'] = $query;
+    $where_criteria['limit'] = array(0,0);
+    
+    return $this->find($table['lucene'],$where_criteria);
   
   }//method
   
@@ -194,7 +198,7 @@ class MingoLuceneInterface extends MingoInterface {
     // http://framework.zend.com/manual/en/zend.search.lucene.best-practice.html#zend.search.lucene.best-practice.unique-id
     // http://framework.zend.com/manual/en/zend.search.lucene.index-creation.html#zend.search.lucene.index-creation.document-updating
     $term = new Zend_Search_Lucene_Index_Term($_id,'_id');
-    $id_list  = $index->termDocs($term);
+    $id_list  = $table['lucene']->termDocs($term);
     foreach($id_list as $id){
       $table['lucene']->delete($id);
     }//foreach
@@ -376,7 +380,7 @@ class MingoLuceneInterface extends MingoInterface {
       }//foreach
     
     }//foreach
-  
+
     return $document;
   
   }//method
@@ -425,17 +429,23 @@ class MingoLuceneInterface extends MingoInterface {
       
         $where_sql = '';
         $where_val = array();
+        $required = true;
       
         if(is_array($map)){
         
           $command = $where_criteria->getCommand('in');
           if(isset($map[$command])){
             $subquery = $this->handleMulti($name,$map[$command],true);
+            $required = true;
           }//if 
         
+          // according to: http://lucene.apache.org/java/2_4_0/queryparsersyntax.html
+          // Lucene cannot do nin queries without something before it (eg, foo:1 NOT foo(2 3) but
+          // (NOT foo(2 3) doesn't work)
           $command = $where_criteria->getCommand('nin');
           if(isset($map[$command])){
             $subquery = $this->handleMulti($name,$map[$command],false);
+            $required = false;
           }//if
           
           $command = $where_criteria->getCommand('not');
@@ -481,7 +491,7 @@ class MingoLuceneInterface extends MingoInterface {
         
         }//if/else
         
-        $query->addSubquery($subquery,true);
+        $query->addSubquery($subquery,$required);
         
       }//foreach
       
@@ -489,31 +499,33 @@ class MingoLuceneInterface extends MingoInterface {
       $offset = $where_criteria->getOffset();
       $ret_map['limit'] = array($where_criteria->getLimit() + $offset,$offset);
       
+      // caution from docs:
+      // Please use caution when using a non-default search order; 
+      // the query needs to retrieve documents completely from an index, 
+      // which may dramatically reduce search performance.
+      // http://framework.zend.com/manual/en/zend.search.lucene.searching.html#zend.search.lucene.searching.sorting
+      if($where_criteria->hasSort()){
+        
+        $criteria_sort = $where_criteria->getSort();
+        $sort_list = array();
+        
+        // build the sort sql...
+        foreach($criteria_sort as $name => $direction){
+        
+          $sort_list[] = $name;
+          $sort_list[] = SORT_REGULAR;
+          ///$sort_list[] = SORT_STRING; ///SORT_NUMERIC;
+          $sort_list[] = ($direction > 0) ? SORT_ASC : SORT_DESC;
+        
+        }//foreach
+        
+        $ret_map['sort'] = $sort_list;
+        
+      }//if
+      
     }//if
     
     $ret_map['query'] = $query;
-    
-    // caution from docs:
-    // Please use caution when using a non-default search order; 
-    // the query needs to retrieve documents completely from an index, 
-    // which may dramatically reduce search performance.
-    // http://framework.zend.com/manual/en/zend.search.lucene.searching.html#zend.search.lucene.searching.sorting
-    
-    /*
-    $criteria_sort = $where_criteria->getSort();
-    
-    // build the sort sql...
-    foreach($criteria_sort as $name => $direction){
-    
-      $dir_sql = ($direction > 0) ? 'ASC' : 'DESC';
-      if(empty($ret_map['sort_sql'])){
-        $ret_map['sort_str'] = sprintf('ORDER BY %s %s',$name,$dir_sql);
-      }else{
-        $ret_map['sort_str'] = sprintf('%s,%s %s',$ret_map['sort_sql'],$name,$dir_sql);
-      }//if/else
-    
-    }//foreach
-    */
     
     return $ret_map;
     
@@ -648,7 +660,25 @@ class MingoLuceneInterface extends MingoInterface {
    */        
   protected function find(Zend_Search_Lucene_Proxy $lucene,array $where_criteria){
   
+    $ret_list = array();
     Zend_Search_Lucene::setResultSetLimit($where_criteria['limit'][0]);
+    
+    if(empty($where_criteria['sort'])){
+    
+      $ret_list = $lucene->find($where_criteria['query']);
+    
+    }else{
+    
+      // http://framework.zend.com/manual/en/zend.search.lucene.searching.html#zend.search.lucene.searching.sorting
+      $args = $where_criteria['sort'];
+      array_unshift($args,$where_criteria['query']);
+      
+      out::e($args);
+      
+      $ret_list = call_user_func_array(array($lucene,'find'),$args);
+    
+    }//if/else
+    
     return $lucene->find($where_criteria['query']);
   
   }//method
