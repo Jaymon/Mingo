@@ -408,6 +408,8 @@ class MingoLuceneInterface extends MingoInterface {
    *  
    *  currently not supported: 'near'
    *      
+   *  @link http://lucene.apache.org/java/2_4_0/queryparsersyntax.html
+   *      
    *  @param  MingoTable  $table    
    *  @param  MingoCriteria $where_criteria   
    *  @return mixed return whatever you want, however you want to return it, whatever is easiest for you
