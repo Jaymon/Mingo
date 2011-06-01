@@ -89,7 +89,7 @@ And, if you wanted to sort them in alphabetical order, you would just add this l
 
 Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads and sets, and then they have another class that is the actual ORM for the db's table. Mingo combines the two, this will take some getting used to at first but is actually pretty cool when you start using it. When a `MingoOrm` instance is handling more than one row, then any method calls, like setUsername(), set(), or kill() will affect all the rows that the instance represents (use `isMulti()` to know if the instance is representing more than one row). Let's take a look at an example using the `User` class from above.
 
-## Let's add some users into a SQLite database and then load them up
+### Let's add some users into a SQLite database and then load them up
 
     $db = new MingoSQLiteInterface();
     $db->setName(sys_get_temp_dir().'userdb.sqlite');
