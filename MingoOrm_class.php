@@ -475,7 +475,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
       
     }//if
     
-    if($ret_int > 0){
+    $this->setMulti(true); // any load is multi, use loadOne to make multi false
+    /* if($ret_int > 0){
       
       if($ret_int === 1){
         $this->setMulti(false);
@@ -483,7 +484,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
         $this->setMulti(true);
       }//if/else
       
-    }//if
+    }//if */
     
     $this->setCriteria($where_criteria);
     return $ret_int;
@@ -521,7 +522,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     if(!empty($map)){
       
       $this->setMore(false);
-      $this->setTotal(1);
       $this->attach($map);
       $this->setMulti(false);
       $ret_bool = true;
