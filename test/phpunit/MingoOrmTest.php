@@ -180,6 +180,11 @@ class MingoOrmTest extends MingoTestBase {
     
   }//method
   
+  /**
+   *  test to make sure the load() and loadOne() works as expected
+   *   
+   *  @since  6-1-11
+   */        
   public function testMulti(){
   
     $t1 = $this->getDbConnectedOrm();
