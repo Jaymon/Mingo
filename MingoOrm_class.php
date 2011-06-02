@@ -182,7 +182,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  get the table this class will use on the db side
    *  
-   *  @return string  the table name
+   *  @return MingoTable
    */
   public function getTable(){
   
@@ -192,8 +192,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     $table = new MingoTable(get_class($this));
     
     // set some of the default fields...
+    $table->setField(self::ROW_ID,MingoField::TYPE_INT);
     $table->setField(self::CREATED,MingoField::TYPE_INT);
-    $table->setField(self::CREATED,MingoField::TYPE_INT);
+    $table->setField(self::UPDATED,MingoField::TYPE_INT);
     
     // let some custom stuff be added...
     $this->populateTable($table);
@@ -350,7 +351,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    */
   function set(){
   
-    $ret_bool = true;
+    $ret_bool = false;
     $db = $this->getDb();
 
     foreach(array_keys($this->list) as $key){
@@ -363,6 +364,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
           $this->list[$key]['map']
         );
         $this->list[$key]['modified'] = false; // reset
+        
+        $ret_bool = true;
       
       }//if
     
@@ -536,25 +539,25 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  load by the unique _ids
    *
    *  @param  integer|array $_id_list one or more _ids
-   *  @return integer how many rows where loaded
+   *  @return integer how many rows were loaded
    */
   public function loadBy_Id($_id_list){
   
     // canary...
     if(empty($_id_list)){ return 0; }//if
     
-    $ret_bool = false;
+    $ret_int = 0;
     
     $where_criteria = new MingoCriteria();
     if(is_array($_id_list)){
       $where_criteria->inField(self::_ID,$_id_list);
-      $ret_bool = ($this->load($where_criteria) > 0) ? true : false;
+      $ret_int = $this->load($where_criteria);
     }else{
       $where_criteria->isField(self::_ID,$_id_list);
-      $ret_bool = $this->loadOne($where_criteria);
+      if($this->loadOne($where_criteria)){ $ret_int = 1; }//if
     }//if/else
   
-    return $ret_bool;
+    return $ret_int;
   
   }//method
   
@@ -955,7 +958,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
             case 'get':
             
               if(isset($field_ref[$field])){
-                $ret_mixed[] = $field_ref[$field];
+                $ret_mixed[] = $field_instance->normalizeInVal($field_ref[$field]);
               }else{
                 $ret_mixed[] = $args[0];
               }//if/else
