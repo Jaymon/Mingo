@@ -138,7 +138,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  Required definition for Countable, allows count($this) to work
    *  @link http://www.php.net/manual/en/class.countable.php
    */
-  function count(){ return $this->getCount(); }//method
+  public function count(){ return $this->getCount(); }//method
 
   /**
    *  return true if the last db load could load more, but was limited by $limit 
@@ -257,7 +257,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  
    *  @return array the internal {@link $list} array
    */
-  function getList(){ return $this->list; }//method
+  public function getList(){ return $this->list; }//method
 
   /**
    *  returns a list of all the maps this class contains
@@ -270,7 +270,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  integer $i  the index we want to get if we don't want all of them      
    *  @return array
    */
-  function get(){
+  public function get(){
   
     $ret_mix = null;
     $args = func_get_args();
@@ -306,7 +306,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  integer $i  the index we want to get if we don't want all of them      
    *  @return array
    */
-  function getMap(){
+  public function getMap(){
   
     $ret_mix = null;
     $args = func_get_args();
@@ -347,33 +347,44 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  save this instance into the db
    *  
-   *  @return boolean
+   *  @return integer how many objects were persisted
    */
-  function set(){
+  public function set(){
   
-    $ret_bool = false;
-    $db = $this->getDb();
+    $ret_count = 0;
 
     foreach(array_keys($this->list) as $key){
     
       // only try and save if it has changes...
       if(!empty($this->list[$key]['modified'])){
       
-        $this->list[$key]['map'] = $db->set(
-          $this->getTable(),
-          $this->list[$key]['map']
-        );
+        $this->list[$key]['map'] = $this->setMap($this->list[$key]['map']);
         $this->list[$key]['modified'] = false; // reset
+        $ret_count++;
         
-        $ret_bool = true;
-      
       }//if
-    
+      
     }//foreach
   
-    ///out::e($this->list);
+    return $ret_count;
   
-    return $ret_bool;
+  }//method
+  
+  /**
+   *  just set the individual map
+   *  
+   *  this is blown out from {@link set()} to make it easier for the child classes
+   *  to mess with the map right before saving it
+   *  
+   *  @since  6-24-11   
+   *  @param  array $map  the map that will be saved into the db   
+   *  @return array the same map, but now saved
+   */
+  protected function setMap(array $map){
+  
+    $db = $this->getDb();
+    $map = $db->set($this->getTable(),$map);
+    return $map;
   
   }//method
   
@@ -506,7 +517,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  MingoCriteria  $where_criteria  criteria for loading db rows into this object      
    *  @return boolean
    */
-  function loadOne(MingoCriteria $where_criteria){
+  public function loadOne(MingoCriteria $where_criteria){
   
     // go back to square one...
     $this->reset();
@@ -567,7 +578,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  MingoCriteria  $where_criteria  criteria for deleting db rows   
    *  @return boolean will only return true if all the rows were successfully removed, false otherwise      
    */
-  function kill(MingoCriteria $where_criteria = null){
+  public function kill(MingoCriteria $where_criteria = null){
   
     $ret_bool = false;
     $db = $this->getDb();
@@ -1172,17 +1183,17 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  
    *  @link http://php.net/manual/en/class.iterator.php      
    */
-  function rewind(){ $this->current_i = 0; }//method
-  function current(){ return $this->detach($this->current_i); }//method
-  function key(){ return $this->current_i; }//method
-  function next(){ ++$this->current_i; }//method
-  function valid(){ return isset($this->list[$this->current_i]); }//method
+  public function rewind(){ $this->current_i = 0; }//method
+  public function current(){ return $this->detach($this->current_i); }//method
+  public function key(){ return $this->current_i; }//method
+  public function next(){ ++$this->current_i; }//method
+  public function valid(){ return isset($this->list[$this->current_i]); }//method
   /**#@-*/
   
   /**
    *  Set a value given it's key e.g. $A['title'] = 'foo';
    */
-  function offsetSet($key,$val){
+  public function offsetSet($key,$val){
     
     if($key === null){
       // they are trying to do a $obj[] = $val so let's attach the $val
