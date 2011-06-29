@@ -66,7 +66,7 @@ and that's that, the `User` is now saved. To make sure, let's load him up into a
      echo $u->getUsername(),' - ',$u->getPassword(),PHP_EOL;
     }//foreach
 
-this is just a basic example, but it shows you the initial power of Mingo. each class extended from `MingoOrm` has many built in magic functions to make doing things easy. You just saw the set* and get* magic functions, but you also have has* magic functions to make sure a field exists and is non-empty (eg, `$user->hasPassword()` to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, `$user->bumpView(1)`). And is* functions to see if a field contains a value (eg, `$user->isUsername('tester')`). You can also reach into arrays with all the methods:
+this is just a basic example, but it shows you the ease of use of Mingo. each class extended from `MingoOrm` has many built in magic functions to make doing things easy. You just saw the set* and get* magic functions, but you also have has* magic functions to make sure a field exists and is non-empty (eg, `$user->hasPassword()` to see if the password field exists and is non-empty). The exists* to just see if a field exists (it could be empty). The kill* functions to remove a field. The bump* functions to increment the field by count (eg, `$user->bumpView(1)`). And is* functions to see if a field contains a value (eg, `$user->isUsername('tester')`). You can also reach into arrays with all the methods:
 
     $user = new User();
     $user->setField('attributes',array('foo' => 1,'bar' => 2));
@@ -85,7 +85,69 @@ And, if you wanted to sort them in alphabetical order, you would just add this l
 
     $c->ascUsername();
 
-Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads and sets, and then they have another class that is the actual ORM for the db's table. Mingo combines the two, this will take some getting used to at first but is actually pretty cool when you start using it. When a `MingoOrm` instance is handling more than one row, then any method calls, like setUsername(), set(), or kill() will affect all the rows that the instance represents (use `isMulti()` to know if there is more than one row represented).
+# One Class to rule them all
+
+Now, most ORMs and abstraction layers have a peer or table class (atleast the ones that I've used) that takes care of db loads and sets, and then they have another class that is the actual ORM for the db's table. Mingo combines the two, this will take some getting used to at first but is actually pretty cool when you start using it. When a `MingoOrm` instance is handling more than one row, then any method calls, like setUsername(), set(), or kill() will affect all the rows that the instance represents (use `isMulti()` to know if the instance is representing more than one row). Let's take a look at an example using the `User` class from above.
+
+### Let's add some users into a SQLite database and then load them up
+
+    $db = new MingoSQLiteInterface();
+    $db->setName(sys_get_temp_dir().'userdb.sqlite');
+
+    $u1 = new User();
+    $u1->setDb($db);
+    
+    $u1->setUsername('foo');
+    $u1->setPassword('1234');
+    $u1->set();
+    
+    $u2 = new User();
+    $u2->setDb($db);
+    
+    $u2->setUsername('bar');
+    $u2->setPassword('4321');
+    $u2->set();
+    
+    // now let's look at how load() and loadOne() differ...
+    
+    $user = new User();
+    $user->setDb($db);
+    
+    // use loadOne() to have your $user instance represent one row...
+    $c = new MingoCriteria();
+    $c->isUsername('foo');
+    $user->loadOne($c);
+    
+    echo $user->getUsername(); // 'foo'
+    echo $user->isMulti() ? 'TRUE' : 'FALSE'; // 'FALSE'
+    
+    $user->setUsername('che');
+    echo $user->getUsername(); // 'che'
+
+    // use load() to have your $user instance represent multiple rows...
+    $c = new MingoCriteria();
+    $c->inUsername('foo','bar');
+    
+    $user->load($c);
+    
+    echo $user->getUsername(); // array('foo','bar')
+    echo $user->isMulti() ? 'TRUE' : 'FALSE'; // 'TRUE'
+
+    $user->setUsername('che');
+    echo $user->getUsername(); // array('che','che')
+    
+    // load() always makes the $user instance act like it represents multiple rows
+    // even when there is only one row loaded...
+    $c = new MingoCriteria();
+    $c->isUsername('foo');
+    
+    $user->load($c);
+    
+    echo $user->getUsername(); // array('foo')
+    echo $user->isMulti() ? 'TRUE' : 'FALSE'; // 'TRUE'
+
+    $user->setUsername('che');
+    echo $user->getUsername(); // array('che')
 
 # Installing Mingo
 

@@ -197,6 +197,16 @@ class MingoOrmCallTest extends MingoTestBase {
     $this->assertEquals(3,count($foo));
     $this->assertSame('adsfsdf',$foo[2]);
   
+    // make sure if field's have types then those types are returned...
+    $t3 = $this->getOrm(); $t3 = $t3[0][0];
+    $map = $t3->getMap(0);
+    $map[MingoOrm::ROW_ID] = '12345';
+    ///$map['foo'] = (string)$map['foo'];
+    $t3->reset();
+    $t3->attach($map);
+    $row_id = $t3->getRow_id();
+    $this->assertType('int',$row_id);
+  
   }//method
   
   /**

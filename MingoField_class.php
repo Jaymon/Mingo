@@ -31,6 +31,14 @@ class MingoField {
    *  @var  array
    */        
   protected $field_map = array();
+  
+  /**
+   *  used to store field specific options
+   *
+   *  @since  6-24-11
+   *  @var  array
+   */
+  protected $option_map = array();
 
   final public function __construct($name = '',$type = self::TYPE_DEFAULT,$range = null){
   
@@ -294,6 +302,40 @@ class MingoField {
   public function hasName(){ return !empty($this->field_map['name']); }//method
   
   public function isName($name){ return $this->getName() === $name; }//method
+  
+  /**
+   *  return all the options
+   *  
+   *  @since  6-24-11   
+   *  @return array
+   */
+  public function getOptions(){ return $this->option_map; }//method
+  
+  /**
+   *  get an option field, or $default_val if the option field isn't set
+   *  
+   *  @since  6-24-11
+   *  @param  string  $name the option field name   
+   *  @return mixed
+   */
+  public function getOption($name,$default_val = null){
+    return isset($this->option_map[$name]) ? $this->option_map[$name] : $default_val;
+  }//method
+  
+  /**
+   *  set an option field
+   *  
+   *  @since  6-24-11   
+   *  @param  string  $name the field name
+   *  @param  mixed $val  the value the $name should be set to      
+   */
+  public function setOption($name,$val){
+  
+    // canary...
+    if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
+    $this->option_map[$name] = $val;
+    
+  }//method
   
   /**
    *  make the field name consistent

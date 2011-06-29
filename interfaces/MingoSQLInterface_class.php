@@ -271,7 +271,7 @@ abstract class MingoSQLInterface extends MingoInterface {
       if(!empty($order_map)){
         $ret_list = array_fill(0,count($list),null);
       }//if
-    
+
       foreach($list as $key => $map){
       
         $ret_map = $this->getMap($map['body']);

@@ -43,6 +43,7 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
     if(empty($name)){ $name = get_class($this); }//if
     $table = new MingoTable($name);
     $table->setIndex('foo','bar','baz');
+    $table->setField('foo',MingoField::TYPE_INT);
     $table->setIndex('bar','baz');
     
     return $table;
@@ -54,6 +55,8 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
 class MingoTestOrm extends MingoOrm {
 
   protected function populateTable(MingoTable $table){
+  
+    $table->setField(MingoOrm::ROW_ID,MingoField::TYPE_INT);
   
     ///$table->setIndex('foo','bar','baz');
   

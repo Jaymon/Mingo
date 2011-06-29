@@ -180,6 +180,53 @@ class MingoOrmTest extends MingoTestBase {
     
   }//method
   
+  /**
+   *  test to make sure the load() and loadOne() works as expected
+   *   
+   *  @since  6-1-11
+   */        
+  public function testMulti(){
+  
+    $t1 = $this->getDbConnectedOrm();
+    $t1->setFoo(1);
+    $t1->set();
+    $this->assertTrue($t1->has_id());
+    
+    $t2 = $this->getDbConnectedOrm();
+    $t2->setFoo(2);
+    $t2->set();
+    $this->assertTrue($t2->has_id());
+    
+    $c = new MingoCriteria();
+    $c->is_id($t1->get_id());
+    $t3 = $this->getDbConnectedOrm();
+    $this->assertTrue($t3->loadOne($c));
+    $this->assertFalse($t3->isMulti());
+    
+    $this->assertType('int',$t3->getFoo());
+    $this->assertSame($t1->getFoo(),$t3->getFoo());
+    
+    // now do a multi load...
+    $c = new MingoCriteria();
+    $c->in_id($t1->get_id(),$t2->get_id());
+    $t4 = $this->getDbConnectedOrm();
+    $this->assertSame(2,$t4->load($c));
+    $this->assertTrue($t4->isMulti());
+    
+    $this->assertType('array',$t4->getFoo());
+    $this->assertEquals(array($t1->getFoo(),$t2->getFoo()),$t4->getFoo());
+    
+    $c = new MingoCriteria();
+    $c->in_id($t1->get_id());
+    $t5 = $this->getDbConnectedOrm();
+    $this->assertSame(1,$t5->load($c));
+    $this->assertTrue($t5->isMulti());
+    
+    $this->assertType('array',$t5->getFoo());
+    $this->assertEquals(array($t1->getFoo()),$t5->getFoo());
+  
+  }//method
+  
   protected function assertOrmStructure($t){
   
     $this->assertNotEmpty($t->get_id(null));

@@ -7,7 +7,7 @@
  *  @since 6-8-10
  *  @package cli_tools
  ******************************************************************************/
-class cli_in
+class CliIn
 {
   protected $input = '';
   
@@ -26,7 +26,7 @@ class cli_in
    */
   protected $stdin = null;
 
-  public function __construct(mingo_db $db){
+  public function __construct(MingoInterface $db){
   
     // open an input connection to get lines from the user...
     $this->stdin = fopen('php://stdin','r');
@@ -111,8 +111,8 @@ class cli_in
     
     // do we have an exit...
     if(preg_match('#^(?:exit|quit)#i',$input)){
-    
-      throw new cli_stop_exception();
+
+      throw new CliStopException();
     
     }else if(preg_match('#^(?:help|h)$#i',$input)){
     
@@ -140,7 +140,7 @@ class cli_in
     
     }else if(preg_match('#^drop\s+table\s+(.+)$#i',$input,$matched)){
     
-      $ret_mix = $this->db->killTable($matched[1]);
+      $ret_mix = $this->db->killTable($this->getTable($matched[1]));
     
     }else if(preg_match('#^(?:show|get)\s+queries$#i',$input)){
     
@@ -151,7 +151,7 @@ class cli_in
       ///$this->parseSelect($input);
       ///out::x();
     
-      $sql_parser = new mingo_parse_sql($input,'Mingo');
+      $sql_parser = new MingoParseSQL($input,'Mingo');
       $parse_map = $sql_parser->parse();
       
       if(isset($parse_map['table_names'][1])){
@@ -165,8 +165,8 @@ class cli_in
       
       }//if
       
-      $table = $parse_map['table_names'][0];
-      $where_criteria = new mingo_criteria();
+      $table_name = $parse_map['table_names'][0];
+      $where_criteria = new MingoCriteria();
       
       ///out::e($parse_map); out::x();
       
@@ -212,21 +212,21 @@ class cli_in
           
             foreach($parse_map['sort_order'] as $field => $order){
             
-              $where_criteria->sortField($field,($order === 'asc') ? mingo_criteria::ASC : mingo_criteria::DESC);
+              $where_criteria->sortField($field,($order === 'asc') ? MingoCriteria::ASC : MingoCriteria::DESC);
             
             }//foreach
             
           }//if
           
-          $schema = $this->getSchema($table);
+          $table = $this->getTable($table_name);
           
           if($is_count){
             $ret_mix = sprintf(
               'count: %s',
-              $this->db->getCount($table,$schema,$where_criteria,$where_criteria->getBounds())
+              $this->db->getCount($table,$where_criteria)
             );
           }else{
-            $ret_mix = $this->db->get($table,$schema,$where_criteria,$where_criteria->getBounds());
+            $ret_mix = $this->db->get($table,$where_criteria);
           }//if/else
           
           break;
@@ -239,15 +239,15 @@ class cli_in
             
           }//if
           
-          $schema = $this->getSchema($table);
+          $table = $this->getTable($table_name);
           
           $ret_mix = sprintf(
             'Query Ok, %s rows affected',
-            $this->db->getCount($table,$schema,$where_criteria)
+            $this->db->getCount($table,$where_criteria)
           );
           
           // now actually delete...
-          $ret_bool = $this->db->kill($table,$schema,$where_criteria);
+          $ret_bool = $this->db->kill($table,$where_criteria);
           if(empty($ret_bool))
           {
             $ret_mix = 'Query failed';
@@ -258,8 +258,8 @@ class cli_in
         case 'insert':
         
           $map = $this->handleMap($parse_map);
-          $schema = $this->getSchema($table);
-          $map = $this->db->set($table,$map,$schema);
+          $table = $this->getTable($table_name);
+          $map = $this->db->set($table,$map);
         
           $ret_mix = sprintf(
             'Query Ok, new row inserted with _id %s',
@@ -275,18 +275,18 @@ class cli_in
           }//if
         
           $map = $this->handleMap($parse_map);
-          $schema = $this->getSchema($table);
+          $table = $this->getTable($table_name);
           
           $where_criteria = $this->handleWhere($where_criteria,$parse_map['where_clause']);
           
           // iterate through each row and update it...
           $count = 0;
-          $limit = 0;
-          $list = $this->db->get($table,$schema,$where_criteria,$limit);
+          
+          $list = $this->db->get($table,$where_criteria);
           foreach($list as $result_map){
           
             $map = array_merge($result_map,$map);
-            $map = $this->db->set($table,$map,$schema);
+            $map = $this->db->set($table,$map);
             $count++;
           
           }//foreach
@@ -310,7 +310,7 @@ class cli_in
     $timestamp_stop = microtime(true);
   
     // return the out object so we can echo out the results...
-    $ret_instance = new cli_out($ret_mix,$timestamp_start,$timestamp_stop);
+    $ret_instance = new CliOut($ret_mix,$timestamp_start,$timestamp_stop);
   
     return $ret_instance;
   
@@ -320,31 +320,31 @@ class cli_in
    *  get the table's schema
    *  
    *  @since  1-12-11
-   *  @param  string  $table  the table whose schema should be created
+   *  @param  string  $table_name  the table whose schema should be created
    *  @return mingo_schema
    */
-  protected function getSchema($table)
+  protected function getTable($table_name)
   {
-    $schema = new mingo_schema();
+    $table = new MingoTable($table_name);
     foreach($this->db->getIndexes($table) as $index_map){
       
       // the _id can't be in the index...
-      if(isset($index_map[mingo_orm::_ID])){
-        unset($index_map[mingo_orm::_ID]);
+      if(isset($index_map[MingoOrm::_ID])){
+        unset($index_map[MingoOrm::_ID]);
       }//if
       
       // the row_id can't be in the index...
-      if(isset($index_map[mingo_orm::ROW_ID])){
-        unset($index_map[mingo_orm::ROW_ID]);
+      if(isset($index_map[MingoOrm::ROW_ID])){
+        unset($index_map[MingoOrm::ROW_ID]);
       }//if
       
       if(!empty($index_map)){
-        $schema->setIndex($index_map);
+        $table->setIndex($index_map);
       }//if
       
     }//method
   
-    return $schema;
+    return $table;
   
   }//method
   

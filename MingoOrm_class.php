@@ -138,7 +138,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  Required definition for Countable, allows count($this) to work
    *  @link http://www.php.net/manual/en/class.countable.php
    */
-  function count(){ return $this->getCount(); }//method
+  public function count(){ return $this->getCount(); }//method
 
   /**
    *  return true if the last db load could load more, but was limited by $limit 
@@ -182,7 +182,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  get the table this class will use on the db side
    *  
-   *  @return string  the table name
+   *  @return MingoTable
    */
   public function getTable(){
   
@@ -192,8 +192,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     $table = new MingoTable(get_class($this));
     
     // set some of the default fields...
+    $table->setField(self::ROW_ID,MingoField::TYPE_INT);
     $table->setField(self::CREATED,MingoField::TYPE_INT);
-    $table->setField(self::CREATED,MingoField::TYPE_INT);
+    $table->setField(self::UPDATED,MingoField::TYPE_INT);
     
     // let some custom stuff be added...
     $this->populateTable($table);
@@ -256,7 +257,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  
    *  @return array the internal {@link $list} array
    */
-  function getList(){ return $this->list; }//method
+  public function getList(){ return $this->list; }//method
 
   /**
    *  returns a list of all the maps this class contains
@@ -269,7 +270,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  integer $i  the index we want to get if we don't want all of them      
    *  @return array
    */
-  function get(){
+  public function get(){
   
     $ret_mix = null;
     $args = func_get_args();
@@ -305,7 +306,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  integer $i  the index we want to get if we don't want all of them      
    *  @return array
    */
-  function getMap(){
+  public function getMap(){
   
     $ret_mix = null;
     $args = func_get_args();
@@ -346,31 +347,44 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  save this instance into the db
    *  
-   *  @return boolean
+   *  @return integer how many objects were persisted
    */
-  function set(){
+  public function set(){
   
-    $ret_bool = true;
-    $db = $this->getDb();
+    $ret_count = 0;
 
     foreach(array_keys($this->list) as $key){
     
       // only try and save if it has changes...
       if(!empty($this->list[$key]['modified'])){
       
-        $this->list[$key]['map'] = $db->set(
-          $this->getTable(),
-          $this->list[$key]['map']
-        );
+        $this->list[$key]['map'] = $this->setMap($this->list[$key]['map']);
         $this->list[$key]['modified'] = false; // reset
-      
+        $ret_count++;
+        
       }//if
-    
+      
     }//foreach
   
-    ///out::e($this->list);
+    return $ret_count;
   
-    return $ret_bool;
+  }//method
+  
+  /**
+   *  just set the individual map
+   *  
+   *  this is blown out from {@link set()} to make it easier for the child classes
+   *  to mess with the map right before saving it
+   *  
+   *  @since  6-24-11   
+   *  @param  array $map  the map that will be saved into the db   
+   *  @return array the same map, but now saved
+   */
+  protected function setMap(array $map){
+  
+    $db = $this->getDb();
+    $map = $db->set($this->getTable(),$map);
+    return $map;
   
   }//method
   
@@ -475,7 +489,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
       
     }//if
     
-    if($ret_int > 0){
+    $this->setMulti(true); // any load is multi, use loadOne to make multi false
+    /* if($ret_int > 0){
       
       if($ret_int === 1){
         $this->setMulti(false);
@@ -483,7 +498,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
         $this->setMulti(true);
       }//if/else
       
-    }//if
+    }//if */
     
     $this->setCriteria($where_criteria);
     return $ret_int;
@@ -502,7 +517,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  MingoCriteria  $where_criteria  criteria for loading db rows into this object      
    *  @return boolean
    */
-  function loadOne(MingoCriteria $where_criteria){
+  public function loadOne(MingoCriteria $where_criteria){
   
     // go back to square one...
     $this->reset();
@@ -521,7 +536,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     if(!empty($map)){
       
       $this->setMore(false);
-      $this->setTotal(1);
       $this->attach($map);
       $this->setMulti(false);
       $ret_bool = true;
@@ -536,25 +550,25 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  load by the unique _ids
    *
    *  @param  integer|array $_id_list one or more _ids
-   *  @return integer how many rows where loaded
+   *  @return integer how many rows were loaded
    */
   public function loadBy_Id($_id_list){
   
     // canary...
     if(empty($_id_list)){ return 0; }//if
     
-    $ret_bool = false;
+    $ret_int = 0;
     
     $where_criteria = new MingoCriteria();
     if(is_array($_id_list)){
       $where_criteria->inField(self::_ID,$_id_list);
-      $ret_bool = ($this->load($where_criteria) > 0) ? true : false;
+      $ret_int = $this->load($where_criteria);
     }else{
       $where_criteria->isField(self::_ID,$_id_list);
-      $ret_bool = $this->loadOne($where_criteria);
+      if($this->loadOne($where_criteria)){ $ret_int = 1; }//if
     }//if/else
   
-    return $ret_bool;
+    return $ret_int;
   
   }//method
   
@@ -564,7 +578,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  MingoCriteria  $where_criteria  criteria for deleting db rows   
    *  @return boolean will only return true if all the rows were successfully removed, false otherwise      
    */
-  function kill(MingoCriteria $where_criteria = null){
+  public function kill(MingoCriteria $where_criteria = null){
   
     $ret_bool = false;
     $db = $this->getDb();
@@ -955,7 +969,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
             case 'get':
             
               if(isset($field_ref[$field])){
-                $ret_mixed[] = $field_ref[$field];
+                $ret_mixed[] = $field_instance->normalizeInVal($field_ref[$field]);
               }else{
                 $ret_mixed[] = $args[0];
               }//if/else
@@ -1169,17 +1183,17 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  
    *  @link http://php.net/manual/en/class.iterator.php      
    */
-  function rewind(){ $this->current_i = 0; }//method
-  function current(){ return $this->detach($this->current_i); }//method
-  function key(){ return $this->current_i; }//method
-  function next(){ ++$this->current_i; }//method
-  function valid(){ return isset($this->list[$this->current_i]); }//method
+  public function rewind(){ $this->current_i = 0; }//method
+  public function current(){ return $this->detach($this->current_i); }//method
+  public function key(){ return $this->current_i; }//method
+  public function next(){ ++$this->current_i; }//method
+  public function valid(){ return isset($this->list[$this->current_i]); }//method
   /**#@-*/
   
   /**
    *  Set a value given it's key e.g. $A['title'] = 'foo';
    */
-  function offsetSet($key,$val){
+  public function offsetSet($key,$val){
     
     if($key === null){
       // they are trying to do a $obj[] = $val so let's attach the $val

@@ -7,7 +7,7 @@
  *  @since 6-8-10
  *  @package cli_tools
  ******************************************************************************/
-class cli_out
+class CliOut
 {
   /**
    *  used for indent in functions like {@link aIter()} and {@link outInfo()}

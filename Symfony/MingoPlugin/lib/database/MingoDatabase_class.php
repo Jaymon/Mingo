@@ -15,6 +15,51 @@
 class MingoDatabase extends sfDatabase {
 
   /**
+   *  forces class to follow the singelton pattern 
+   *  
+   *  {@link http://en.wikipedia.org/wiki/Singleton_pattern}
+   *  and keeps all db classes to one instance, {@link $instance} should only 
+   *  be messed with in this function
+   *   
+   *  @param  string|array  $class_list return an instance for the given class, if you pass in
+   *                                    an array then it would usually be a list of the class and
+   *                                    all its parents so inheritance can be respected and a child
+   *                                    will receive the right instance if it inherits from a defined 
+   *                                    parent         
+   *  @return MingoInterface  null on failure
+   */
+  public function getInstance($class_list = array()){
+  
+    // canary...
+    if(empty($class_list)){
+      $class_list = array('MingoOrm');
+    }else{
+      $class_list = (array)$class_list;
+    }//if/else
+    
+    $ret_instance = null;
+    $connection = $this->connect();
+    
+    // look for a matching instance for the classes...
+    foreach($class_list as $class){
+      if(!empty($connection[$class])){
+        $ret_instance = $connection[$class];
+        break;
+      }//if
+    }//foreach
+  
+    // if we couldn't find a match, create a new entry...
+    if($ret_instance === null){
+      throw new UnexpectedValueException(
+        sprintf('no connection for [%s] found',join(', ',$class_list))
+      );
+    }//if
+
+    return $ret_instance;
+    
+  }//method
+
+  /**
    *  gets the mingo dbs ready to be connected, mingo will take care of the actual connecting
    *  on demand   
    *
@@ -47,10 +92,10 @@ class MingoDatabase extends sfDatabase {
           );
         }//if
         
-        $this->connection[$name] = mingo_db::getInstance($name);
+        // create an interface instance...
+        $interface = $server_map['interface'];
+        $this->connection[$name] = new $interface();
         $this->connection[$name]->setDebug($debug);
-        
-        $this->connection[$name]->setInterface($server_map['interface']);
         
         // set all the other optional connection params...
         if(isset($server_map['name'])){
@@ -64,6 +109,9 @@ class MingoDatabase extends sfDatabase {
         }//if
         if(isset($server_map['password'])){
           $this->connection[$name]->setPassword($server_map['password']);
+        }//if
+        if(isset($server_map['options'])){
+          $this->connection[$name]->setOptions($server_map['options']);
         }//if
         
         // we don't connect here, connection will happen when the server is actually
