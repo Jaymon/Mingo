@@ -57,6 +57,21 @@ class MingoField {
   public function hasType(){ return !empty($this->field_map['type']); }//method
   public function getType(){ return $this->hasType() ? $this->field_map['type'] : self::TYPE_DEFAULT; }//method
   
+  /**
+   *  true if the field is the passed in $type
+   *
+   *  @since  6-28-11
+   *  @return boolean   
+   */
+  public function isType($type){
+    
+    // canary...
+    if(!$this->hasType()){ return false; }//if
+    
+    return ($this->field_map['type'] === $type);
+  
+  }//method
+  
   public function setRange($range){
   
     if(empty($range)){ return; }//if
