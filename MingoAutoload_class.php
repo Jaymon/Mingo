@@ -59,6 +59,13 @@ class MingoAutoload {
   
   }//method
 
+  public static function addPostfix($postfix_list)
+  {
+    $postfix_list = (array)$postfix_list;
+    self::$postfix_list = array_merge(self::$postfix_list,$postfix_list);
+    
+  }//method
+
   public static function register(){
   
     // canary...
