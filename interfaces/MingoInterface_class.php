@@ -211,7 +211,7 @@ abstract class MingoInterface extends MingoMagic {
     }catch(Exception $e){
     
       if($this->handleException($e,$table)){
-        $ret_bool = $this->kill($itable,$iwhere_criteria);
+        $ret_bool = $this->_kill($itable,$iwhere_criteria);
       }//if
     
     }//try/catch
