@@ -59,13 +59,6 @@ class MingoAutoload {
   
   }//method
 
-  public static function addPostfix($postfix_list)
-  {
-    $postfix_list = (array)$postfix_list;
-    self::$postfix_list = array_merge(self::$postfix_list,$postfix_list);
-    
-  }//method
-
   public static function register(){
   
     // canary...
@@ -81,6 +74,18 @@ class MingoAutoload {
     
     return spl_autoload_register(array(__CLASS__,'load'));
   
+  }//method
+  
+  /**
+   *  unregister this autoloader from the spl autoload stack
+   *
+   *  @since  8-22-11
+   */
+  public static function unregister(){
+  
+    self::$is_registered = false;
+    return spl_autoload_unregister(array(__CLASS__,'load'));
+    
   }//method
   
   protected static function checkPearPath($path,$class_name)

@@ -206,7 +206,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       
       $this->assertArrayHasKey('foo',$map);
       $this->assertArrayHasKey('_id',$map);
-      $this->assertEquals(24,mb_strlen($map['_id']));
+      $this->assertLessThanOrEqual(24,mb_strlen($map['_id']));
       $this->assertNotContains($map['_id'],$_id_list);
       $_id_list[] = (string)$map['_id'];
     
@@ -558,6 +558,40 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
+  /**
+   *  assure right index is queried
+   *  
+   *  with 2 similar indexes using SQLite (and I assume MySQL) the interface's
+   *  index table selector would mess up because it would choose the first table
+   *  since the where would match and the sort was never taken into account, so a
+   *  PDOException would be thrown:
+   *  
+   *  PDOException: SQLSTATE[HY000]: General error: 1 no such column: che
+   *  
+   *  this test is here to make sure that is fixed
+   *  
+   *  @since  9-2-11
+   */
+  public function testSimilarIndexes(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+  
+    // create 2 similar indexes...
+    $table->setIndex('foo','bar');
+    $table->setIndex('foo','che');
+  
+    // now try and query the second index...
+    $where_criteria = new MingoCriteria();
+    $where_criteria->isFoo(__FUNCTION__);
+    $where_criteria->descChe();
+    
+    // no errors should be thrown...
+    $list = $db->get($table,$where_criteria);
+    $this->assertEmpty($list);
+    
+  }//method
+  
   protected function assertSubset(array $list,array $_id_list){
   
     foreach($list as $map){
@@ -583,7 +617,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       
       $this->assertArrayHasKey('foo',$map);
       $this->assertArrayHasKey('_id',$map);
-      $this->assertEquals(24,mb_strlen($map['_id']));
+      $this->assertLessThanOrEqual(24,mb_strlen($map['_id']));
       $this->assertNotContains($map['_id'],$_id_list);
       $_id_list[] = (string)$map['_id'];
     

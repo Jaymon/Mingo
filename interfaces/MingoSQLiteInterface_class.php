@@ -14,6 +14,38 @@
 class MingoSQLiteInterface extends MingoSQLInterface {
   
   /**
+   *  gets all the fields in the given table
+   *  
+   *  @todo right now it just returns the field names, but it would be easy to
+   *        add a detail boolean after table name that would return the entire array
+   *        with all the field info, this might be useful in the future            
+   *      
+   *  @param  MingoTable  $table      
+   *  @return array all the field names found, empty array if none found
+   */        
+  public function getTableFields(MingoTable $table){
+    
+    $ret_list = array();
+    
+    // sqlite: pragma table_info(table_name)
+    //  http://www.sqlite.org/pragma.html#schema
+    //  http://www.mail-archive.com/sqlite-users@sqlite.org/msg22055.html
+    $query = sprintf('PRAGMA table_info(%s)',$table);
+    $field_index = 'name';
+    
+    if($result_list = $this->_getQuery($query)){
+    
+      foreach($result_list as $result_map){
+        if(isset($result_map[$field_index])){ $ret_list[] = $result_map[$field_index]; }//if
+      }//foreach
+      
+    }//if
+  
+    return $ret_list;
+  
+  }//method
+  
+  /**
    *  @see  getTables()
    *  
    *  @param  MingoTable  $table  
@@ -196,15 +228,7 @@ class MingoSQLiteInterface extends MingoSQLInterface {
    */
   protected function isNoTableException(Exception $e){
   
-    $ret_bool = false;
-  
-    $e_code = $e->getCode();
-    if(!empty($e_code)){
-    
-      $ret_bool = ($e_code == 'HY000');
-    
-    }//if
-    
+    $ret_bool = ($e->getCode() == 'HY000') && preg_match('#no\s+such\s+table#i',$e->getMessage());
     return $ret_bool;
     
   }//method

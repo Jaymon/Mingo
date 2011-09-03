@@ -15,7 +15,34 @@ class MingoMySQLInterface extends MingoSQLInterface {
    */
   const ENGINE = 'InnoDB';
 
-  protected function start(){}//method
+  /**
+   *  gets all the fields in the given table
+   *  
+   *  @todo right now it just returns the field names, but it would be easy to
+   *        add a detail boolean after table name that would return the entire array
+   *        with all the field info, this might be useful in the future            
+   *      
+   *  @param  MingoTable  $table      
+   *  @return array all the field names found, empty array if none found
+   */        
+  public function getTableFields(MingoTable $table){
+    
+    $ret_list = array();
+    
+    $query = 'SHOW COLUMNS FROM '.$table_name;
+    $field_index = 'Field';
+    
+    if($result_list = $this->_getQuery($query)){
+    
+      foreach($result_list as $result_map){
+        if(isset($result_map[$field_index])){ $ret_list[] = $result_map[$field_index]; }//if
+      }//foreach
+      
+    }//if
+    
+    return $ret_list;
+  
+  }//method
   
   /**
    *  @see  getTables()
