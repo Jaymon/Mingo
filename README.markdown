@@ -163,9 +163,9 @@ Mingo tries to recover if a given table isn't found by trying to create the tabl
 
 # Using Mingo with Symfony 1.4
 
-- Move `MingoPlugin` (from `Mingo/Symfony`) into your Symfony application's plugin directory (so the final path would be something like: `Your/Symfony/Application/plugins/MingoPlugin`).
+1. Move `MingoPlugin` (from `Mingo/Symfony`) into your Symfony application's plugin directory (so the final path would be something like: `Your/Symfony/Application/plugins/MingoPlugin`).
 
-- Copy the rest of `Mingo/` into the `Your/Symfony/Application/plugins/MingoPlugin/lib/` directory. I like to put it into `Your/Symfony/Application/plugins/MingoPlugin/lib/extlib` to make it easier to update in the future. So the final folder structure should look something like:
+2. Copy the rest of `Mingo/` into the `Your/Symfony/Application/plugins/MingoPlugin/lib/extlib` directory. So the final folder structure (files not shown, but they should be there also) should look something like:
 
         plugins/
           MingoPlugin/
