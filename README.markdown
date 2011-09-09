@@ -167,15 +167,15 @@ Mingo tries to recover if a given table isn't found by trying to create the tabl
 
 - Copy the rest of `Mingo/` into the `Your/Symfony/Application/plugins/MingoPlugin/lib/` directory. I like to put it into `Your/Symfony/Application/plugins/MingoPlugin/lib/extlib` to make it easier to update in the future. So the final folder structure should look something like:
 
-   plugins/
-     MingoPlugin/
-       config/
-       lib/
-         database/
-         task/
-         extlib/
-           interfaces/
-           cli/
+    plugins/
+      MingoPlugin/
+        config/
+        lib/
+          database/
+          task/
+          extlib/
+            interfaces/
+            cli/
 
 If you don't plan on using Mingo with Symfony 1.4, you can safely delete the MingoPlugin folder.
 
