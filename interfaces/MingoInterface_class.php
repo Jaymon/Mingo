@@ -211,7 +211,7 @@ abstract class MingoInterface extends MingoMagic {
     }catch(Exception $e){
     
       if($this->handleException($e,$table)){
-        $ret_bool = $this->kill($itable,$iwhere_criteria);
+        $ret_bool = $this->_kill($itable,$iwhere_criteria);
       }//if
     
     }//try/catch
@@ -814,16 +814,14 @@ abstract class MingoInterface extends MingoMagic {
   }//method
   
   /**
-   *  generates a 24 character unique id for the _id of an inserted row
+   *  generates a unique id for the _id of an inserted row
    *
    *  @param  string  $table  the table to be used in the hash
-   *  @return string  a 24 character id string   
+   *  @return string  a 1-24 character id string   
    */
   protected function getUniqueId(MingoTable $table = null){
     
-    // took out x and b, because 1 id started 0x which made it a hex number, and b just because
-    $str = '1234567890acdefghijklmnpqrstuvwyz';
-    $id = uniqid(sprintf('%s%s',$str[rand(0,32)],$str[rand(0,32)]),true);
+    $id = uniqid('',true);
     return str_replace('.','',$id);
     
   }//method

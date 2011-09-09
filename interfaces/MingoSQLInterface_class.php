@@ -95,6 +95,21 @@ abstract class MingoSQLInterface extends MingoInterface {
    *  @return boolean
    */
   abstract protected function isNoTableException(Exception $e);
+  
+  /**
+   *  gets all the fields in the given table
+   *  
+   *  @note Mingo doesn't use this for anything, so you can just define it as an empty
+   *  method, but it is handy for debugging info, etc.   
+   *      
+   *  @todo right now it just returns the field names, but it would be easy to
+   *        add a detail boolean after table name that would return the entire array
+   *        with all the field info, this might be useful in the future            
+   *      
+   *  @param  MingoTable  $table      
+   *  @return array all the field names found, empty array if none found
+   */        
+  abstract public function getTableFields(MingoTable $table);
 
   /**
    *  do the actual connecting of the interface
@@ -1498,9 +1513,16 @@ abstract class MingoSQLInterface extends MingoInterface {
     $where_map = $where_criteria->getWhere();
     $sort_map = $where_criteria->getSort();
     
+    // php >= 5.3, use when Mingo is ported to namespaces...
+    ///$field_list = array_keys(array_replace($where_map,$sort_map));
+    
     $field_list = array_keys($where_map);
-    if(empty($field_list) && !empty($sort_map)){ $field_list = array_keys($sort_map); }//if
-  
+    if(!empty($sort_map)){
+    
+      $field_list = array_unique(array_merge($field_list,array_keys($sort_map)));
+    
+    }//if
+    
     // now go through the index and see if it matches...
     foreach($table->getIndexes() as $index_map){
     

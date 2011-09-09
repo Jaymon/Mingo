@@ -76,6 +76,18 @@ class MingoAutoload {
   
   }//method
   
+  /**
+   *  unregister this autoloader from the spl autoload stack
+   *
+   *  @since  8-22-11
+   */
+  public static function unregister(){
+  
+    self::$is_registered = false;
+    return spl_autoload_unregister(array(__CLASS__,'load'));
+    
+  }//method
+  
   protected static function checkPearPath($path,$class_name)
   {
     $ret_bool = false;

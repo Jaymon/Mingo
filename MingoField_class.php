@@ -362,7 +362,9 @@ class MingoField {
     
     }else{
     
-      $ret_mix = mb_strtolower((string)$name);
+      // get rid of any namespaces...
+      $ret_mix = str_replace('\\','_',$name);
+      $ret_mix = mb_strtolower((string)$ret_mix);
       
     }//if/else
     
