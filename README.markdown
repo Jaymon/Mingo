@@ -161,9 +161,23 @@ The code should run on both Windows and Linux.
 
 Mingo tries to recover if a given table isn't found by trying to create the table on the fly and creating any new indexes. Usually, it will only have to recover from not having a table once, this makes it really easy to deploy new `MingoOrm` classes since tables will be automatically generated the first time Mingo can't find them (kind of like an automatic install script). This allows you to push to production and not have to worry about running an install script or anything for many cases and gives you the flexibility of creating an install script only when you need to do special things.
 
-# Using Mingo with Symfony
+# Using Mingo with Symfony 1.4
 
-In the Symfony directory, the MingoPlugin folder is a Symfony compatible plugin, in order to use it, just copy all the Mingo* classes into the <code>MingoPlugin/lib/</code> directory and place the MingoPlugin folder into your Symfony application's plugins folder. If you don't plan on using Mingo with Symfony, you can safely delete the MingoPlugin folder.
+- Move `MingoPlugin` (from `Mingo/Symfony`) into your Symfony application's plugin directory (so the final path would be something like: `Your/Symfony/Application/plugins/MingoPlugin`).
+
+- Copy the rest of `Mingo/` into the `Your/Symfony/Application/plugins/MingoPlugin/lib/` directory. I like to put it into `Your/Symfony/Application/plugins/MingoPlugin/lib/extlib` to make it easier to update in the future. So the final folder structure should look something like:
+
+   plugins/
+     MingoPlugin/
+       config/
+       lib/
+         database/
+         task/
+         extlib/
+           interfaces/
+           cli/
+
+If you don't plan on using Mingo with Symfony 1.4, you can safely delete the MingoPlugin folder.
 
 # Other
 

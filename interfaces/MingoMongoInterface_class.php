@@ -9,6 +9,9 @@
  *
  *  @link http://us2.php.net/mongo
  *  
+ *  how to do auto-increment:
+ *    http://shiflett.org/blog/2010/jul/auto-increment-with-mongodb   
+ *  
  *  @version 0.5
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 12-09-09
