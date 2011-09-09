@@ -1,0 +1,1 @@
+copy all the Mingo* php files, and the interface/ and cli/ folders into this folder if you are using Mingo in a Symfony 1.4 application
