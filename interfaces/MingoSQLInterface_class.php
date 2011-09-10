@@ -1185,9 +1185,31 @@ abstract class MingoSQLInterface extends MingoInterface {
         
         if(!$is_valid){
         
-          throw new RuntimeException(
-            sprintf('could not match fields: [%s] with an index table',join(',',array_keys($where_map)))
+          $e_msg = sprintf(
+            'Could not match fields: [%s] sorted by fields: [%s] with an index table.',
+            join(',',array_keys($where_map)),
+            join(',',array_keys($sort_map))
           );
+        
+          // list the available index tables if we are in debug mode...
+          if($this->hasDebug()){
+          
+            $e_msg .= ' Indexes available: ';
+          
+            $index_list = $this->getIndexes($table);
+            $e_index_list = array();
+            
+            foreach($index_list as $index_map){
+            
+              $e_index_list = sprintf('[%s]',join(',',array_keys($index_map)));
+            
+            }//foreach
+          
+            $e_msg .= join(', ',$e_index_list);
+          
+          }//if
+        
+          throw new RuntimeException($e_msg);
           
         }//if
         
