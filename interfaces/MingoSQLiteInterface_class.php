@@ -179,6 +179,7 @@ class MingoSQLiteInterface extends MingoSQLInterface {
     $printf_vars[] = join(',',$field_list);
     
     $query = vsprintf(join(PHP_EOL,$query),$printf_vars);
+
     $ret_bool = $this->getQuery($query);
     if($ret_bool){
     

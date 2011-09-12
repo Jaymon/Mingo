@@ -559,6 +559,77 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
+   *  this goes into a more advanced sorting problem to make sure stuff is being
+   *  sorted correctly
+   *  
+   *  @since  9-12-11
+   */
+  public function testSortAdvanced(){
+  
+    $row_count = 20;
+    $db = $this->getDb();
+    $user_list = array(1,2,3);
+  
+    // create a more advanced table...
+    $table = new MingoTable(__FUNCTION__);
+    $table->setField('userId',MingoField::TYPE_INT);
+    $table->setField('url',MingoField::TYPE_STR);
+    
+    // set defaults like the MingoOrm getTable() would...
+    $table->setField(MingoOrm::ROW_ID,MingoField::TYPE_INT);
+    $table->setField(MingoOrm::CREATED,MingoField::TYPE_INT);
+    $table->setField(MingoOrm::UPDATED,MingoField::TYPE_INT);
+    
+    $table->setIndex(MingoOrm::CREATED);
+    $table->setIndex('url','userId');
+    $table->setIndex('userId', MingoOrm::ROW_ID);
+    $this->setTable($table);
+    
+    // add some rows...
+    for($i = 0; $i < $row_count ;$i++){
+    
+      $map = array(
+        'userid' => $user_list[array_rand($user_list,1)],
+        'url' => sprintf('http://%s.com',md5(microtime(true)))
+      );
+      
+      $map = $db->set($table,$map);
+      $this->assertArrayHasKey('_id',$map);
+      
+      ///out::e($map);
+    
+    }//for
+  
+    // test sort...
+    foreach($user_list as $user_id){
+      
+      $where_criteria = new MingoCriteria();
+      $where_criteria->setUserId($user_id);
+      $where_criteria->descRow_id();
+      
+      ///out::i($where_criteria);
+      
+      $list = $db->get($table,$where_criteria);
+      
+      $last_row_id = null;
+      foreach($list as $map){
+      
+        $this->assertSame($user_id,$map['userid']);
+        if($last_row_id !== null){
+        
+          $this->assertLessThan($last_row_id,(int)$map['row_id']);
+        
+        }//if/else
+        
+        $last_row_id = (int)$map['row_id'];
+      
+      }//foreach
+      
+    }//foreach
+  
+  }//method
+  
+  /**
    *  assure right index is queried
    *  
    *  with 2 similar indexes using SQLite (and I assume MySQL) the interface's

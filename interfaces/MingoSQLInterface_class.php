@@ -255,7 +255,7 @@ abstract class MingoSQLInterface extends MingoInterface {
         if(!empty($_id_list)){
           $order_map = array_flip($_id_list);
         }//if
-      
+
       }//if/else
       
     }else{
@@ -1414,14 +1414,12 @@ abstract class MingoSQLInterface extends MingoInterface {
     }//if
     
     // add limit...
-    ///if(!empty($query_map['limit'])){ $query .= ' '.$query_map['limit']; }//if
-    
     if(!empty($query_map['limit'][0])){
       $query .= ' LIMIT %d OFFSET %d';
       $printf_vars[] = (int)$query_map['limit'][0];
       $printf_vars[] = (empty($query_map['limit'][1]) ? 0 : (int)$query_map['limit'][1]);
     }//if
-    
+
     return vsprintf($query,$printf_vars);
     
   }//method
