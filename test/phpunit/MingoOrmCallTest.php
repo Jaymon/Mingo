@@ -5,6 +5,26 @@ require_once('MingoTestBase_class.php');
 class MingoOrmCallTest extends MingoTestBase {
 
   /**
+   *  turns out I was having a runaway __call() created function.
+   *  
+   *  the fix for this was to add a method_exists() in MingoMagic::__call(), but I'm
+   *  not incredibly happy about that as it is now called everytime the __call() method
+   *  is called (which is a lot), but I'd rather have it slower and consistent than fast
+   *  and buggy               
+   *
+   *  @since  9-12-11   
+   */        
+  public function testBadMethodName(){
+  
+    $this->setExpectedException('BadMethodCallException');
+  
+    $username = 'Foo';
+    $t = new MingoTestOrm();
+    $t->loadByUsername($username);
+  
+  }//method
+
+  /**
    * @dataProvider  getSetVal
    */
   public function testSimpleSetNotMulti($foo,$bar){

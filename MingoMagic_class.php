@@ -37,17 +37,25 @@ abstract class MingoMagic implements ArrayAccess {
     
     list($command,$name,$args) = $this->splitMethod($method,$args);
     
-    // canary...
+    // there must be a field name...
     if(empty($name)){
-    ///if(!$field->hasName()){
       throw new BadMethodCallException(sprintf('NAME of %sNAME() cannot be empty',$command));
     }//if
     
+    // the *Field method must exist...
+    $call_method = sprintf('%sField',$command);
+    if(!method_exists($this,$call_method)){
+      throw new BadMethodCallException(
+        sprintf('Method "%s" inferred from __call "%s" does not exist',$call_method,$method)
+      );
+    }//if
+    
+    // the name cannot be any of the class's arguments...
     if(array_key_exists($name,get_object_vars($this))){
       throw new BadMethodCallException(sprintf('a field cannot have this name: %s',$field->getName()));
     }//if
     
-    $call_method = sprintf('%sField',$command);
+    // the *Field method takes the field name as its first argument...
     array_unshift($args,$name);
     
     return call_user_func_array(array($this,$call_method),$args);
