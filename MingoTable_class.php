@@ -68,9 +68,14 @@ class MingoTable extends MingoMagic {
   /**
    *  set the table's name
    *  
+   *  caution! Using this method will result in the table's name being different, which
+   *  means if you try and save or something it will do stuff to a different table in the db,
+   *  the reason this is public is because there are genuine use cases for being able
+   *  to change the table's name               
+   *      
    *  @param  string  $val  the new name
    */
-  protected function setName($val){
+  public function setName($val){
     $val = $this->normalizeName($val);
     $this->name = (string)$val;
     return $this;

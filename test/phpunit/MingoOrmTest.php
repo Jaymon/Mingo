@@ -10,6 +10,41 @@ require_once('MingoTestBase_class.php');
 class MingoOrmTest extends MingoTestBase {
 
   /**
+   *  makes sure the cloning in {@link MingoOrm::detach()} works as expected
+   *  
+   *  basically, I changed the detach method to clone the current instance instead
+   *  of creating a whole new object, this allows the children objects to inherit any
+   *  unknowable values of the parent with minimal fuss, it also means the child doesn't
+   *  have to recreate the table or db objects      
+   *      
+   *  @since  9-19-11
+   */
+  public function testIterate(){
+  
+    $orms = new MingoIterateTestOrm();
+    $orms->attach(array('foo' => 1));
+    $orms->attach(array('foo' => 2));
+    $orms->attach(array('foo' => 3));
+    
+    foreach($orms as $orm){
+    
+      $this->assertEquals(1,$orm->common->count);
+      $this->assertEquals('che',$orm->name);
+    
+    }//foreach
+    
+    $orms->common->count = 2;
+    
+    foreach($orms as $orm){
+    
+      $this->assertEquals(2,$orm->common->count);
+      $this->assertEquals('che',$orm->name);
+    
+    }//foreach
+  
+  }//method
+
+  /**
    * @dataProvider  getOrm
    */
   public function testAttach($t){
@@ -257,4 +292,22 @@ class MingoOrmTest extends MingoTestBase {
   
   }//method
 
+}//class
+
+/**
+ *  this is specfic to the {@link MingoOrmTest::testIterate()} method
+ */
+class MingoIterateTestOrm extends MingoTestOrm {
+
+  public $common = null;
+  
+  public $name = 'che';
+
+  public function __construct(){
+  
+    $this->common = new StdClass();
+    $this->common->count = 1;
+  
+  }//method
+  
 }//class

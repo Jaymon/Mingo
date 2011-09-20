@@ -1276,8 +1276,12 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     // canary...
     if(!isset($this->list[$i])){ return null; }//if
   
-    $class = get_class($this);
-    $ret_map = new $class();
+    ///$class = get_class($this);
+    ///$ret_map = new $class();
+    
+    $ret_map = clone $this;
+    $ret_map->reset();
+    
     ///$ret_map = new self(); // returns mingo_orm
     $ret_map->attach(
       $this->list[$i]['map'],
