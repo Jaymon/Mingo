@@ -1,8 +1,8 @@
 <?php
 
-require_once('MingoInterfaceTest.php');
+require_once('MingoSQLInterfaceTest.php');
 
-class MingoMySQLInterfaceTest extends MingoInterfaceTest {
+class MingoMySQLInterfaceTest extends MingoSQLInterfaceTest {
   
   /**
    *  @return string  the database name

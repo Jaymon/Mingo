@@ -20,7 +20,7 @@
  *      an error being thrown, in php <5.3 the implemented method signatures have to match
  *      the abstract signature exactly 
  *    - there are certain reserved rows any implementation will have to deal with:
- *      - _id = the unique id assigned to a newly inserted row, this is a 24 character
+ *      - _id = the unique id assigned to a newly inserted row, this is a 1-24 character
  *              randomly created string, if you don't want to make your own, and there
  *              isn't an included one (like mongo) then you can use {@link getUniqueId()}
  *              defined in this class
@@ -444,9 +444,12 @@ abstract class MingoInterface extends MingoMagic {
     
       try{
       
-        $id = $map['_id'];
+        $_id = $map['_id'];
         unset($map['_id']);
-        $map = $this->update($itable,$id,$map);
+        
+        $map = $this->update($itable,$_id,$map);
+        
+        $map['_id'] = $_id;
         
       }catch(Exception $e){
         if($this->handleException($e,$table)){

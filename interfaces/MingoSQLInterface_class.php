@@ -457,9 +457,6 @@ abstract class MingoSQLInterface extends MingoInterface {
    */
   protected function insert($table,array $map){
 
-    ///out::b();
-    ///out::p('insert');
-
     // insert into the main table, _id and body are all we care about...
     $field_map = array();
     $field_map['_id'] = $this->getUniqueId($table);
@@ -505,8 +502,6 @@ abstract class MingoSQLInterface extends MingoInterface {
     
     }//try/catch
   
-    ///out::p();
-  
     return $map;
     
   }//method
@@ -524,13 +519,26 @@ abstract class MingoSQLInterface extends MingoInterface {
     try{
     
       // we don't need to save the row_id into the body since it gets reset in get()...
-      if(isset($map['row_id'])){ unset($map['row_id']); }//if
+      ///if(isset($map['row_id'])){ unset($map['row_id']); }//if
     
       // begin the insert transaction...
       $this->con_db->beginTransaction();
       
       $query = sprintf('UPDATE %s SET body=? WHERE _id=?',$table);
+      
+      // we don't need to save the row id into the body since it gets reset whenever the
+      // map is pulled out from the db (no sense in having it in 2 places)...
+      $_rowid = 0;
+      if(isset($map['row_id'])){
+        $_rowid = $map['row_id'];
+        unset($map['row_id']);
+      }//if
+      
       $val_list = array($this->getBody($map),$_id);
+      
+      // put the row id back...
+      if($_rowid > 0){ $map['row_id'] = $_rowid; }//if
+      
       $ret_bool = $this->getQuery($query,$val_list);
       
       if($ret_bool){
@@ -542,8 +550,6 @@ abstract class MingoSQLInterface extends MingoInterface {
           $this->setIndexes($table,$_id,$map);
         
         }//if
-        
-        $map['_id'] = $_id;
         
         // finish the insert transaction...
         $this->con_db->commit();
