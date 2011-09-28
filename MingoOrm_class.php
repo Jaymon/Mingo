@@ -846,11 +846,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   
     // canary...
     if(!$this->hasCount()){ return false; }//if
-    // canary, need more than 1 arg...
-    $args = func_get_args();
-    $args = array_slice($args,1);
   
-    return $this->handleCall('is',$name,$args,true);
+    return $this->handleCall('is',$name,array($val),true);
   
   }//method
   
@@ -951,7 +948,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
               if(isset($field_ref[$field])){
                 $field_ref = &$field_ref[$field];
               }else{
-                // this field doesn't exist, so kill can just move on to the next list map...
+                // this field doesn't exist, so just move on to the next list map...
                 unset($field_ref);
                 break 2;
               }//if/else
@@ -963,6 +960,10 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
         }else{
         
           // we've reached our final destination, so do final things...
+        
+          // break 3 - we are completely done with processing, we've found a final
+          // value
+          // break - we have an answer for this map's field, move onto the next map's field
         
           switch($command){
           
@@ -1007,10 +1008,38 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
               
             case 'is':
             
-              if(!isset($field_ref[$field]) || !in_array($field_ref[$field],$args,true)){
-                $ret_mixed = false;
-                break 3;
-              }//if
+              // normalize the arg value for compare...
+              $args[0] = $field_instance->normalizeInVal($args[0]);
+              
+              if(empty($field_ref[$field])){
+                
+                if(!empty($args[0])){
+                  
+                  $ret_mixed = false;
+                
+                }//if
+              
+              }else{
+              
+                if(empty($args[0])){
+                
+                  $ret_mixed = false;
+                
+                }else{
+                
+                  if($field_ref[$field] != $args[0]){
+                  
+                    $ret_mixed = false;
+                  
+                  }//if
+                
+                }//if/else
+              
+              
+              }//if/else
+              
+              // if we find a false then we can end, if true then continue to next value...
+              if($ret_mixed === false){ break 3; }//if
             
               break;
               

@@ -284,23 +284,41 @@ class MingoOrmCallTest extends MingoTestBase {
   public function testIs(){
   
     $t = new MingoTestOrm();
+    $t->setFoo(0);
+    
+    $this->assertFalse($t->isFoo('blah'),'testing string word against integer 0');
+    
+    $t = new MingoTestOrm();
+    $t->setFoo(1);
+    
+    $this->assertTrue($t->isFoo('1'),'testing string 1 against integer 1');
+    $this->assertFalse($t->isFoo('2'),'testing string 2 against integer 1');
+    
+    $t = new MingoTestOrm();
+    $t->setFoo('1');
+    
+    $this->assertTrue($t->isFoo(1),'testing int 1 against string 1');
+    $this->assertFalse($t->isFoo(2),'testing integer 2 against string 1');
+    
+    $t = new MingoTestOrm();
     
     $t->setFoo(1);
     
-    $this->assertTrue($t->isFoo(1));
-    $this->assertFalse($t->isFoo(2));
+    $this->assertTrue($t->isFoo(1),'testing int 1 against int 1');
+    $this->assertFalse($t->isFoo(2),'testing int 1 agains int 2');
   
     $t->setField(array('bar','baz'),3);
-    $this->assertTrue($t->isField(array('bar','baz'),3));
-    $this->assertFalse($t->isField(array('bar','baz'),2));
+    $this->assertTrue($t->isField(array('bar','baz'),3),'testing nested bar.baz with matching value');
+    $this->assertFalse($t->isField(array('bar','baz'),2),'testing nested bar.baz with incorrect value');
   
     $t->attach(array('foo' => 1));
-    $this->assertTrue($t->isFoo(1));
-    $this->assertFalse($t->isFoo(2));
+    $this->assertTrue($t->isFoo(1),'testing multiple field values that equal each other');
+    $this->assertFalse($t->isFoo(2),'testing multiple field values with a value not present');
     
     $t->attach(array('foo' => 2));
     $this->assertFalse($t->isFoo(1));
     $this->assertFalse($t->isFoo(2));
+    $this->assertFalse($t->isFoo(3));
   
   }//method
   
