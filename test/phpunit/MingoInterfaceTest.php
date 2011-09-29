@@ -456,9 +456,44 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $result = $db->getOne($table,$where_criteria);
     $this->assertEmpty($result);
+    
+  }//method
   
+  /**
+   *  test to make sure you can force a table to delete all rows
+   *
+   *  @since  9-29-11   
+   */        
+  public function testKillAll(){
   
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $_id_list = $this->addRows($db,$table,10);
   
+    $where_criteria = new MingoCriteria();
+    
+    $e_thrown = false;
+    try{
+  
+      $db->kill($table,$where_criteria,false);
+      
+    }catch(UnexpectedValueException $e){
+    
+      $e_thrown = true;
+    
+    }//try/catch
+    
+    if(!$e_thrown){
+      $this->fail(
+        'UnexpectedValueException was not thrown when an empty criteria was passed to unforced kill()'
+      );
+    }//if
+    
+    $db->kill($table,$where_criteria,true);
+  
+    $result = $db->getOne($table,$where_criteria);
+    $this->assertEmpty($result);
+    
   }//method
   
   public function testKillTable(){

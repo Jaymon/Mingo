@@ -181,13 +181,14 @@ abstract class MingoInterface extends MingoMagic {
    *  
    *  @param  MingoTable  $table 
    *  @param  MingoCriteria $where_criteria
+   *  @param  boolean $force  if true, then empty where criterias can run (deleting all rows from the table)   
    *  @return boolean
    */
-  public function kill(MingoTable $table,MingoCriteria $where_criteria){
+  public function kill(MingoTable $table,MingoCriteria $where_criteria,$force = false){
   
     // canary...
     $this->assure($table);
-    if(!$where_criteria->hasWhere()){
+    if(!$where_criteria->hasWhere() && empty($force)){
       throw new UnexpectedValueException('aborting delete because $where_criteria had no where clause');
     }//if
     

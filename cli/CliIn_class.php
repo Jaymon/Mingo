@@ -247,7 +247,7 @@ class CliIn
           );
           
           // now actually delete...
-          $ret_bool = $this->db->kill($table,$where_criteria);
+          $ret_bool = $this->db->kill($table,$where_criteria,true);
           if(empty($ret_bool))
           {
             $ret_mix = 'Query failed';
