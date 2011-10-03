@@ -107,7 +107,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  you can't touch this object directly in your class (eg, $this->db), instead, always
    *  get this object by using {@link getDb()}   
    *         
-   *  @var  mingo_db
+   *  @var  MingoInterface
    */
   private $db = null;
 
@@ -120,6 +120,21 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     
     // load the id list if passed in...
     $this->loadBy_Id($_id_list);
+  
+  }//method
+  
+  /**
+   *  get the orm in a state to be serialized
+   *
+   *  @since  10-3-11
+   *  @return array a list of the params to be serialized   
+   */
+  public function __sleep(){
+  
+    $map = get_object_vars($this);
+    unset($map['db']);
+    
+    return array_keys($map);
   
   }//method
   

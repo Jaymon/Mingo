@@ -55,7 +55,7 @@ abstract class MingoInterface extends MingoMagic {
    *  @see  isConnected()
    *  @var  boolean
    */
-  private $connected = false;
+  protected $connected = false;
   
   public function __construct(){}//method
   
@@ -78,7 +78,7 @@ abstract class MingoInterface extends MingoMagic {
     $username = $this->checkField('username',$username);
     $password = $this->checkField('password',$password);
     $options = $this->checkField('options',$options);
-    $connected = false;
+    $this->connected = false;
     
     try{
       
@@ -136,6 +136,23 @@ abstract class MingoInterface extends MingoMagic {
    *  @return boolean
    */
   abstract protected function _connect($name,$host,$username,$password,array $options);
+  
+  /**
+   *  disconnect for any serialization
+   *
+   *  @since  10-3-11
+   *  @return array a list of the params to be serialized   
+   */
+  public function __sleep(){
+  
+    $this->connected = false;
+    $this->con_db = null;
+    $map = get_object_vars($this);
+    $list = array_keys($map);
+  
+    return $list;
+  
+  }//method
   
   /**
    *  return the connected backend db connection.

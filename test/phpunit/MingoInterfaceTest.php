@@ -74,6 +74,36 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
+   *  make sure an Interface can be serialized and unserialized and work
+   *      
+   *  @since  10-3-11
+   */
+  public function testSerialize(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $_id_list = $this->addRows($db,$table,1);
+    
+    $sdb = serialize($db);
+    $this->assertInternalType('string',$sdb);
+    
+    $db2 = unserialize($sdb);
+    
+    $where_criteria = new MingoCriteria();
+    $where_criteria->in_Id($_id_list);
+    
+    $list = $db2->get($table,$where_criteria);
+    $this->assertNotEmpty($list);
+    
+    foreach($list as $map){
+    
+      $this->assertContains($map['_id'],$_id_list);
+    
+    }//foreach
+  
+  }//method
+  
+  /**
    *  test the ability of the interface to autocreate the table
    *
    *  @since  5-9-11   

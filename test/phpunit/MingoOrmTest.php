@@ -10,6 +10,56 @@ require_once('MingoTestBase_class.php');
 class MingoOrmTest extends MingoTestBase {
 
   /**
+   *  make sure an Interface can be serialized and unserialized and work
+   *      
+   *  for some reason, the private db var started trying to be serialized (I swear
+   *  serialize used to ignore private vars), this has never been a problem until
+   *  now, so this test was added to make sure the orm can be serialized in the future         
+   *      
+   *  @since  10-3-11
+   */
+  public function testSerialize(){
+  
+    $orm = $this->getDbConnectedOrm();
+    ///$orm = new MingoIterateTestOrm();
+    
+    $orm->setFoo('one');
+    $orm->setBar(2);
+    
+    $this->assertEmpty($orm->get_id());
+    $orm->set();
+    $this->assertNotEmpty($orm->get_id());
+    
+    $sorm = serialize($orm);
+    
+    $this->assertInternalType('string',$sorm);
+    $orm2 = unserialize($sorm);
+    
+    $this->assertSame('one',$orm2->getFoo());
+    $this->assertSame(2,$orm2->getBar());
+    $this->assertSame($orm->get_id(),$orm2->get_id());
+    
+    return;
+    
+    // there is no automatic creation of the db in getDb(), so the below code probably isn't needed
+    
+    $orm2->bumpBar(1);
+    $this->assertGreaterThan(0,$orm2->set());
+    
+    $orm3 = $this->getDbConnectedOrm();
+    
+    $where_criteria = new MingoCriteria();
+    $where_criteria->is_Id($orm2->get_id());
+    
+    $this->assertTrue($orm3->loadOne($where_criteria));
+  
+    $this->assertSame('one',$orm3->getFoo());
+    $this->assertSame(3,$orm3->getBar());
+    $this->assertSame($orm->get_id(),$orm3->get_id());
+  
+  }//method
+
+  /**
    *  makes sure the cloning in {@link MingoOrm::detach()} works as expected
    *  
    *  basically, I changed the detach method to clone the current instance instead
@@ -153,7 +203,16 @@ class MingoOrmTest extends MingoTestBase {
     $c = new MingoCriteria();
     $c->is_id($_id);
     $t->load($c);
-    $this->assertOrmStructure($t);
+    $count = 0;
+    
+    foreach($t as $map){
+    
+      $this->assertOrmStructure($map);
+      $count++;
+      
+    }//foreach
+    
+    $this->assertEquals(1,$count);
     
     return $_id;
   
@@ -173,7 +232,7 @@ class MingoOrmTest extends MingoTestBase {
     
       $t = $this->getDbConnectedOrm();
       $t->setTable($table);
-      $this->assertTrue($t->set());
+      $this->assertEquals(1,$t->set());
     
     }//for
     ///$table = new MingoTable('testloadmany_1');
