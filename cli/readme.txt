@@ -1,4 +1,4 @@
-php mingo.php --interface=mingo_db_sqlite --name=..\model.sqlite
+php mingo.php --interface=MingoSQLiteInterface --name=..\model.sqlite
 
 some other possible sql parsers and info:
 http://code.google.com/p/php-sql-parser/
