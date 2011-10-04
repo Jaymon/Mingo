@@ -24,7 +24,7 @@
  *              randomly created string, if you don't want to make your own, and there
  *              isn't an included one (like mongo) then you can use {@link getUniqueId()}
  *              defined in this class
- *      - row_id = this is an auto increment row, ie, the row number. This technically only
+ *      - _rowid = this is an auto increment row, ie, the row number. This technically only
  *                 needs to be generated when the backend supports it and is set up (mongo ignores
  *                 it, mysql and sqlite set it) 
  *  
@@ -411,8 +411,8 @@ abstract class MingoInterface extends MingoMagic {
   
     // add created and last touched fields...
     $now = time();
-    if(empty($map['created'])){ $map['created'] = $now; }//if
-    $map['updated'] = $now;
+    if(empty($map['_created'])){ $map['_created'] = $now; }//if
+    $map['_updated'] = $now;
   
     // check required fields...
     $req_field_list = array();

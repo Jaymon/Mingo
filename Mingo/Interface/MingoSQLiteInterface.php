@@ -111,7 +111,7 @@ class MingoSQLiteInterface extends MingoSQLInterface {
   protected function _setTable(MingoTable $table){
   
     $query = sprintf('CREATE TABLE %s (
-        row_id INTEGER NOT NULL PRIMARY KEY ASC,
+        _rowid INTEGER NOT NULL PRIMARY KEY ASC,
         _id VARCHAR(24) COLLATE NOCASE NOT NULL,
         body BLOB
     )',$table);

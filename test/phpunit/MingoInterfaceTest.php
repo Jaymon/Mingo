@@ -1,6 +1,6 @@
 <?php
 
-require_once('MingoTestBase_class.php');
+require_once('MingoTestBase.php');
 
 abstract class MingoInterfaceTest extends MingoTestBase {
   
@@ -641,13 +641,13 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $table->setField('url',MingoField::TYPE_STR);
     
     // set defaults like the MingoOrm getTable() would...
-    $table->setField(MingoOrm::ROW_ID,MingoField::TYPE_INT);
-    $table->setField(MingoOrm::CREATED,MingoField::TYPE_INT);
-    $table->setField(MingoOrm::UPDATED,MingoField::TYPE_INT);
+    $table->setField(MingoOrm::_ROWID,MingoField::TYPE_INT);
+    $table->setField(MingoOrm::_CREATED,MingoField::TYPE_INT);
+    $table->setField(MingoOrm::_UPDATED,MingoField::TYPE_INT);
     
-    $table->setIndex(MingoOrm::CREATED);
+    $table->setIndex(MingoOrm::_CREATED);
     $table->setIndex('url','userId');
-    $table->setIndex('userId', MingoOrm::ROW_ID);
+    $table->setIndex('userId', MingoOrm::_ROWID);
     $this->setTable($table);
     
     // add some rows...
@@ -670,7 +670,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       
       $where_criteria = new MingoCriteria();
       $where_criteria->setUserId($user_id);
-      $where_criteria->descRow_id();
+      $where_criteria->desc_RowId();
       
       ///out::i($where_criteria);
       
@@ -682,11 +682,11 @@ abstract class MingoInterfaceTest extends MingoTestBase {
         $this->assertSame($user_id,$map['userid']);
         if($last_row_id !== null){
         
-          $this->assertLessThan($last_row_id,(int)$map['row_id']);
+          $this->assertLessThan($last_row_id,(int)$map['_rowid']);
         
         }//if/else
         
-        $last_row_id = (int)$map['row_id'];
+        $last_row_id = (int)$map['_rowid'];
       
       }//foreach
       

@@ -291,7 +291,7 @@ abstract class MingoSQLInterface extends MingoInterface {
       
         $ret_map = $this->getMap($map['body']);
         $ret_map['_id'] = $map['_id'];
-        $ret_map['row_id'] = $map['row_id'];
+        $ret_map['_rowid'] = $map['_rowid'];
         
         // put the ret_map in the right place...
         if(isset($order_map[$map['_id']])){
@@ -478,7 +478,7 @@ abstract class MingoSQLInterface extends MingoInterface {
       if($ret_bool){
    
         // get the row id...
-        $map['row_id'] = $this->con_db->lastInsertId();
+        $map['_rowid'] = $this->con_db->lastInsertId();
 
         // we need to add to all the index tables...
         if($table->hasIndexes()){
@@ -518,8 +518,8 @@ abstract class MingoSQLInterface extends MingoInterface {
 
     try{
     
-      // we don't need to save the row_id into the body since it gets reset in get()...
-      ///if(isset($map['row_id'])){ unset($map['row_id']); }//if
+      // we don't need to save the _rowid into the body since it gets reset in get()...
+      ///if(isset($map['_rowid'])){ unset($map['_rowid']); }//if
     
       // begin the insert transaction...
       $this->con_db->beginTransaction();
@@ -529,15 +529,15 @@ abstract class MingoSQLInterface extends MingoInterface {
       // we don't need to save the row id into the body since it gets reset whenever the
       // map is pulled out from the db (no sense in having it in 2 places)...
       $_rowid = 0;
-      if(isset($map['row_id'])){
-        $_rowid = $map['row_id'];
-        unset($map['row_id']);
+      if(isset($map['_rowid'])){
+        $_rowid = $map['_rowid'];
+        unset($map['_rowid']);
       }//if
       
       $val_list = array($this->getBody($map),$_id);
       
       // put the row id back...
-      if($_rowid > 0){ $map['row_id'] = $_rowid; }//if
+      if($_rowid > 0){ $map['_rowid'] = $_rowid; }//if
       
       $ret_bool = $this->getQuery($query,$val_list);
       
@@ -1187,7 +1187,7 @@ abstract class MingoSQLInterface extends MingoInterface {
       if(empty($index_table)){
         
         $is_valid = empty($where_map) 
-          || ((count($where_map) === 1) && (isset($where_map['_id']) || isset($where_map['row_id'])));
+          || ((count($where_map) === 1) && (isset($where_map['_id']) || isset($where_map['_rowid'])));
         
         if(!$is_valid){
         
@@ -1219,9 +1219,9 @@ abstract class MingoSQLInterface extends MingoInterface {
           
         }//if
         
-        if(!empty($sort_map) && ((count($sort_map) > 1) || !isset($sort_map['row_id']))){
+        if(!empty($sort_map) && ((count($sort_map) > 1) || !isset($sort_map['_rowid']))){
           throw new RuntimeException(
-            'you can only sort by "row_id" when selecting on nothing, "_id," or "row_id"'
+            'you can only sort by "_rowid" when selecting on nothing, "_id," or "_rowid"'
           );
         }//if
         
@@ -1245,7 +1245,7 @@ abstract class MingoSQLInterface extends MingoInterface {
           
         }else{
         
-          // you can directly select on the table using "row_id" also...
+          // you can directly select on the table using "_rowid" also...
           $ret_map['query_map'] = array(
             'select' => '*',
             'where' => $where_query,
@@ -1505,7 +1505,7 @@ abstract class MingoSQLInterface extends MingoInterface {
   protected function getBody($map){
   
     // get rid of table stuff...
-    if(isset($map['row_id'])){ unset($map['row_id']); }//if
+    if(isset($map['_rowid'])){ unset($map['_rowid']); }//if
     if(isset($map['_id'])){ unset($map['_id']); }//if
     
     return gzcompress(serialize($map));

@@ -114,7 +114,7 @@ class MingoMySQLInterface extends MingoSQLInterface {
   protected function _setTable(MingoTable $table){
   
     $query = sprintf('CREATE TABLE `%s` (
-      `row_id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      `_rowid` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       `_id` VARCHAR(24) NOT NULL,
       `body` LONGBLOB,
       UNIQUE KEY (`_id`)

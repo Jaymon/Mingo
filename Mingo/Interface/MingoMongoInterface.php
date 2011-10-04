@@ -238,11 +238,7 @@ class MingoMongoInterface extends MingoInterface {
     
       throw new MongoException(sprintf('update failed with message: %s',$err_map['err']));
       
-    }else{
-    
-      $map['_id'] = $_id;
-      
-    }//if/else
+    }//if
     
     return $map;
   

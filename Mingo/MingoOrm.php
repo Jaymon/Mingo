@@ -7,7 +7,7 @@
  *  the start() method 
  *
  *  this class reserves some keywords as special: 
- *    - row_id = the auto increment key, always set on SQL db
+ *    - _rowid = the auto increment key, always set on SQL db
  *    - _id = the unique id of the row, always set for both mongo and sql
  *    - updated = holds a unix timestamp of the last time the row was saved into the db, always set
  *    - created = holds a unix timestamp of when the row was created, always set  
@@ -23,27 +23,30 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  every row that has, or will be, saved into the db will carry an _id
    *  
-   *  the id is usually a 24 character hash/string
+   *  the id is usually a ~24 character hash/string
    */
   const _ID = '_id';
+  
   /**
    *  this is an auto-increment row id 
    *  
-   *  the row_id is an integer
+   *  the _rowid is an integer
    */
-  const ROW_ID = 'row_id';
+  const _ROWID = '_rowid';
+  
   /**
    *  when the row was last updated
    *  
    *  a unix timestamp, which is an integer
    */
-  const UPDATED = 'updated';
+  const _UPDATED = '_updated';
+  
   /**
    *  when the row was created
    *  
    *  a unix timestamp, which is an integer
    */
-  const CREATED = 'created';
+  const _CREATED = '_created';
 
   /**
    *  holds the table that this class will access in the db
@@ -207,9 +210,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     $table = new MingoTable(get_class($this));
     
     // set some of the default fields...
-    $table->setField(self::ROW_ID,MingoField::TYPE_INT);
-    $table->setField(self::CREATED,MingoField::TYPE_INT);
-    $table->setField(self::UPDATED,MingoField::TYPE_INT);
+    $table->setField(self::_ROWID,MingoField::TYPE_INT);
+    $table->setField(self::_CREATED,MingoField::TYPE_INT);
+    $table->setField(self::_UPDATED,MingoField::TYPE_INT);
     
     // let some custom stuff be added...
     $this->populateTable($table);
@@ -275,17 +278,12 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function getList(){ return $this->list; }//method
 
   /**
-   *  returns a list of all the maps this class contains
-   *  
-   *  between v0.2 and 0.3 this went through a change in that it always returns a list,
-   *  before, it would return an object if there was only 1 map represented, now it
-   *  will return array(0 => instance), I realize the idea of being able to make a quick
-   *  clone is great, but it is almost as easy to do $this->get(0) to make the clone         
+   *  returns a list of all the maps this class contains         
    *      
    *  @param  integer $i  the index we want to get if we don't want all of them      
    *  @return array
    */
-  public function get(){
+  public function get($i){
   
     $ret_mix = null;
     $args = func_get_args();
@@ -298,8 +296,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     
     }else{
     
-      $total_args = func_num_args();
-      if($total_args > 1){
+      if(isset($args[1])){
         foreach($args as $arg){ $ret_mix[] = $this->detach($arg); }//foreach
       }else{
         $ret_mix = $this->detach($args[0]);
@@ -321,7 +318,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  integer $i  the index we want to get if we don't want all of them      
    *  @return array
    */
-  public function getMap(){
+  public function getMap($i){
   
     $ret_mix = null;
     $args = func_get_args();
@@ -335,9 +332,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     }else{
     
       $ret_mix = array();
-      $total_args = func_num_args();
       
-      if($total_args > 1){
+      if(isset($args[1])){
       
         foreach($args as $arg){
           if(isset($this->list[$arg])){

@@ -8,8 +8,8 @@ include(
   join(
     DIRECTORY_SEPARATOR,
     array(
-      join(DIRECTORY_SEPARATOR,array(dirname(__FILE__),'..')),
-      'MingoAutoload_class.php'
+      join(DIRECTORY_SEPARATOR,array(dirname(__FILE__),'..','Mingo')),
+      'MingoAutoload.php'
     )
   )
 );
