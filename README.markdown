@@ -1,3 +1,7 @@
+# THIS IS THE 1.0 BRANCH AND IS NO LONGER DEVELOPED
+
+This branch is frozen, it will probably get bugfixes but won't change significantly. It is here for anyone that needs to maintain compatibility with an existing codebase, if you are new to Mingo than you should use the `master` branch as that is the most up-to-date version of the code.
+
 # What is Mingo?
 
 Mingo is an easy to use database abstraction layer that uses the db as a schema-less document storage engine based on [how Friendfeed uses MySql](http://bret.appspot.com/entry/how-friendfeed-uses-mysql).
