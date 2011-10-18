@@ -9,9 +9,16 @@ class MingoSQLiteInterfaceTest extends MingoSQLInterfaceTest {
    */
   public function getDbName(){
     
+    $path = sys_get_temp_dir();
+    if(mb_substr($path,-1) === DIRECTORY_SEPARATOR){
+      
+      $path = mb_substr($path,0,-1);
+    
+    }//if
+    
     return sprintf(
       '%s.sqlite',
-      join(DIRECTORY_SEPARATOR,array(sys_get_temp_dir(),__CLASS__))
+      join(DIRECTORY_SEPARATOR,array($path,md5(__CLASS__.microtime(true))))
     );
     
   }//method

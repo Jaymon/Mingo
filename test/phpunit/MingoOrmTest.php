@@ -5,7 +5,7 @@
  *  and totals   
  */    
 
-require_once('MingoTestBase_class.php');
+require_once('MingoTestBase.php');
 
 class MingoOrmTest extends MingoTestBase {
 
@@ -326,8 +326,8 @@ class MingoOrmTest extends MingoTestBase {
     $this->assertNotEmpty($t->get_id(null));
     $this->assertEquals('one',$t->getFoo());
     $this->assertEquals(2,$t->getBar());
-    $this->assertNotEmpty($t->getCreated(null));
-    $this->assertNotEmpty($t->getUpdated(null));
+    $this->assertNotEmpty($t->get_Created(null));
+    $this->assertNotEmpty($t->get_Updated(null));
   
   }//method
   

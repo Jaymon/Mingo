@@ -363,13 +363,13 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function set(){
   
     $ret_count = 0;
-
+    
     foreach(array_keys($this->list) as $key){
     
       // only try and save if it has changes...
       if(!empty($this->list[$key]['modified'])){
       
-        $this->list[$key]['map'] = $this->setMap($this->list[$key]['map']);
+        $this->list[$key]['map'] = $this->setOne($this->detach($key));
         $this->list[$key]['modified'] = false; // reset
         $ret_count++;
         
@@ -378,6 +378,24 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     }//foreach
   
     return $ret_count;
+  
+  }//method
+  
+  /**
+   *  just set the individual row
+   *  
+   *  this is blown out from {@link set()} to make it easier for the child classes
+   *  to mess with one row right before saving it
+   *  
+   *  @since  10-18-11
+   *  @param  MingoOrm  $orm  the Orm that represents just one row   
+   *  @return array the map from the orm, now saved
+   */
+  protected function setOne(MingoOrm $orm){
+  
+    $db = $this->getDb();
+    $map = $db->set($this->getTable(),$orm->getMap(0));
+    return $map;
   
   }//method
   

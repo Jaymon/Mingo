@@ -56,7 +56,7 @@ class MingoTestOrm extends MingoOrm {
 
   protected function populateTable(MingoTable $table){
   
-    $table->setField(MingoOrm::ROW_ID,MingoField::TYPE_INT);
+    $table->setField(MingoOrm::_ROWID,MingoField::TYPE_INT);
   
     ///$table->setIndex('foo','bar','baz');
   
