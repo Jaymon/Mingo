@@ -291,7 +291,8 @@ abstract class MingoSQLInterface extends MingoInterface {
       
         $ret_map = $this->getMap($map['body']);
         $ret_map['_id'] = $map['_id'];
-        $ret_map['_rowid'] = $map['_rowid'];
+        $ret_map['_rowid'] = (int)$map['_rowid'];
+        $ret_map['_created'] = (int)$map['_created'];
         
         // put the ret_map in the right place...
         if(isset($order_map[$map['_id']])){
@@ -461,6 +462,8 @@ abstract class MingoSQLInterface extends MingoInterface {
     $field_map = array();
     $field_map['_id'] = $this->getUniqueId($table);
     $field_map['body'] = $this->getBody($map);
+    $field_map['_created'] = $map['_created'];
+    unset($map['_created']);
     
     // insert the saved map into the table...
     $field_name_str = join(',',array_keys($field_map));
@@ -488,6 +491,7 @@ abstract class MingoSQLInterface extends MingoInterface {
         }//if
         
         $map['_id'] = $field_map['_id'];
+        $map['_created'] = $field_map['_created'];
       
       }//if
     
@@ -524,20 +528,34 @@ abstract class MingoSQLInterface extends MingoInterface {
       // begin the insert transaction...
       $this->con_db->beginTransaction();
       
-      $query = sprintf('UPDATE %s SET body=? WHERE _id=?',$table);
+      $query = sprintf('UPDATE %s SET body=?,_created=? WHERE _id=?',$table);
       
-      // we don't need to save the row id into the body since it gets reset whenever the
+      // we don't need to save certain fields into the body since it gets reset whenever the
       // map is pulled out from the db (no sense in having it in 2 places)...
-      $_rowid = 0;
-      if(isset($map['_rowid'])){
-        $_rowid = $map['_rowid'];
-        unset($map['_rowid']);
-      }//if
+      $restore_field_map = array('_rowid' => null,'_created' => null);
+      foreach($restore_field_map as $field_name => $field_val){
       
-      $val_list = array($this->getBody($map),$_id);
+        if(isset($map[$field_name])){
+        
+          $restore_field_map[$field_name] = $map[$field_name];
+          unset($map[$field_name]);
+        
+        }//if
       
-      // put the row id back...
-      if($_rowid > 0){ $map['_rowid'] = $_rowid; }//if
+      }//foreach
+      
+      $val_list = array($this->getBody($map),(int)$restore_field_map['_created'],$_id);
+      
+      // put the fields back...
+      foreach($restore_field_map as $field_name => $field_val){
+      
+        if($field_val !== null){
+        
+          $map[$field_name] = $field_val;
+        
+        }//if
+      
+      }//foreach
       
       $ret_bool = $this->getQuery($query,$val_list);
       
@@ -1219,10 +1237,44 @@ abstract class MingoSQLInterface extends MingoInterface {
           
         }//if
         
-        if(!empty($sort_map) && ((count($sort_map) > 1) || !isset($sort_map['_rowid']))){
-          throw new RuntimeException(
-            'you can only sort by "_rowid" when selecting on nothing, "_id," or "_rowid"'
-          );
+        if(!empty($sort_map)){
+        
+          $failed = false;
+          $sort_field_list = array('_created','_rowid','_id');
+        
+          // if there is no index, you can only sort on certain fields...
+          if(count($sort_map) > 1){
+          
+            $failed = true;
+            
+          }else{
+          
+            $failed = true;
+          
+            foreach($sort_field_list as $sort_field){
+            
+              if(isset($sort_map[$sort_field])){
+              
+                $failed = false;
+                break;
+              
+              }//if
+            
+            }//foreach
+          
+          }//if/else
+        
+          if($failed){
+          
+            throw new RuntimeException(
+              sprintf(
+                'you can only sort by one of the following fields [%s] when selecting on nothing',
+                join(', ',$sort_field_list)
+              )
+            );
+          
+          }//if
+          
         }//if
         
         $ret_map['table'] = $table->getName();

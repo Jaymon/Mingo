@@ -74,6 +74,39 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
+   *  I wanted to see if it was feasible to move the serialization over to json
+   *  instead of PHP's proprietary serialization format, but it doesn't look like
+   *  it will be possible since php's json doesn't support any php objects and instead
+   *  converts them to StdClass or arrays.
+   *
+   *  @link http://us2.php.net/manual/en/function.json-encode.php
+   *  @link http://us2.php.net/json_decode      
+   *  @since  11-2-11
+   */
+  public function xtestStructure(){
+  
+    $map = array();
+    $map['foo'] = new StdClass();
+    $map['foo']->one = 1;
+    $map['foo']->two = 2;
+    $map['foo']->three = 'this is a string';
+  
+    $e = new \RuntimeException('this is the message');
+    
+    $map['e'] = $e;
+    
+    $map['map'] = array('baz' => 'string','bar' => 234);
+    $map['list'] = array(1,2,3,4,'string');
+    
+    $json = json_encode($map);
+    
+    $ret = json_decode($json,false);
+  
+    \out::e($ret);
+  
+  }//method
+  
+  /**
    *  make sure an Interface can be serialized and unserialized and work
    *      
    *  @since  10-3-11

@@ -113,14 +113,16 @@ class MingoSQLiteInterface extends MingoSQLInterface {
     $query = sprintf('CREATE TABLE %s (
         _rowid INTEGER NOT NULL PRIMARY KEY ASC,
         _id VARCHAR(24) COLLATE NOCASE NOT NULL,
+        _created INTEGER NOT NULL,
         body BLOB
     )',$table);
   
     $ret_bool = $this->getQuery($query);
     if($ret_bool){
     
-      // add the index for _id to the table...
+      // add some indexes to the table...
       $ret_bool = $this->createIndex($table,array('_id' => 1));
+      $ret_bool = $this->createIndex($table,array('_created' => 1));
     
     }//if
     

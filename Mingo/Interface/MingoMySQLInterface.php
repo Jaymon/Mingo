@@ -116,8 +116,10 @@ class MingoMySQLInterface extends MingoSQLInterface {
     $query = sprintf('CREATE TABLE `%s` (
       `_rowid` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       `_id` VARCHAR(24) NOT NULL,
+      `_created` INT(11) NOT NULL,
       `body` LONGBLOB,
-      UNIQUE KEY (`_id`)
+      UNIQUE KEY (`_id`),
+      KEY (`_created`)
     ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
     
     return $this->getQuery($query);
