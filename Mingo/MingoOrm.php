@@ -198,6 +198,14 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function hasCriteria(){ return !empty($this->criteria); }//method
   
   /**
+   *  get the table name that this class will use in the db
+   *
+   *  @since  11-1-11
+   *  @return string      
+   */
+  protected function getTableName(){ return get_class($this); }//method
+  
+  /**
    *  get the table this class will use on the db side
    *  
    *  @return MingoTable
@@ -207,7 +215,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     // canary...
     if(!empty($this->table)){ return $this->table; }//if 
   
-    $table = new MingoTable(get_class($this));
+    $table = new MingoTable($this->getTableName());
     
     // set some of the default fields...
     $table->setField(self::_ROWID,MingoField::TYPE_INT);
