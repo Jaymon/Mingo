@@ -133,6 +133,28 @@ class MingoOrmTest extends MingoTestBase {
   }//method
 
   /**
+   *  this is here to make sure a raw reset map doesn't have a phantom internal
+   *  map that would make the attach have a blank map as the first thing
+   *
+   *  @since  11-3-11
+   */
+  public function testAttach2(){
+  
+    $orm = $this->getOrm();
+    $orm = $orm[0][0];
+    \out::e($orm->getMap(0));
+
+    $orm->reset();
+
+    $orm2 = $this->getOrm();
+    $orm2 = $orm2[0][0];
+
+    $orm->attach($orm2->getMap(0));
+  
+    $this->assertEquals(1,count($orm->getList()));
+  }//method
+
+  /**
    *  @dataProvider  getOrm
    */
   public function testGet($t){
