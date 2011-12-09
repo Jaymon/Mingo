@@ -14,7 +14,7 @@
  *  (I would guess most) will be cross db interface compatible (eg, if you use the Mongo
  *  db interface's capped collections, then don't expect that to work using the SQL interface)         
  *  
- *  @version 0.5
+ *  @version 0.6
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-18-09
  *  @package mingo 
@@ -33,14 +33,6 @@ class MingoTable extends MingoMagic {
    *  @var  array
    */
   protected $index_map = array();
-  
-  /**
-   *  used to set fields that should be there when the db is set
-   *     
-   *  @see  requireField()
-   *  @var  array   
-   */        
-  protected $required_map = array();
   
   /**
    *  used to store db interface specific things
@@ -203,11 +195,6 @@ class MingoTable extends MingoMagic {
     }//if
   
     $name = $field->getNameAsString();
-  
-    if($field->isRequired()){
-      $this->requireField($name,$field->getDefaultVal());
-    }//if
-  
     $this->field_map[$name] = $field;
     
     return $this;
@@ -235,28 +222,6 @@ class MingoTable extends MingoMagic {
   
     return $ret_instance;
   
-  }//method
-  
-  /**
-   *  return the required fields
-   *  
-   *  @return array
-   */
-  public function getRequiredFields(){ return $this->required_map; }//method
-  
-  /**
-   *  set a required field
-   *  
-   *  @param  string  $name the field name, it should already be normalized
-   *  @param  mixed $default_val  if something other than null then that value will be put into the field
-   *                              and an error won't be thrown if the field isn't there      
-   */
-  protected function requireField($name,$default_val = null){
-  
-    // canary...
-    if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
-    $this->required_map[$name] = $default_val;
-    
   }//method
   
   /**

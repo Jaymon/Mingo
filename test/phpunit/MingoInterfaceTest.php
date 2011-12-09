@@ -74,6 +74,59 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
+   *  make sure required fields work as expected
+   *  
+   *  @since  12-9-11
+   */
+  public function testRequiredField(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $foo = $table->getField('foo');
+    $foo->setRequired(true);
+  
+    $foo = $table->getField('foo');
+    $this->assertTrue($foo->isRequired());
+    
+    $map['map'] = array('baz' => 'string','bar' => 234);
+    
+    $foo->setDefaultVal(1234);
+    $rmap = $db->set($table,$map);
+    $this->assertEquals(1234,$rmap['foo']);
+    
+    $this->setExpectedException('DomainException');
+    $foo->setDefaultVal(null);
+    $db->set($table,$map);
+  
+  }//method
+  
+  /**
+   *  make sure unique fields work as expected
+   *  
+   *  @since  12-9-11
+   */
+  public function testUniqueField(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $foo = $table->getField('foo');
+    $foo->setUnique(true);
+  
+    $foo = $table->getField('foo');
+    $this->assertTrue($foo->isUnique());
+    
+    $timestamp = time() * -1;
+    $map = array('foo' => $timestamp,'baz' => 'string','bar' => 234);
+    
+    $rmap = $db->set($table,$map);
+    $this->assertEquals($timestamp,$rmap['foo']);
+    
+    $this->setExpectedException('DomainException');
+    $db->set($table,$map);
+    
+  }//method
+  
+  /**
    *  I wanted to see if it was feasible to move the serialization over to json
    *  instead of PHP's proprietary serialization format, but it doesn't look like
    *  it will be possible since php's json doesn't support any php objects and instead

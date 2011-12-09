@@ -253,6 +253,15 @@ class MingoField {
   
   }//method
   
+  /**
+   *  set to true if you would like the values of this field to be unique
+   *
+   *  @since  12-9-11
+   *  @param  boolean $val  true for unique, false for not unique      
+   */
+  public function setUnique($val){ $this->field_map['is_unique'] = (bool)$val; }//method
+  public function isUnique(){ return !empty($this->field_map['is_unique']); }//method
+  
   public function setRequired($val){ $this->field_map['is_required'] = !empty($val); }//method
   public function isRequired(){ return !empty($this->field_map['is_required']); }//method
   

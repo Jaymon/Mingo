@@ -413,37 +413,8 @@ abstract class MingoInterface extends MingoMagic {
     $now = time();
     if(empty($map['_created'])){ $map['_created'] = $now; }//if
     $map['_updated'] = $now;
-  
-    // check required fields...
-    $req_field_list = array();
-    foreach($table->getRequiredFields() as $req_field_name => $req_field_val){
     
-      if(!array_key_exists($req_field_name,$map)){
-      
-        if($req_field_val !== null){
-        
-          $map[$req_field_name] = $req_field_val;
-          
-        }else{
-        
-          $req_field_list[] = $req_field_name;
-          
-        }//if/else
-      
-      }//if
-    
-    }//foreach
-    
-    if(!empty($req_field_list)){
-    
-      throw new DomainException(
-        sprintf(
-          'cannot set() because $map is missing required field(s): [%s]',
-          join(', ',$req_field_list)
-        )
-      );
-      
-    }//if
+    $map = $this->assureFields($table,$map);
   
     if(empty($map['_id'])){
     
@@ -870,6 +841,72 @@ abstract class MingoInterface extends MingoMagic {
     
     
     return true;
+  
+  }//method
+  
+  /**
+   *  do an integrity check on the fields
+   *  
+   *  @since  12-9-11      
+   *  @param  MingoTable  $table
+   *  @param  array $map  the key/value map that will be added to $table  
+   *  @return array the $map with the best fields possible
+   */
+  protected function assureFields(MingoTable $table,array $map){
+  
+    // do some checks on the fields...
+    foreach($table->getFields() as $field_name => $field){
+    
+      if($field->isRequired()){
+      
+        if(!array_key_exists($field_name,$map)){
+        
+          $req_field_val = $field->getDefaultVal();
+        
+          if($req_field_val !== null){
+          
+            $map[$field_name] = $req_field_val;
+            
+          }else{
+          
+            throw new DomainException(
+              sprintf(
+                'cannot set() because $map is missing required field: [%s]',
+                $field_name
+              )
+            );
+          
+          }//if/else
+        
+        }//if
+        
+      }//if
+      
+      if($field->isUnique()){
+      
+        if(isset($map[$field_name])){
+        
+          $where_criteria = new MingoCriteria();
+          $where_criteria->isField($field_name,$map[$field_name]);
+          if($this->getOne($table,$where_criteria)){
+          
+            throw new DomainException(
+              sprintf(
+                'cannot set() because field [%s] with value [%s] is not unique',
+                $field_name,
+                $map[$field_name]
+              )
+            );
+          
+          }//if
+          
+        }//if
+      
+      }//if
+    
+    }//foreach
+  
+    return $map;
   
   }//method
   
