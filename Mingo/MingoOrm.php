@@ -1330,6 +1330,23 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   }//method
   
   /**
+   *  get a new instance of this object
+   *  
+   *  @since  12-21-11
+   *  @return self
+   */
+  protected function getInstance(){
+  
+    ///$class = get_class($this);
+    ///$ret_map = new $class();
+  
+    $ret_orm = clone $this;
+    $ret_orm->reset();
+    return $ret_orm;
+  
+  }//method
+  
+  /**
    *  rips out the map found at index $i into its own instance
    *  
    *  this class is internal, but you can see it used in {@link current()} and {@link get()}
@@ -1341,12 +1358,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   
     // canary...
     if(!isset($this->list[$i])){ return null; }//if
-  
-    ///$class = get_class($this);
-    ///$ret_map = new $class();
     
-    $ret_map = clone $this;
-    $ret_map->reset();
+    $ret_map = $this->getInstance();
     
     ///$ret_map = new self(); // returns mingo_orm
     $ret_map->attach(
