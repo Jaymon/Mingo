@@ -57,39 +57,46 @@ abstract class MingoInterface extends MingoMagic {
    */
   protected $connected = false;
   
-  public function __construct(){}//method
+  /**
+   *  the configuration object that will be used to connect this interfaced to the db
+   *
+   *  @since  12-31-11
+   *  @var  \MingoConfig      
+   */
+  protected $config = null;
+  
+  /**
+   *  set the configuration object that will be used to connect to the db
+   *
+   *  @since  12-31-11
+   *  @param  \MingoConfig $config      
+   */
+  public function setConfig(MingoConfig $config){ $this->config = $config; }//method
+  
+  /**
+   *  get this instance's connection config
+   *
+   *  @since  12-31-11
+   *  @return \MingoConfig      
+   */
+  public function getConfig(){ return $this->config; }//method
   
   /**
    *  connect to the db
    *  
-   *  @param  string  $name  the db name to use, defaults to {@link getName()}
-   *  @param  string  $host the host to use, defaults to {@link getHost()}. if you want a specific
-   *                        port, attach it to host (eg, localhost:27017 or example.com:27017)            
-   *  @param  string  $username the username to use, defaults to {@link getUsername()}
-   *  @param  string  $password the password to use, defaults to {@link getPassword()} 
-   *  @param  array $options  specific options you might want to use for connecting, defaults to {@link getOptions()}
+   *  @param  MingoConfig $config
    *  @return boolean
    */
-  public function connect($name = '',$host = '',$username = '',$password = '',array $options = array()){
-  
-    // set all the connection variables...
-    $name = $this->checkField('name',$name,true);
-    $host = $this->checkField('host',$host);
-    $username = $this->checkField('username',$username);
-    $password = $this->checkField('password',$password);
-    $options = $this->checkField('options',$options);
+  public function connect(MingoConfig $config = null){
+
+    if(!empty($config)){ $this->setConfig($config); }//if
+
     $this->connected = false;
     
     try{
       
       // actually connect to the interface...
-      $this->connected = $this->_connect(
-        $name,
-        $host,
-        $username,
-        $password,
-        $options
-      );
+      $this->connected = $this->_connect($this->getConfig());
       
       if($this->hasDebug()){
         if(!is_bool($this->connected)){
@@ -103,12 +110,12 @@ abstract class MingoInterface extends MingoMagic {
       
     }catch(Exception $e){
 
-      if($this->hasDebug()){
+      if($this->getConfig()->hasDebug()){
       
         $e_msg = array();
         $msg = array();
         foreach($this->field_map as $key => $val){
-          $msg[] = sprintf('%s => %s',$key,empty($val) ? '""' : $val);
+          $msg[] = sprintf('[%s] => %s',$key,empty($val) ? '""' : $val);
         }//foreach
         
         $e_msg[] = sprintf(
@@ -135,7 +142,7 @@ abstract class MingoInterface extends MingoMagic {
    *  @see  connect()   
    *  @return boolean
    */
-  abstract protected function _connect($name,$host,$username,$password,array $options);
+  abstract protected function _connect(MingoConfig $config);
   
   /**
    *  disconnect for any serialization
@@ -163,33 +170,6 @@ abstract class MingoInterface extends MingoMagic {
    *  @return object
    */
   public function getDb(){ return $this->con_db; }//method
-  
-  public function setName($val){ return $this->setField('name',$val); }//method
-  public function getName(){ return $this->getField('name',''); }//method
-  public function hasName(){ return $this->hasField('name'); }//method
-
-  public function setHost($val){ return $this->setField('host',$val); }//method
-  public function getHost(){ return $this->getField('host',''); }//method
-  public function hasHost(){ return $this->hasField('host'); }//method
-  
-  public function setUsername($val){ return $this->setField('username',$val); }//method
-  public function getUsername(){ return $this->getField('username',''); }//method
-  public function hasUsername(){ return $this->hasField('username'); }//method
-  
-  public function setPassword($val){ return $this->setField('password',$val); }//method
-  public function getPassword(){ return $this->getField('password',''); }//method
-  public function hasPassword(){ return $this->hasField('password'); }//method
-  
-  /**
-   *  @since  3-6-11
-   */
-  public function setOptions($val){ return $this->setField('options',$val); }//method
-  public function getOptions(){ return $this->getField('options',array()); }//method
-  public function hasOptions(){ return $this->hasField('options'); }//method
-  
-  public function setDebug($val){ $this->setField('debug',(boolean)$val); }//method
-  public function getDebug(){ return $this->hasDebug(); }//method
-  public function hasDebug(){ return $this->hasField('debug'); }//method
   
   public function isConnected(){ return $this->connected; }//method
   
@@ -285,13 +265,11 @@ abstract class MingoInterface extends MingoMagic {
     
     $ret_list = array();
     
-    if(!empty($where_criteria)){ $where_criteria->normalizeFields($table); }//if
-    $itable = $this->normalizeTable($table);
-    $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
+    $translation = $this->translate($table,$where_criteria);
     
     try{
     
-      $ret_list = $this->_get($itable,$iwhere_criteria);
+      $ret_list = $this->_get($translation);
       
       if($this->hasDebug()){
         if(!is_array($ret_list)){
@@ -314,11 +292,10 @@ abstract class MingoInterface extends MingoMagic {
   /**
    *  @see  get()
    *  
-   *  @param  mixed $table  the table ran through {@link normalizeTable()}
-   *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
-   *  @return array   
+   *  @param  \MingoTranslate $translation  the object returned from {@link translate()}     
+   *  @return array
    */
-  abstract protected function _get($table,$where_criteria);
+  abstract protected function _get(MingoTranslate $translation);
   
   /**
    *  get the first found row in $table according to $where_criteria
@@ -771,6 +748,16 @@ abstract class MingoInterface extends MingoMagic {
   abstract protected function _setIndex($table,$index);
   
   /**
+   *  @since  1-2-12
+   */
+  protected function translate(MingoTable $table,MingoCriteria $where_criteria = null){
+  
+    $translation = new MingoTranslate($table,$where_criteria);
+    return $translation;
+  
+  }//method
+  
+  /**
    *  convert an array index map into something this interface understands
    *
    *  @since  5-2-11
@@ -892,7 +879,8 @@ abstract class MingoInterface extends MingoMagic {
           
             throw new DomainException(
               sprintf(
-                'cannot set() because field [%s] with value [%s] is not unique',
+                'cannot set() on table %s because field [%s] with value [%s] is not unique',
+                $table->getName(),
                 $field_name,
                 $map[$field_name]
               )

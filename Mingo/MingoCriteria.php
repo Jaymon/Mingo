@@ -14,7 +14,7 @@
  *  or if you want to find 'foo' using a variable: $foo->inField('foo',1,2,3,4). Check
  *  the method map for all the method prefixes (commands) you can do, (eg, lt for <, lte for <=)
  *  
- *  @version 0.5
+ *  @version 0.6
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-17-09
  *  @package mingo 
@@ -119,11 +119,11 @@ class MingoCriteria extends MingoMagic {
     $field->setType(MingoField::TYPE_POINT);
     $point = $field->normalizeInVal($point);
   
-    $near_command = $this->getCommand('near');
+    $near_command = $this->normalizeCommand('near');
   
     $val = array(
       $near_command => $point,
-      $this->getCommand('maxDistance') => (int)$distance
+      $this->normalizeCommand('maxDistance') => (int)$distance
     );
     
     return $this->setWhereVal($name,'',$val,array($near_command));
@@ -139,8 +139,8 @@ class MingoCriteria extends MingoMagic {
    */        
   public function betweenField($name,$low,$high){
   
-    $gte_command = $this->getCommand('gte');
-    $lte_command = $this->getCommand('lte');
+    $gte_command = $this->normalizeCommand('gte');
+    $lte_command = $this->normalizeCommand('lte');
   
     $val = array(
       $gte_command => $low,
@@ -266,26 +266,51 @@ class MingoCriteria extends MingoMagic {
   public function descField($name){ return $this->sortField($name,self::DESC); }//method
   
   /**
-   *  how field names are separated from commands is because commands start with
-   *  a command symbol
-   *  
-   *  this method will return the full given command (ie, the command with the prefixed
-   *  command symbol)
-   *  
-   *  @param  string  $command  the command to be built
-   *  @return string  the full command
-   */
-  public function getCommand($command){
-    return sprintf('%s%s',$this->getCommandSymbol(),$command);
-  }//method
-  
-  /**
    *  get rid of the internally set criteria maps
    */
   public function reset(){
     $this->map_where = array();
     $this->map_sort = array();
     $this->map_bounds = array();
+  }//method
+  
+  /**
+   *  how field names are separated from commands is because commands start with
+   *  a command symbol
+   *  
+   *  this method will return the given raw command (ie, the command with the prefixed
+   *  command symbol stripped off)
+   *  
+   *  @param  string  $command  the command to be stripped of the command symbol
+   *  @return string  the raw command without the command symbol
+   */
+  public function getCommand($command){
+  
+    // canary
+    if(!$this->isCommand($command)){ return $command; }//if
+  
+    return mb_substr($command,1);
+    
+  }//method
+  
+  /**
+   *  how field names are separated from commands is because commands start with
+   *  a command symbol
+   *  
+   *  this method will return the full given command (ie, the command with the prefixed
+   *  command symbol)
+   *  
+   *  @since  12-31-11 this method was originall getCommand(), but that one was changed   
+   *  @param  string  $command  the command to be built
+   *  @return string  the full command
+   */
+  public function normalizeCommand($command){
+  
+    // canary
+    if($this->isCommand($command)){ return $command; }//if
+  
+    return sprintf('%s%s',$this->getCommandSymbol(),$command);
+    
   }//method
   
   /**
@@ -302,7 +327,7 @@ class MingoCriteria extends MingoMagic {
    *  @param  string  $val
    *  @return boolean
    */
-  public function isCommand($val){ return ($val[0] === $this->command_symbol); }//method
+  public function isCommand($val){ return ($val[0] === $this->getCommandSymbol()); }//method
 
   public function getWhere(){ return $this->map_where; }//method
   public function hasWhere(){ return !empty($this->map_where); }//method
@@ -337,7 +362,10 @@ class MingoCriteria extends MingoMagic {
    *      
    *  @param  integer
    */
-  public function setPage($val){ $this->map_bounds['page'] = (int)$val; }//method
+  public function setPage($val){
+    unset($this->map_bounds['offset']);
+    $this->map_bounds['page'] = (int)$val;
+  }//method
   public function getPage(){ return empty($this->map_bounds['page']) ? 0 : $this->map_bounds['page']; }//method
   public function hasPage(){ return !empty($this->map_bounds['page']); }//method
   public function existsPage(){ return isset($this->map_bounds['page']); }//method
@@ -350,7 +378,10 @@ class MingoCriteria extends MingoMagic {
    *  @since  2-1-11   
    *  @param  integer
    */
-  public function setOffset($val){ $this->map_bounds['offset'] = (int)$val; }//method
+  public function setOffset($val){
+    unset($this->map_bounds['page']);
+    $this->map_bounds['offset'] = (int)$val;
+  }//method
   public function getOffset(){ return empty($this->map_bounds['offset']) ? 0 : $this->map_bounds['offset']; }//method
   public function hasOffset(){ return !empty($this->map_bounds['offset']); }//method
   public function existsOffset(){ return isset($this->map_bounds['offset']); }//method
@@ -507,9 +538,9 @@ class MingoCriteria extends MingoMagic {
     
       $this->map_where[$normalized_name] = $val;
 
-      // set the references to the actual values...
+      // set the references to the actual values, this is so hasField() will work...
       if(empty($val_keys)){
-        $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name];;
+        $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name];
       }else{
         foreach($val_keys as $val_key){
           $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name][$val_key];
@@ -518,10 +549,10 @@ class MingoCriteria extends MingoMagic {
     
     }else{
     
-      $normalized_command = $this->getCommand($command);
+      $normalized_command = $this->normalizeCommand($command);
       $this->map_where[$normalized_name] = array($normalized_command => $val);
       
-      // set the pointers to the values...
+      // set the pointers to the values, this is so hasField() will work...
       if(empty($val_keys)){
         $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name][$normalized_command];
       }else{

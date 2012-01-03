@@ -68,23 +68,7 @@ abstract class MingoSQLInterface extends MingoInterface {
    *  @param  string  $table      
    */
   abstract protected function getTableIndexes($table);
-  
-  /**
-   *  get the dsn connection string that PDO will use to connect to the backend
-   *   
-   *  @since  10-18-10
-   *  @param  string  $name the database name
-   *  @param  string  $host the host
-   *  @return string  the dsn         
-   */
-  abstract protected function getDsn($name,$host);
-  
-  /**
-   *  things to do once the connection is established
-   *   
-   *  @since  10-18-10
-   */
-  abstract protected function onConnect();
+
   
   /**
    *  true if the $e is for a missing table exception
@@ -110,77 +94,6 @@ abstract class MingoSQLInterface extends MingoInterface {
    *  @return array all the field names found, empty array if none found
    */        
   abstract public function getTableFields(MingoTable $table);
-
-  /**
-   *  do the actual connecting of the interface
-   *
-   *  @see  connect()   
-   *  @return boolean
-   */
-  protected function _connect($name,$host,$username,$password,array $options){
-  
-    $connected = false;
-    $pdo_options = array(
-      PDO::ERRMODE_EXCEPTION => true,
-      // references I can find of the exit code 1 error is here:
-      // http://bugs.php.net/bug.php?id=43199
-      // it's this bug: http://bugs.php.net/42643 and it only affects CLI on <=5.2.4...
-      ///PDO::ATTR_PERSISTENT => (strncasecmp(PHP_SAPI, 'cli', 3) === 0) ? false : true, 
-      PDO::ATTR_EMULATE_PREPARES => true,
-      PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-    );
-    
-    // passed in options take precedence...
-    if(isset($options['pdo_options'])){
-      $pdo_options = array_merge($pdo_options,$options['pdo_options']);
-    }//if
-
-    $dsn = $this->getDsn($name,$host);
-    $con_class = empty($options['pdo_class']) ? 'PDO' : $options['pdo_class'];
-    
-    try{
-    
-      $this->con_db = new $con_class($dsn,$username,$password,$pdo_options);
-      $connected = true;
-      $this->onConnect();
-      
-    }catch(Exception $e){
-    
-      if($this->hasDebug()){
-      
-        $e_msg = array();
-        
-        $con_map_msg = array();
-        foreach($pdo_options as $key => $val){
-          $con_map_msg[] = sprintf('%s => %s',$key,$val);
-        }//foreach
-        
-        $e_msg[] = sprintf(
-          'new %s("%s","%s","%s",array(%s)) failed.',
-          $con_class,
-          $dsn,
-          $username,
-          $password,
-          join(',',$con_map_msg)
-        );
-        
-        $e_msg[] = '';
-        $e_msg[] = sprintf(
-          'available drivers if original exception was "could not find driver" exception: [%s]',
-          join(',',PDO::getAvailableDrivers())
-        );
-        
-        throw new PDOException(join(PHP_EOL,$e_msg),$e->getCode());
-        
-      }else{
-        throw $e;
-      }//if/else
-    
-    }//try/catch
-    
-    return $connected;
-  
-  }//method
   
   /**
    *  @see  getCount()
@@ -337,39 +250,6 @@ abstract class MingoSQLInterface extends MingoInterface {
 
     return $ret_list;
 
-  }//method
-  
-  /**
-   *  @see  getQuery()
-   *  @param  mixed $query  a query the interface can understand
-   *  @param  array $options  any options for this query
-   *  @return mixed      
-   */
-  protected function _getQuery($query,array $options = array()){
-  
-    $ret_mixed = false;
-  
-    // prepare the statement and run the query...
-    // http://us2.php.net/manual/en/function.PDO-prepare.php
-    $stmt_handler = $this->getStatement($query,$options);
-
-    if(preg_match('#^(?:select|show|pragma)#iu',$query)){
-
-      // certain queries should always return an array...
-      $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
-      
-    }else{
-    
-      // all other queries should return whether they were successful, which if no
-      // exception was thrown, they were...
-      $ret_mixed = true;
-      
-    }//if/else
-    
-    $stmt_handler->closeCursor();
-
-    return $ret_mixed;
-  
   }//method
   
   /**

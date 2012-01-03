@@ -474,21 +474,20 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     $ret_int = 0;
     $db = $this->getDb();
     $limit = $offset = $limit_paginate = 0;
+    $c = null;
 
     // figure out what criteria to use on the load...
     if($where_criteria !== null){
     
+      $c = clone $where_criteria; // let's make a deep copy
       list($limit,$offset,$limit_paginate) = $where_criteria->getBounds();
-      $where_criteria->setLimit($limit_paginate);
-      $where_criteria->setOffset($offset);
+      $c->setLimit($limit_paginate);
+      $c->setOffset($offset);
     
     }//if
     
     // get stuff from the db...
-    $list = $db->get(
-      $this->getTable(),
-      $where_criteria
-    );
+    $list = $db->get($this->getTable(),$c);
     
     // re-populate this instance...
     if(!empty($list)){
@@ -502,11 +501,11 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
         $this->setMore(true);
         $ret_int--;
         
-        if($set_load_total){
-          $bounds_map = $where_criteria->getBounds();
-          $where_criteria->setBounds(0,0);
-          $this->loadTotal($where_criteria);
-          $where_criteria->setBounds($bounds_map);
+        if($set_load_total && ($c !== null)){
+          $bounds_map = $c->getBounds();
+          $c->setBounds(0,0);
+          $this->loadTotal($c);
+          $c->setBounds($bounds_map);
         }else{
           $this->setTotal($ret_int);
         }//if/else
@@ -537,7 +536,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
       
     }//if */
     
-    $this->setCriteria($where_criteria);
+    $this->setCriteria($c);
     return $ret_int;
   
   }//method

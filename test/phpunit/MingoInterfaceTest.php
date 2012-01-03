@@ -17,47 +17,35 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    */
   protected static $table_map = array();
   
-  abstract public function getDbInterface();
-  
   /**
-   *  @return string  the host string (something like server:port
-   */
-  public function getDbHost(){ return ''; }//method
-  
-  /**
-   *  @return string  the username used to connect
-   */
-  public function getDbUsername(){ return ''; }//method
-  
-  /**
-   *  @return string  the password used to connect
-   */
-  public function getDbPassword(){ return ''; }//method
-
-  /**
-   *  @return string  the database name
-   */
-  public function getDbName(){ return __CLASS__; }//method
-  
-  /**
-   *  @return string  the database connection options
-   */
-  public function getDbOptions(){ return array(); }//method
-  
-  /**
-   *  this should create a mingo_db_interface object, then return it
+   *  get a new MingoInterface instance
    *  
-   *  @return mingo_db_interface
+   *  @since  12-31-11      
+   *  @return \MingoInterface
+   */
+  abstract public function createInterface();
+  
+  /**
+   *  get a new MingoConfig instance
+   *  
+   *  @since  12-31-11      
+   *  @return \MingoConfig
+   */
+  abstract public function createConfig();
+  
+  /**
+   *  returns a singleton connected \MingoInterface instance
+   *  
+   *  @return \MingoInterface
    */
   public function getDb(){
   
     // canary...
     if(self::$db !== null){ return self::$db; }//if
   
-    $interface = $this->getDbInterface();
-    self::$db = new $interface();
+    self::$db = $this->createInterface();
     self::$db = $this->connect(self::$db);
-    ///$this->setTable($table);
+    
     return self::$db;
   
   }//method
@@ -74,118 +62,29 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
-   *  make sure required fields work as expected
+   *  connect to the db
    *  
-   *  @since  12-9-11
+   *  @param  \MingoInterface $db
+   *  @return \MingoInterface         
    */
-  public function testRequiredField(){
-  
-    $db = $this->getDb();
-    $table = $this->getTable();
-    $foo = $table->getField('foo');
-    $foo->setRequired(true);
-  
-    $foo = $table->getField('foo');
-    $this->assertTrue($foo->isRequired());
+  protected function connect(MingoInterface $db){
     
-    $map['map'] = array('baz' => 'string','bar' => 234);
-    
-    $foo->setDefaultVal(1234);
-    $rmap = $db->set($table,$map);
-    $this->assertEquals(1234,$rmap['foo']);
-    
-    $this->setExpectedException('DomainException');
-    $foo->setDefaultVal(null);
-    $db->set($table,$map);
+    $config = $this->createConfig();
+    $ret_bool = $db->connect($config);
+    $this->assertTrue($ret_bool);
+
+    return $db;
   
   }//method
   
   /**
-   *  make sure unique fields work as expected
-   *  
-   *  @since  12-9-11
-   */
-  public function testUniqueField(){
-  
-    $db = $this->getDb();
-    $table = $this->getTable();
-    $foo = $table->getField('foo');
-    $foo->setUnique(true);
-  
-    $foo = $table->getField('foo');
-    $this->assertTrue($foo->isUnique());
-    
-    $timestamp = time() * -1;
-    $map = array('foo' => $timestamp,'baz' => 'string','bar' => 234);
-    
-    $rmap = $db->set($table,$map);
-    $this->assertEquals($timestamp,$rmap['foo']);
-    
-    $this->setExpectedException('DomainException');
-    $db->set($table,$map);
-    
-  }//method
-  
-  /**
-   *  I wanted to see if it was feasible to move the serialization over to json
-   *  instead of PHP's proprietary serialization format, but it doesn't look like
-   *  it will be possible since php's json doesn't support any php objects and instead
-   *  converts them to StdClass or arrays.
+   *  make sure the interface can connect
    *
-   *  @link http://us2.php.net/manual/en/function.json-encode.php
-   *  @link http://us2.php.net/json_decode      
-   *  @since  11-2-11
+   *  @since  12-31-11
    */
-  public function xtestStructure(){
+  public function testConnect(){
   
-    $map = array();
-    $map['foo'] = new StdClass();
-    $map['foo']->one = 1;
-    $map['foo']->two = 2;
-    $map['foo']->three = 'this is a string';
-  
-    $e = new \RuntimeException('this is the message');
-    
-    $map['e'] = $e;
-    
-    $map['map'] = array('baz' => 'string','bar' => 234);
-    $map['list'] = array(1,2,3,4,'string');
-    
-    $json = json_encode($map);
-    
-    $ret = json_decode($json,false);
-  
-    \out::e($ret);
-  
-  }//method
-  
-  /**
-   *  make sure an Interface can be serialized and unserialized and work
-   *      
-   *  @since  10-3-11
-   */
-  public function testSerialize(){
-  
-    $db = $this->getDb();
-    $table = $this->getTable();
-    $_id_list = $this->addRows($db,$table,1);
-    
-    $sdb = serialize($db);
-    $this->assertInternalType('string',$sdb);
-    
-    $db2 = unserialize($sdb);
-    
-    $where_criteria = new MingoCriteria();
-    $where_criteria->in_Id($_id_list);
-    
-    $list = $db2->get($table,$where_criteria);
-    $this->assertNotEmpty($list);
-    
-    foreach($list as $map){
-    
-      $this->assertContains($map['_id'],$_id_list);
-    
-    }//foreach
+    $this->getDb();
   
   }//method
   
@@ -197,10 +96,12 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   public function testAutoCreateTable(){
   
     $db = $this->getDb();
-    $table = $this->getTable(sprintf('%s_%s',__FUNCTION__,rand(0,9)));
-    $db->killTable($table);
-    
-    $this->assertFalse($db->hasTable($table));
+    $table = parent::getTable(
+      md5(__FUNCTION__.microtime(true).rand(0,PHP_INT_MAX))
+    );
+  
+    $ret_bool = $db->hasTable($table);
+    $this->assertFalse($ret_bool);
     
     $where_criteria = new MingoCriteria();
     $where_criteria->isFoo(1);
@@ -813,6 +714,89 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $this->assertEmpty($list);
     
   }//method
+
+  /**
+   *  make sure required fields work as expected
+   *  
+   *  @since  12-9-11
+   */
+  public function testRequiredField(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $foo = $table->getField('foo');
+    $foo->setRequired(true);
+  
+    $foo = $table->getField('foo');
+    $this->assertTrue($foo->isRequired());
+    
+    $map['map'] = array('baz' => 'string','bar' => 234);
+    
+    $foo->setDefaultVal(1234);
+    $rmap = $db->set($table,$map);
+    $this->assertEquals(1234,$rmap['foo']);
+    
+    $this->setExpectedException('DomainException');
+    $foo->setDefaultVal(null);
+    $db->set($table,$map);
+  
+  }//method
+  
+  /**
+   *  make sure unique fields work as expected
+   *  
+   *  @since  12-9-11
+   */
+  public function testUniqueField(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $foo = $table->getField('foo');
+    $foo->setUnique(true);
+  
+    $foo = $table->getField('foo');
+    $this->assertTrue($foo->isUnique());
+    
+    $timestamp = time() * -1;
+    $map = array('foo' => $timestamp,'baz' => 'string','bar' => 234);
+    
+    $rmap = $db->set($table,$map);
+    $this->assertEquals($timestamp,$rmap['foo']);
+    
+    $this->setExpectedException('DomainException');
+    $db->set($table,$map);
+    
+  }//method
+  
+  /**
+   *  make sure an Interface can be serialized and unserialized and work
+   *      
+   *  @since  10-3-11
+   */
+  public function testSerialize(){
+  
+    $db = $this->getDb();
+    $table = $this->getTable();
+    $_id_list = $this->addRows($db,$table,1);
+    
+    $sdb = serialize($db);
+    $this->assertInternalType('string',$sdb);
+    
+    $db2 = unserialize($sdb);
+    
+    $where_criteria = new MingoCriteria();
+    $where_criteria->in_Id($_id_list);
+    
+    $list = $db2->get($table,$where_criteria);
+    $this->assertNotEmpty($list);
+    
+    foreach($list as $map){
+    
+      $this->assertContains($map['_id'],$_id_list);
+    
+    }//foreach
+  
+  }//method
   
   protected function assertSubset(array $list,array $_id_list){
   
@@ -846,27 +830,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     }//for
   
     return $_id_list;
-  
-  }//method
-  
-  
-  /**
-   *  connect to the db
-   */
-  protected function connect($db){
-  
-    $name = $this->getDbName();
-    $host = $this->getDbHost();
-    $username = $this->getDbUsername();
-    $password = $this->getDbPassword();
-    $options = $this->getDbOptions();
-    
-    ///out::e($name,$host,$username,$password,$options);
-    
-    $ret_bool = $db->connect($name,$host,$username,$password,$options);
-    $this->assertTrue($ret_bool);
-
-    return $db;
   
   }//method
 
