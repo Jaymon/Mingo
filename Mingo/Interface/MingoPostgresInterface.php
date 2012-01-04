@@ -83,12 +83,59 @@ class MingoPostgresInterface extends MingoPDOInterface {
    */
   protected function _get($table,$where_criteria){
 
+    \out::e($where_criteria);
+
+    // what fields do we want to select
+    $where_criteria['select_str'] = '_rowid,_id,skeys(body),svals(body)';
     $select_query = $this->getSelectQuery($table,$where_criteria);
     
-    return $this->getQuery(
+    $stmt =  $this->getStatement(
       $select_query,
       isset($where_criteria['where_params']) ? $where_criteria['where_params'] : array()
     );
+    
+    $ret_list = array();
+    $ret_map = array();
+    
+    // we pull the rows out in a way that there is one row for each key/val pair in
+    // the hstore, so we need to go trhough all the rows and put them back together into
+    // an array
+    while($map = $stmt->fetch(PDO::FETCH_ASSOC)){
+    
+      $is_new = false;
+    
+      if(empty($ret_map['_rowid'])){
+      
+        $is_new = true;
+      
+      }else if($ret_map['_rowid'] !== $map['_rowid']){
+      
+        // we've got a new true row
+        $ret_list[] = $ret_map;
+        $is_new = true;
+      
+      }//if/else
+      
+      if($is_new){
+      
+        $ret_map = array();
+        $ret_map['_id'] = $map['_id'];
+        $ret_map['_rowid'] = $map['_rowid'];
+      
+      }//if
+    
+      // save the key/val into our map being built
+      $ret_map[$map['skeys']] = $map['svals'];
+    
+    }//while
+    
+    // pick up the straggler
+    if(!empty($ret_map)){ $ret_list[] = $ret_map; }//if
+    
+    \out::e($select_query);
+    ///\out::e($ret_list);
+    
+    return $ret_list;
 
   }//method
   
@@ -110,6 +157,46 @@ class MingoPostgresInterface extends MingoPDOInterface {
    *  @return array the $map that was just saved, with the _id set               
    */
   protected function insert($table,array $map){
+  
+    $_id = $this->getUniqueId($table);
+    
+    // build the field list
+    $field_list = array();
+    $field_params = array();
+    
+    foreach($map as $name => $val){
+    
+      if($val === null){
+      
+        $field_list[] = sprintf('"%s" => NULL',$name);
+        
+      }else if(is_array($val)){
+      
+        $field_list[] = sprintf('"%s" => "%s"',$name,serialize($val));
+      
+      }else{
+      
+        $field_list[] = sprintf('"%s" => "%s"',$name,$val);
+        
+      }//if/else
+      
+    }//foreach
+
+    $query = sprintf(
+      "INSERT INTO %s (_id,body) VALUES (?,hstore(?))",
+      $table
+    );
+
+    $field_params[] = $_id;
+    $field_params[] = sprintf('%s',join(',',$field_list));
+    
+    if($this->getQuery($query,$field_params)){
+    
+      $map['_id'] = $_id;
+    
+    }//if
+    
+    return $map;
     
   }//method
   
@@ -213,11 +300,18 @@ class MingoPostgresInterface extends MingoPDOInterface {
       $ret_bool = $this->getQuery($query);
     
       $query = sprintf(
-        'CREATE INDEX %s2 ON %s USING GIST (body)',
+        'CREATE INDEX %s2 ON %s USING GIN (body)',
         $table,
         $table
       );
       $ret_bool = $this->getQuery($query);
+    
+      /* $query = sprintf(
+        'CREATE INDEX %s2 ON %s USING GIST (body)',
+        $table,
+        $table
+      );
+      $ret_bool = $this->getQuery($query); */
     
       $query = sprintf(
         'CREATE INDEX %s1 ON %s USING BTREE (body)',
@@ -263,6 +357,9 @@ class MingoPostgresInterface extends MingoPDOInterface {
    *  @return string  the $name, formatted
    */
   protected function normalizeNameSQL($name){
+  
+    // canary
+    if($name === '_id'){ return $name; }//if
   
     return sprintf('body -> \'%s\'',$name);
     

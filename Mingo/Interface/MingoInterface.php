@@ -430,14 +430,18 @@ abstract class MingoInterface extends MingoMagic {
       
       // make sure _id was set...
       if(empty($map['_id'])){
-        throw new UnexpectedValueException('$map returned from either insert or update without _id being set');
+      
+        throw new UnexpectedValueException(
+          'Assumed failure because $map returned from either insert or update without _id being set'
+        );
+        
       }//if
       
     }else{
     
-      if($this->hasDebug()){
-        throw new UnexpectedValueException(sprintf('%s is not the expected return type of array',gettype($map)));
-      }//if
+      throw new UnexpectedValueException(
+        sprintf('Assumed failure because $map is %s, not array',gettype($map))
+      );
     
     }//if/else
   

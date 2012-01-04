@@ -239,7 +239,7 @@ abstract class MingoPDOInterface extends MingoInterface {
     $ret_map['where_criteria'] = $where_criteria;
     $ret_map['where_str'] = '';
     $ret_map['where_params'] = array();
-    $ret_map['sort_str'] = array();
+    $ret_map['sort_str'] = '';
     $ret_map['limit_str'] = '';
     $ret_map['limit'] = array(0,0);
   
@@ -357,16 +357,15 @@ abstract class MingoPDOInterface extends MingoInterface {
     }//foreach
 
     if($where_criteria !== null){
-      $ret_map['limit'] = array($where_criteria->getLimit(),$where_criteria->getOffset());
+      $ret_map['limit'] = array((int)$where_criteria->getLimit(),(int)$where_criteria->getOffset());
     }//if
 
-    $ret_map['limit_str'] = '';
-    if(!empty($limit[0])){
+    if(!empty($ret_map['limit'][0])){
     
       $ret_map['limit_str'] = sprintf(
         'LIMIT %d OFFSET %d',
-        (int)$limit[0],
-        (empty($limit[1]) ? 0 : (int)$limit[1])
+        $ret_map['limit'][0],
+        (empty($ret_map['limit'][1]) ? 0 : $ret_map['limit'][1])
       );
       
     }//if
@@ -526,7 +525,7 @@ abstract class MingoPDOInterface extends MingoInterface {
     // add limit...
     if(!empty($sql_map['limit_str'])){
       
-      $query .= ' '.$sql_map['sort_str'];
+      $query .= ' '.$sql_map['limit_str'];
       
     }//if
 

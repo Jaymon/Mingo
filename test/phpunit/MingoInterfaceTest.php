@@ -127,6 +127,37 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
+   *  insert $count rows into the db $table
+   *
+   *  @since  1-4-12
+   *  @return array a list of _ids   
+   */
+  public function insert(MingoTable $table,$count){
+  
+    $db = $this->getDb();
+    $_id_list = array();
+  
+    for($i = 1; $i <= $count ;$i++){
+    
+      $map = array(
+        'foo' => $i
+      );
+      
+      $map = $db->set($table,$map);
+      
+      $this->assertArrayHasKey('foo',$map);
+      $this->assertArrayHasKey('_id',$map);
+      $this->assertLessThanOrEqual(24,mb_strlen($map['_id']));
+      $this->assertNotContains($map['_id'],$_id_list);
+      $_id_list[] = (string)$map['_id'];
+    
+    }//for
+    
+    return $_id_list;
+  
+  }//method
+  
+  /**
    *  make sure the interface can connect
    *
    *  @since  12-31-11
@@ -151,29 +182,46 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
+  /**
+   *  make sure interface can add rows to a table
+   *
+   *  MingoInterface set() needs to be implemented   
+   */
   public function testInsert(){
   
-    $db = $this->getDb();
-    $table = $this->getTable();
-    $_id_list = array();
+    $table = $this->getTable(__FUNCTION__);
+    $this->insert($table,1);
   
-    for($i = 0; $i < 20 ;$i++){
+  }//method
+  
+  /**
+   *  make sure getting one value works
+   *  
+   *  MingoInterface get() needs to be implemented
+   *      
+   *  @since  3-3-11
+   */
+  public function testGetOne(){
+
+    $db = $this->getDb();
     
-      $map = array(
-        'foo' => $i
-      );
+    // insert 2 records, so we can make sure we only fetch one
+    $table = $this->getTable(__FUNCTION__);
+    $_id_list = $this->insert($table,2);
+
+    foreach($_id_list as $_id){
+
+      $where_criteria = new MingoCriteria();
+      $where_criteria->is_id((string)$_id);
+      $map = $db->getOne($table,$where_criteria);
       
-      $map = $db->set($table,$map);
-      
-      $this->assertArrayHasKey('foo',$map);
       $this->assertArrayHasKey('_id',$map);
-      $this->assertLessThanOrEqual(24,mb_strlen($map['_id']));
-      $this->assertNotContains($map['_id'],$_id_list);
-      $_id_list[] = (string)$map['_id'];
+        
+      // make sure this was an id we wanted...
+      $map_id = (string)$map['_id'];
+      $this->assertContains($map_id,$_id_list);
     
-    }//for
-    
-    return array('db' => $db,'_id_list' => $_id_list);
+    }//foreach
   
   }//method
   
@@ -187,44 +235,19 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   public function testGetWithNoWhere(){
   
     $db = $this->getDb();
-    $table = $this->getTable();
+    $table = $this->getTable(__FUNCTION__);
+    $_id_list = $this->insert($table,6);
+    
     $limit = 5;
     $where_criteria = new MingoCriteria();
     $where_criteria->setBounds($limit,0);
     
     $list = $db->get($table,$where_criteria);
+    
+    \out::e($list);
+    
     $this->assertInternalType('array',$list);
     $this->assertLessThanOrEqual($limit,count($list));
-  
-  }//method
-  
-  /**
-   *  @depends  testInsert
-   *  
-   *  @since  3-3-11      
-   */
-  public function testGetOne($db_map){
-
-    $db = $db_map['db'];
-    $_id_list = $db_map['_id_list'];
-    $table = $this->getTable();
-
-    foreach($_id_list as $_id){
-
-      $where_criteria = new MingoCriteria();
-      $where_criteria->is_id((string)$_id);
-      $map = $db->getOne(
-        $table,
-        $where_criteria
-      );
-      
-      $this->assertArrayHasKey('_id',$map);
-        
-      // make sure this was an id we wanted...
-      $map_id = (string)$map['_id'];
-      $this->assertContains($map_id,$_id_list);
-    
-    }//foreach
   
   }//method
   
