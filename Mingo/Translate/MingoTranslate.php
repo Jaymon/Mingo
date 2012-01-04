@@ -49,7 +49,7 @@ class MingoTranslate {
    *  get the internal criteria instance
    *  
    *  @return \MingoCriteria
-   */
+   */    
   public function getCriteria(){ return $this->criteria; }//method
   
   /**

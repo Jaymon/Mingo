@@ -265,11 +265,13 @@ abstract class MingoInterface extends MingoMagic {
     
     $ret_list = array();
     
-    $translation = $this->translate($table,$where_criteria);
+    if(!empty($where_criteria)){ $where_criteria->normalizeFields($table); }//if
+    $itable = $this->normalizeTable($table);
+    $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
     
     try{
     
-      $ret_list = $this->_get($translation);
+      $ret_list = $this->_get($itable,$iwhere_criteria);
       
       if($this->hasDebug()){
         if(!is_array($ret_list)){
@@ -292,10 +294,11 @@ abstract class MingoInterface extends MingoMagic {
   /**
    *  @see  get()
    *  
-   *  @param  \MingoTranslate $translation  the object returned from {@link translate()}     
-   *  @return array
+   *  @param  mixed $table  the table ran through {@link normalizeTable()}
+   *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
+   *  @return array   
    */
-  abstract protected function _get(MingoTranslate $translation);
+  abstract protected function _get($table,$where_criteria);
   
   /**
    *  get the first found row in $table according to $where_criteria
@@ -331,13 +334,11 @@ abstract class MingoInterface extends MingoMagic {
   
     // canary...
     $this->assure($table);
-    if(!empty($where_criteria)){
-      $where_criteria->normalizeFields($table);
-      $where_criteria->killSort(); // no need to sort when you're counting
-    }//if
     
     $ret_int = 0;
     $itable = $this->normalizeTable($table);
+    
+    if(!empty($where_criteria)){ $where_criteria->normalizeFields($table); }//if
     $iwhere_criteria = $this->normalizeCriteria($table,$where_criteria);
     
     try{
@@ -557,7 +558,9 @@ abstract class MingoInterface extends MingoMagic {
       $ret_list = $this->_getIndexes($itable);
       if($this->hasDebug()){
         if(!is_array($ret_list)){
-          throw new UnexpectedValueException(sprintf('%s is not the expected return type of array',gettype($ret_list)));
+          throw new UnexpectedValueException(
+            sprintf('_%s() expected to return: array, got: %s',__FUNCTION__,gettype($ret_list))
+          );
         }//if
       }//if
       
@@ -687,7 +690,7 @@ abstract class MingoInterface extends MingoMagic {
     // canary, check for infinite recursion...
     $traces = $e->getTrace();
     foreach($traces as $trace){
-      if($trace['function'] === __FUNCTION__){ return false; }//if
+      if($trace['function'] === __FUNCTION__){ throw $e; }//if
     }//foreach
   
     $e_resolved = false;
@@ -695,16 +698,20 @@ abstract class MingoInterface extends MingoMagic {
     // only try and resolve an exception if we have some meta data...
     if($table !== null){
     
-      $e_resolved = $this->_handleException($e,$table);
+      $e_resolved = $this->_handleException($table,$e);
+      
       if($this->hasDebug()){
         if(!is_bool($e_resolved)){
-          throw new UnexpectedValueException(sprintf('%s is not the expected return type of boolean',gettype($e_resolved)));
+          throw new UnexpectedValueException(
+            sprintf('%s is not the expected return type of boolean for _%s',gettype($e_resolved),__FUNCTION__)
+          );
         }//if
       }//if
       
     }//if
     
-    if(!$e_resolved){ throw $e; }//if
+    if(empty($e_resolved)){ throw $e; }//if
+    
     return $e_resolved;
   
   }//method
@@ -712,11 +719,11 @@ abstract class MingoInterface extends MingoMagic {
   /**
    *  @see  handleException()
    *  
-   *  @param  Exception $e  the thrown exceptino to handle   
-   *  @param  MingoTable  $table     
+   *  @param  MingoTable  $table        
+   *  @param  Exception $e  the thrown exceptino to handle
    *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
-  protected function _handleException(Exception $e,MingoTable $table){ return false; }//method
+  protected function _handleException(MingoTable $table,Exception $e){ return false; }//method
   
   /**
    *  adds an index to $table
@@ -746,16 +753,6 @@ abstract class MingoInterface extends MingoMagic {
    *  @return boolean
    */
   abstract protected function _setIndex($table,$index);
-  
-  /**
-   *  @since  1-2-12
-   */
-  protected function translate(MingoTable $table,MingoCriteria $where_criteria = null){
-  
-    $translation = new MingoTranslate($table,$where_criteria);
-    return $translation;
-  
-  }//method
   
   /**
    *  convert an array index map into something this interface understands
@@ -895,6 +892,21 @@ abstract class MingoInterface extends MingoMagic {
     }//foreach
   
     return $map;
+  
+  }//method
+  
+  /**
+   *  just a nice helper method to make checking for debugging
+   *  
+   *  @since  1-3-12      
+   *  @return boolean
+   */
+  protected function hasDebug(){
+  
+    // canary
+    if(empty($this->config)){ return false; }//if
+  
+    return $this->getConfig()->hasDebug();
   
   }//method
   

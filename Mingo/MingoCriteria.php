@@ -23,11 +23,15 @@ class MingoCriteria extends MingoMagic {
 
   /**
    *  used for sort ascending
+   *  
+   *  @var  integer      
    */        
   const ASC = 1;
   
   /**
    *  used for sort descending
+   *  
+   *  @var  integer      
    */
   const DESC = -1;
 
@@ -62,22 +66,34 @@ class MingoCriteria extends MingoMagic {
   protected $map_sort = array();
   
   /**
-   *  holds pointers to values for each field
-   *  
-   *  @var  array the key is the field name and the value is an array of values that
-   *              name has in the criteria
-   */
-  protected $map_fields = array();
-  
-  /**
    *  holds the limit, page information
    *
    *  @see  getBounds(), setBounds(), hasBounds()   
    *  @var  array
    */  
   protected $map_bounds = array();
-
-  public function __construct(){}//method
+  
+  /**
+   *  merge one MingoCriteria instance into this MingoCriteria instance
+   *  
+   *  @since  1-3-12      
+   *  @param  \MingoCriteria  $criteria the criteria to merge into this one
+   *  @return self
+   */
+  public function merge(MingoCriteria $criteria){
+  
+    $this->command_symbol = $criteria->getCommandSymbol();
+    $this->map_where = $criteria->getWhere();
+    $this->map_sort = $criteria->getSort();
+    $this->field_map = $criteria->getFields();
+    
+    if($criteria->hasLimit()){ $this->setLimit($criteria->getLimit()); }//if
+    if($criteria->hasPage()){ $this->setPage($criteria->getPage()); }//if
+    if($criteria->hasOffset()){ $this->setOffset($criteria->getOffset()); }//if
+    
+    return $this;
+  
+  }//method
   
   /**
    *  $name = $val type queries
@@ -205,7 +221,7 @@ class MingoCriteria extends MingoMagic {
   public function inField($name){
     $val = func_get_args();
     $val = array_slice($val,1); // strip off the name
-    $val_list = $this->getList($val);
+    $val_list = $this->flattenList($val);
     return $this->setWhereVal($name,'in',$val_list,array_keys($val_list));
   }//method
   
@@ -219,7 +235,7 @@ class MingoCriteria extends MingoMagic {
   public function ninField($name){
     $val = func_get_args();
     $val = array_slice($val,1); // strip off the name
-    $val_list = $this->getList($val);
+    $val_list = $this->flattenList($val);
     return $this->setWhereVal($name,'nin',$val_list,array_keys($val_list));
   }//method
   
@@ -339,7 +355,7 @@ class MingoCriteria extends MingoMagic {
   
   public function getSort(){ return $this->map_sort; }//method
   public function hasSort(){ return !empty($this->map_sort); }//method
-  public function setSort($map){
+  public function setSort(array $map){
     
     $this->map_sort = $map;
     return $this;
@@ -464,7 +480,7 @@ class MingoCriteria extends MingoMagic {
    */
   public function normalizeFields(MingoTable $table){
   
-    foreach($this->map_fields as $name => $val_list){
+    foreach($this->field_map as $name => $val_list){
     
       if($table->hasField($name)){
       
@@ -483,46 +499,15 @@ class MingoCriteria extends MingoMagic {
   }//method
   
   /**
-   *  take the value and turn it into a flat array
-   *  
-   *  @param  array $list the array to flatten        
-   *  @return array
-   */
-  protected function getList($list){
-  
-    // canary...
-    if(empty($list)){
-      throw new InvalidArgumentException('$list was empty');
-    }//if
-  
-    $ret_list = array();
-    $list = (array)$list;
-    foreach($list as $val){
-    
-      if(is_array($val)){
-      
-        $ret_list = array_merge($ret_list,$this->getList($val));
-      
-      }else{
-      
-        $ret_list[] = $val;
-      
-      }//if/else
-    
-    }//foreach
-  
-    return $ret_list;
-  
-  }//method
-  
-  /**
    *  set a $val at $name using the $command in the {@link $where_map}  
    *
    *  @since  4-29-11   
-   *  @param  string  $name the name to use
-   *  @param  string  $command
-   *  @param  mixed $val
-   *  @param  array $val_keys the keys in $val that refer to actual passed in values for the $name   
+   *  @param  string  $name the field name to use
+   *  @param  string  $command  the command that wil be used to set the value into {@link $where_map}
+   *  @param  mixed $val  the value that will be set into the {@link $where_map}
+   *  @param  array $val_keys the keys in $val that refer to actual passed in values for the $name,
+   *                          this will be an array like array($lt,$gt), and sometimes it
+   *                          might correspond to $command (eg, $command = $gt and $val_keys = array($gt))        
    *  @return MingoCriteria
    */
   protected function setWhereVal($name,$command,$val,$val_keys = array()){
@@ -530,20 +515,22 @@ class MingoCriteria extends MingoMagic {
     $normalized_name = $this->normalizeName($name);
     
     // get the references to the value ready...
-    if(!isset($this->map_fields[$normalized_name])){
-      $this->map_fields[$normalized_name] = array();
+    if(!isset($this->field_map[$normalized_name])){
+      $this->field_map[$normalized_name] = array();
     }//if
     
     if(empty($command)){
     
       $this->map_where[$normalized_name] = $val;
 
-      // set the references to the actual values, this is so hasField() will work...
+      // set the references to the actual values, basically, it holds a key (field name) with
+      // an array of all the values of that field in the criteria, allows methods like 
+      // normalizeFields() to work
       if(empty($val_keys)){
-        $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name];
+        $this->field_map[$normalized_name][] = &$this->map_where[$normalized_name];
       }else{
         foreach($val_keys as $val_key){
-          $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name][$val_key];
+          $this->field_map[$normalized_name][] = &$this->map_where[$normalized_name][$val_key];
         }//foreach
       }//if/else
     
@@ -552,12 +539,14 @@ class MingoCriteria extends MingoMagic {
       $normalized_command = $this->normalizeCommand($command);
       $this->map_where[$normalized_name] = array($normalized_command => $val);
       
-      // set the pointers to the values, this is so hasField() will work...
+      // set the references to the actual values, basically, it holds a key (field name) with
+      // an array of all the values of that field in the criteria, allows methods like 
+      // normalizeFields() to work
       if(empty($val_keys)){
-        $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name][$normalized_command];
+        $this->field_map[$normalized_name][] = &$this->map_where[$normalized_name][$normalized_command];
       }else{
         foreach($val_keys as $val_key){
-          $this->map_fields[$normalized_name][] = &$this->map_where[$normalized_name][$normalized_command][$val_key];
+          $this->field_map[$normalized_name][] = &$this->map_where[$normalized_name][$normalized_command][$val_key];
         }//foreach
       }//if/else
     

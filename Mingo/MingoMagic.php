@@ -278,8 +278,11 @@ abstract class MingoMagic implements ArrayAccess {
     if(empty($ret_field)){
     
       throw new BadMethodCallException(
-        'no field was specified in the method, for example, if you want to "get" '
-        .'the field "foo" you would do: getFoo() or getField("foo")'
+        sprintf(
+          'No field was specified in the method "%s". for example, if you want to "get" '
+          .'the field "foo" you would do: getFoo() or getField("foo")',
+          $method
+        )
       ); 
     
     }else{
@@ -316,8 +319,8 @@ abstract class MingoMagic implements ArrayAccess {
    *  @param  string  $name the name
    *  @return string  the normalized name
    */
-  protected function normalizeName($name)
-  {
+  protected function normalizeName($name){
+  
     $field = $this->normalizeField($name);
     $normalized_name = $field->getName(); 
     return $normalized_name;
@@ -331,14 +334,53 @@ abstract class MingoMagic implements ArrayAccess {
    *  @param  string|MingoField  $name the name
    *  @return MingoField
    */
-  protected function normalizeField($field)
-  {
-    if(!($field instanceof MingoField))
-    {
+  protected function normalizeField($field){
+  
+    if(!($field instanceof MingoField)){
+    
       $field = new MingoField($field);
+      
     }//if/else
     
     return $field;
+  
+  }//method
+  
+  /**
+   *  take the value and turn it into a flat array
+   *  
+   *  @example
+   *    $list = array(1,2,3,array(4,5,array(6,7)));
+   *    $a = $this->getList($list);
+   *    print_r($a); // array(1,2,3,4,5,6,7)         
+   *      
+   *  @param  array $list the array to flatten        
+   *  @return array
+   */
+  protected function flattenList($list){
+  
+    // canary...
+    if(empty($list)){
+      throw new InvalidArgumentException('$list was empty');
+    }//if
+  
+    $ret_list = array();
+    $list = (array)$list;
+    foreach($list as $val){
+    
+      if(is_array($val)){
+      
+        $ret_list = array_merge($ret_list,$this->flattenList($val));
+      
+      }else{
+      
+        $ret_list[] = $val;
+      
+      }//if/else
+    
+    }//foreach
+  
+    return $ret_list;
   
   }//method
 

@@ -77,12 +77,18 @@ class MingoPostgresInterface extends MingoPDOInterface {
   /**
    *  @see  get()
    *  
-   *  @param  \MingoTranslate $translation  the object returned from {@link translate()}     
-   *  @return array
+   *  @param  mixed $table  the table ran through {@link normalizeTable()}
+   *  @param  mixed $where_criteria the where criteria ran through {@link normalizeCriteria())      
+   *  @return array   
    */
-  protected function _get(MingoTranslate $translation){
+  protected function _get($table,$where_criteria){
 
-    \out::e($table,$where_criteria);
+    $select_query = $this->getSelectQuery($table,$where_criteria);
+    
+    return $this->getQuery(
+      $select_query,
+      isset($where_criteria['where_params']) ? $where_criteria['where_params'] : array()
+    );
 
   }//method
   
@@ -122,13 +128,14 @@ class MingoPostgresInterface extends MingoPDOInterface {
   /**
    *  @see  setIndex()
    *  
+   *  Postgres sets all the indexes on the table when {@link setTable()} is called, it
+   *  doesn't need to set any other indexes   
+   *      
    *  @param  mixed $table  the table ran through {@link normalizeTable()}
    *  @param  mixed $index  an index ran through {@link normalizeIndex()}
    *  @return boolean
    */
-  protected function _setIndex($table,$index){
-
-  }//method
+  protected function _setIndex($table,$index){ return false; }//method
   
   /**
    *  convert an array index map into something this interface understands
@@ -145,42 +152,119 @@ class MingoPostgresInterface extends MingoPDOInterface {
   /**
    *  @see  getIndexes()
    *  
+   *  since postgres hstore has an index on the whole thing, we can just return
+   *  the indexes the MingoTable thinks we have, since they are technically indexed      
+   *      
+   *  @link http://stackoverflow.com/questions/2204058/
+   *      
    *  @param  mixed $table  the table ran through {@link normalizeTable()}      
    *  @return array
    */
   protected function _getIndexes($table){
+  
+    return $table->getIndexes();
   
   }//method
   
   /**
    *  @see  killTable()
    *  
+   *  @link http://www.postgresql.org/docs/7.4/interactive/sql-droptable.html
+   *        
    *  @param  mixed $table  the table ran through {@link normalizeTable()}      
    *  @return boolean
    */
   protected function _killTable($table){
 
+    $query = sprintf(
+      'DROP TABLE %s CASCADE',
+      $table
+    );
+    
+    return $this->getQuery($query);
+
   }//method
 
   /**
    *  @see  setTable()
-   *  
-   *  http://www.mongodb.org/display/DOCS/Capped+Collections
    *      
    *  @param  MingoTable  $table       
    *  @return boolean
    */
   protected function _setTable(MingoTable $table){
 
+    $query = sprintf('CREATE TABLE %s (
+      _rowid SERIAL PRIMARY KEY,
+      _id VARCHAR(24) NOT NULL,
+      body hstore
+    )',$table);
+  
+    $ret_bool = $this->getQuery($query);
+    
+    if($ret_bool){
+    
+      // add some indexes to the table...
+    
+      $query = sprintf(
+        'CREATE INDEX %s0 ON %s USING BTREE (_id)',
+        $table,
+        $table
+      );
+      $ret_bool = $this->getQuery($query);
+    
+      $query = sprintf(
+        'CREATE INDEX %s2 ON %s USING GIST (body)',
+        $table,
+        $table
+      );
+      $ret_bool = $this->getQuery($query);
+    
+      $query = sprintf(
+        'CREATE INDEX %s1 ON %s USING BTREE (body)',
+        $table,
+        $table
+      );
+      $ret_bool = $this->getQuery($query);
+      
+    }//if
+    
+    return $ret_bool;
+
   }//method
   
   /**
    *  @see  handleException()
    *  
-   *  @param  MingoTable  $table     
+   *  @param  MingoTable  $table
    *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
    */
-  protected function _handleException(Exception $e,MingoTable $table){
+  protected function canHandleException(Exception $e){
+    
+    $ret_bool = false;
+    
+    if($e->getCode() === '42P01'){
+    
+      // SQLSTATE[42P01]: Undefined table: 7 ERROR: relation "<table_name>" does not exist 
+      $ret_bool = true;
+    
+    }//if
+    
+    return $ret_bool;
+    
+  }//method
+  
+  /**
+   *  if you want to do anything special with the field's name, override this method
+   *  
+   *  for example, mysql might want to wrap teh name in `, so foo would become `foo`      
+   *  
+   *  @since  1-2-12
+   *  @param  string  $name
+   *  @return string  the $name, formatted
+   */
+  protected function normalizeNameSQL($name){
+  
+    return sprintf('body -> \'%s\'',$name);
     
   }//method
   

@@ -50,15 +50,64 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
+  /**
+   *  get a table and make sure it also exists in the db
+   *  
+   *  @return MingoTable
+   */
   protected function getTable($name = ''){
     
-    $table = parent::getTable($name);
-    $name = $table->getName();
-    if(empty(self::$table_map[$name])){ $this->setTable($table); }//if
-    self::$table_map[$name] = $name;
+    $table = $this->createTable($name);
+    $db = $this->getDb();
+    
+    $db->setTable($table);
+    $this->assertTable($table);
     
     return $table;
     
+  }//method
+  
+  /**
+   *  get a fresh table that hasn't been created in the db yet
+   *
+   *  this will remove the table from the db to make sure it really isn't in the db
+   *      
+   *  @since  1-3-12
+   *  @return MingoTable
+   */
+  protected function createTable($name = ''){
+    
+    $db = $this->getDb();
+    $table = parent::getTable($name);
+    
+    // get rid of the table
+    $db->killTable($table);
+  
+    $ret_bool = $db->hasTable($table);
+    $this->assertFalse($ret_bool);
+    
+    return $table;
+    
+  }//method
+  
+  /**
+   *  make sure the table exists and its structure in the db matches its MingoTable structure
+   *
+   *  @since  1-3-12  a variation of this method was called setTable()    
+   */
+  protected function assertTable(MingoTable $table){
+  
+    $db = $this->getDb();
+  
+    $this->assertTrue($db->hasTable($table));
+  
+    // make sure index exists...
+    $index_list = $db->getIndexes($table);
+    
+    $this->assertGreaterThanOrEqual(count($table->getIndexes()),count($index_list));
+    
+    return true;
+  
   }//method
   
   /**
@@ -89,121 +138,16 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
-   *  test the ability of the interface to autocreate the table
+   *  make sure the interface can create a table
    *
-   *  @since  5-9-11   
-   */        
-  public function testAutoCreateTable(){
+   *  in order for this to work, MingoInterface killTable(), hasTable(), setTable(),
+   *  setIndex(), and getIndex() must be implemented
+   *      
+   *  @since  1-3-12
+   */
+  public function testCreateTable(){
   
-    $db = $this->getDb();
-    $table = parent::getTable(
-      md5(__FUNCTION__.microtime(true).rand(0,PHP_INT_MAX))
-    );
-  
-    $ret_bool = $db->hasTable($table);
-    $this->assertFalse($ret_bool);
-    
-    $where_criteria = new MingoCriteria();
-    $where_criteria->isFoo(1);
-    
-    $db->get($table,$where_criteria);
-    
-    $this->assertTrue($db->hasTable($table));
-  
-  }//method
-  
-  /**
-   *  test adding to a table when one of the index values is actually an array of
-   *  values
-   */    
-  public function testIndexArrayInsert()
-  {
-    $db = $this->getDb();
-    $table = $this->getTable();
-
-    /*
-    // a map with 2 arrays can't be indexed (as per mongo), so an exception should
-    // be thrown...
-    try{
-      
-      $map = array(
-        'foo' => 'che',
-        'bar' => range(1,3),
-        'baz' => range(1,2)
-      );
-      
-      $map = $db->set($table,$map);
-      $this->fail('indexing 2 arrays should not currently work');
-    
-    }catch(PHPUnit_Framework_AssertionFailedError $e){
-      throw $e;
-    }catch(Exception $e){}//try/catch
-    */
-    
-    $map = array(
-      'foo' => 'che',
-      'bar' => range(1,3),
-      'baz' => time()
-    );
- 
-    $map = $db->set($table,$map);
-    $this->assertInternalType('array',$map);
-
-    $where_criteria = new MingoCriteria();
-    $where_criteria->isBar(1);
-    $list = $db->get($table,$where_criteria);
-    $this->assertInternalType('array',$list);
-
-    $_id_list = array();
-    foreach($list as $list_map){
-
-      $this->assertEquals($map['bar'],$list_map['bar']);
-      $this->assertEquals($map['baz'],$list_map['baz']);
-      $_id_list[] = $map['_id'];
-    
-    }//method
-
-    // delete them...
-    $where_criteria = new MingoCriteria();
-    $where_criteria->in_id($_id_list);
- 
-    $bool = $db->kill($table,$where_criteria);
-    $this->assertTrue($bool);
-    
-  }//method
-  
-  public function testGetIndexArray(){
-  
-    $db = $this->getDb();
-    $table = $this->getTable();
-  
-    $map = array(
-      'foo' => 'che',
-      'bar' => array(1,2,3),
-      'baz' => time()
-    );
-    
-    // insert it twice because we want atleast 2 rows...
-    $db->set($table,$map);
-    
-    // somehow mongo can set the id of the $map even though I don't do $map = $db->set...
-    if(isset($map['_id'])){ unset($map['_id']); }//if
-    
-    $db->set($table,$map);
-  
-    $where_criteria = new MingoCriteria();
-    $where_criteria->inField('bar',1,2);
-    
-    // get the count...
-    $count = $db->getCount($table,$where_criteria);
-    $this->assertSame(2,$count);
-    
-    $where_criteria->setLimit(2);
-    
-    $list = $db->get($table,$where_criteria,$where_criteria->getBounds());
-    
-    $this->assertSame(2,count($list));
-    $this->assertNotEquals((string)$list[0]['_id'],(string)$list[1]['_id']);
+    $this->getTable(__FUNCTION__);
   
   }//method
   
@@ -831,27 +775,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     return $_id_list;
   
-  }//method
-
-  protected function setTable(MingoTable $table){
-  
-    $db = $this->getDb();
-  
-    // make sure the table doesn't exist before creating it...
-    $db->killTable($table);
-  
-    $ret_bool = $db->setTable($table);
-    $this->assertTrue($ret_bool);
-    $this->assertTrue($db->hasTable($table));
-  
-    // make sure the table exists...
-    ///$table_list = $db->getTables();
-    ///$this->assertContains($table->getName(),$table_list);
-  
-    // make sure index exists...
-    $index_list = $db->getIndexes($table);
-    $this->assertGreaterThanOrEqual(count($table->getIndexes()),count($index_list));
-    
   }//method
   
   /**
