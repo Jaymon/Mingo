@@ -3,6 +3,25 @@
 /**
  *  handle Postgres connection using hstore
  *  
+ *  @todo sorting numberic values (except __rowid) doesn't work
+ *  
+ *  a query like:
+ *  
+ *  SELECT * FROM testsort ORDER BY 
+ *    CASE WHEN body -> 'foo' < 'A' THEN lpad(body -> 'foo',255, '0') ELSE body -> 'foo' END;
+ *  
+ *  will make it sort correctly, but I just can't help but think that will be massively
+ *  slow with larger datasets and it looks seriously ugly also, via:
+ *  http://stackoverflow.com/questions/4080787/   
+ *  
+ *  @note if the indexes don't work with larger datasets (greater than 500k records or so)
+ *  then you can try setting indexes on each of the hstore keys:
+ *  
+ *  CREATE INDEX foo ON myhstore((kvps->'yourkeyname')) WHERE (kvps->'yourkeyname') IS NOT NULL;  
+ *  
+ *  via: http://archives.postgresql.org/pgsql-performance/2011-05/msg00339.php
+ *    http://archives.postgresql.org/pgsql-performance/2011-05/msg00286.php 
+ *  
  *  @version 0.1
  *  @author Jay Marcyes
  *  @since 12-31-2011
@@ -72,6 +91,22 @@ class MingoPostgresInterface extends MingoPDOInterface {
    */
   protected function _getCount($table,$where_criteria){
   
+    $ret_int = 0;
+    
+    $where_criteria['select_str'] = 'count(*)';
+    $where_criteria['sort_str'] = '';
+    $where_criteria['limit_str'] = '';
+    $select_query = $this->getSelectQuery($table,$where_criteria);
+    
+    $ret_list = $this->getQuery(
+      $select_query,
+      isset($where_criteria['where_params']) ? $where_criteria['where_params'] : array()
+    );
+    
+    if(isset($ret_list[0])){ $ret_int = (int)$ret_list[0]; }//if
+    
+    return $ret_int;
+  
   }//method
   
   /**
@@ -83,56 +118,30 @@ class MingoPostgresInterface extends MingoPDOInterface {
    */
   protected function _get($table,$where_criteria){
 
-    \out::e($where_criteria);
-
     // what fields do we want to select
-    $where_criteria['select_str'] = '_rowid,_id,skeys(body),svals(body)';
     $select_query = $this->getSelectQuery($table,$where_criteria);
+    ///\out::e($select_query);
     
-    $stmt =  $this->getStatement(
+    $stmt =  $this->getstatement(
       $select_query,
       isset($where_criteria['where_params']) ? $where_criteria['where_params'] : array()
     );
     
     $ret_list = array();
-    $ret_map = array();
     
-    // we pull the rows out in a way that there is one row for each key/val pair in
-    // the hstore, so we need to go trhough all the rows and put them back together into
-    // an array
+    // go through every row and parse the hstore body
     while($map = $stmt->fetch(PDO::FETCH_ASSOC)){
     
-      $is_new = false;
-    
-      if(empty($ret_map['_rowid'])){
+      $field_map = $this->fromHstore($map['body']);
+      unset($map['body']);
       
-        $is_new = true;
+      $field_map['_id'] = $map['_id'];
+      $field_map['_rowid'] = $map['_rowid'];
       
-      }else if($ret_map['_rowid'] !== $map['_rowid']){
-      
-        // we've got a new true row
-        $ret_list[] = $ret_map;
-        $is_new = true;
-      
-      }//if/else
-      
-      if($is_new){
-      
-        $ret_map = array();
-        $ret_map['_id'] = $map['_id'];
-        $ret_map['_rowid'] = $map['_rowid'];
-      
-      }//if
-    
-      // save the key/val into our map being built
-      $ret_map[$map['skeys']] = $map['svals'];
+      $ret_list[] = $field_map;
     
     }//while
     
-    // pick up the straggler
-    if(!empty($ret_map)){ $ret_list[] = $ret_map; }//if
-    
-    \out::e($select_query);
     ///\out::e($ret_list);
     
     return $ret_list;
@@ -146,6 +155,23 @@ class MingoPostgresInterface extends MingoPDOInterface {
    *  @return boolean
    */
   protected function _kill($table,$where_criteria){
+  
+    $query = 'DELETE FROM %s';
+    $sprintf_vars = array($where_criteria['table_str']);
+    $where_params = array();
+    
+    if(!empty($ret_map['where_params'])){
+    
+      $query .= ' %s';
+      $sprintf_vars[] = $sql_map['where_str'];
+      $where_params = $ret_map['where_params'];
+      
+    }//if
+  
+    $query = vsprintf($query,$sprintf_vars);
+    $ret_bool = $this->getQuery($query,$where_params);
+  
+    return $ret_bool;
   
   }//method
   
@@ -163,32 +189,13 @@ class MingoPostgresInterface extends MingoPDOInterface {
     // build the field list
     $field_list = array();
     $field_params = array();
+    $field_params[] = $_id;
+    $field_params[] = $this->toHstore($map);
     
-    foreach($map as $name => $val){
-    
-      if($val === null){
-      
-        $field_list[] = sprintf('"%s" => NULL',$name);
-        
-      }else if(is_array($val)){
-      
-        $field_list[] = sprintf('"%s" => "%s"',$name,serialize($val));
-      
-      }else{
-      
-        $field_list[] = sprintf('"%s" => "%s"',$name,$val);
-        
-      }//if/else
-      
-    }//foreach
-
     $query = sprintf(
       "INSERT INTO %s (_id,body) VALUES (?,hstore(?))",
-      $table
+      $this->normalizeTableSql($table)
     );
-
-    $field_params[] = $_id;
-    $field_params[] = sprintf('%s',join(',',$field_list));
     
     if($this->getQuery($query,$field_params)){
     
@@ -210,6 +217,16 @@ class MingoPostgresInterface extends MingoPDOInterface {
    */
   protected function update($table,$_id,array $map){
 
+    $query = sprintf('UPDATE %s SET body=hstore(?) WHERE _id=?',$this->normalizeTableSql($table));
+
+    $param_list = array();
+    $param_list[] = $this->toHstore($map);
+    $param_list[] = $_id;
+
+    $this->getQuery($query,$param_list);
+
+    return $map;
+
   }//method
   
   /**
@@ -225,33 +242,23 @@ class MingoPostgresInterface extends MingoPDOInterface {
   protected function _setIndex($table,$index){ return false; }//method
   
   /**
-   *  convert an array index map into something this interface understands
-   *
-   *  @since  5-2-11
-   *  @param  MingoTable  $table 
-   *  @param  array $index_map  an index map that is usually in the form of array(field_name => options,...)      
-   *  @return mixed whatever this interface will understand
-   */
-  protected function normalizeIndex(MingoTable $table,array $index_map){
-  
-  }//method
-  
-  /**
    *  @see  getIndexes()
    *  
    *  since postgres hstore has an index on the whole thing, we can just return
    *  the indexes the MingoTable thinks we have, since they are technically indexed      
    *      
    *  @link http://stackoverflow.com/questions/2204058/
+   *  
+   *  other links:
+   *    http://stackoverflow.com/questions/2204058/show-which-columns-an-index-is-on-in-postgresql
+   *    http://www.postgresql.org/docs/current/static/catalog-pg-index.html
+   *    http://www.manniwood.com/postgresql_stuff/index.html
+   *    http://archives.postgresql.org/pgsql-php/2005-09/msg00011.php                  
    *      
    *  @param  mixed $table  the table ran through {@link normalizeTable()}      
    *  @return array
    */
-  protected function _getIndexes($table){
-  
-    return $table->getIndexes();
-  
-  }//method
+  protected function _getIndexes($table){ return $table->getIndexes(); }//method
   
   /**
    *  @see  killTable()
@@ -265,7 +272,7 @@ class MingoPostgresInterface extends MingoPDOInterface {
 
     $query = sprintf(
       'DROP TABLE %s CASCADE',
-      $table
+      $this->normalizeTableSql($table)
     );
     
     return $this->getQuery($query);
@@ -284,7 +291,7 @@ class MingoPostgresInterface extends MingoPDOInterface {
       _rowid SERIAL PRIMARY KEY,
       _id VARCHAR(24) NOT NULL,
       body hstore
-    )',$table);
+    )',$this->normalizeTableSql($table));
   
     $ret_bool = $this->getQuery($query);
     
@@ -295,14 +302,14 @@ class MingoPostgresInterface extends MingoPDOInterface {
       $query = sprintf(
         'CREATE INDEX %s0 ON %s USING BTREE (_id)',
         $table,
-        $table
+        $this->normalizeTableSql($table)
       );
       $ret_bool = $this->getQuery($query);
     
       $query = sprintf(
         'CREATE INDEX %s2 ON %s USING GIN (body)',
         $table,
-        $table
+        $this->normalizeTableSql($table)
       );
       $ret_bool = $this->getQuery($query);
     
@@ -316,7 +323,7 @@ class MingoPostgresInterface extends MingoPDOInterface {
       $query = sprintf(
         'CREATE INDEX %s1 ON %s USING BTREE (body)',
         $table,
-        $table
+        $this->normalizeTableSql($table)
       );
       $ret_bool = $this->getQuery($query);
       
@@ -360,9 +367,179 @@ class MingoPostgresInterface extends MingoPDOInterface {
   
     // canary
     if($name === '_id'){ return $name; }//if
+    if($name === '_rowid'){ return $name; }//if
   
     return sprintf('body -> \'%s\'',$name);
     
+  }//method
+  
+  /**
+   *  convert a php array to an hstore
+   *
+   *  seriously, it sucks this can't be done natively and that these methods are needed
+   *      
+   *  @since  1-4-12
+   *  
+   *  @param  array $map  the array to convert to hstore
+   *  @return string  the hstore suitable to be inserted into the hstore column of the table         
+   */
+  protected function toHstore(array $map){
+  
+    $field_list = array();
+  
+    foreach($map as $name => $val){
+    
+      if($val === null){
+      
+        $field_list[] = sprintf('"%s"=>NULL',$name);
+        
+      }else if(is_array($val)){
+      
+        // @todo  turns out that the serializing of arrays messes up the structure and
+        // errors are thrown, so I'm just removing support until I figure out what to
+        // do, I could serialize and then base64? SIGH 
+      
+        throw new \DomainException(
+          sprintf('%s does not support values that are arrays, sorry',get_class($this))
+        );
+      
+        ///$field_list[] = sprintf('"%s"=>"%s"',$name,serialize($val));
+      
+      }else{
+      
+        $field_list[] = sprintf('"%s"=>"%s"',$name,$val);
+        
+      }//if/else
+      
+    }//foreach
+
+    
+    return join(',',$field_list);
+  
+  }//method
+  
+  /**
+   *  parse the hstore into a php array since sadly, there doesn't seem to be a way to
+   *  do it natively   
+   *
+   *  inspired by these projects:
+   *    https://github.com/chanmix51/Pomm/blob/master/Pomm/Converter/PgHStore.php
+   *    https://github.com/DmitryKoterov/db_type
+   *    http://stackoverflow.com/questions/6742563/convert-postgresql-hstore-to-php-array
+   *    http://stackoverflow.com/questions/1738000/implementing-postgresql-arrays-in-zend-model         
+   *
+   *  I did a token parser since I figured that would be easier to fix bugs when they
+   *  are found than a regex solution   
+   *      
+   *  @since  1-4-12
+   *  
+   *  @param  string  $body the hstore body
+   *  @return array the parsed $body         
+   */
+  protected function fromHstore($body){
+  
+    // canary
+    if(empty($body)){ throw new InvalidArgumentException('$body was empty'); }//if
+  
+    $ret_map = array();
+    $str = str_split($body);
+    $len = count($str);
+    
+    for($i = 0; $i < $len ;$i++){
+    
+      ///\out::e(substr($body,$i));
+    
+      if($str[$i] === '"'){
+      
+        $key = '';
+        $val = '';
+      
+        // go until we get a "=>"
+        for($j = $i + 1; $j < $len ;$j++){
+        
+          if($str[$j] === '"'){
+          
+            if($str[$j + 1] === '='){
+          
+              if($str[$j + 2] === '>'){
+          
+                if($str[$j + 3] === '"'){
+                
+                  $j += 4;
+                  break;
+                
+                }else if($str[$j + 3] === 'N'){
+          
+                  $j += 3;
+                  break;
+          
+                }//if
+          
+              }//if
+          
+            }//if
+          
+          }//if
+        
+          $key .= $str[$j];
+        
+        }//for
+        
+        // now go until we get a ", "
+        for($k = $j; $k < $len ;$k++){
+        
+          if($str[$k] === 'N'){
+          
+            if(($str[$k + 1] === 'U') && ($str[$k + 2] === 'L') && ($str[$k + 3] === 'L')){
+            
+              $k += 3;
+              $val = null;
+              break;
+            
+            }//if
+        
+          }else if($str[$k] === '"'){
+          
+            if(isset($str[$k + 1])){
+            
+              if($str[$k + 1] === ','){
+            
+                if($str[$k + 2] === ' '){
+            
+                  if($str[$k + 3] === '"'){ // this will be the quote that starts a new key
+            
+                    $k += 2;
+                    break;
+            
+                  }//if
+            
+                }//if
+            
+              }//if
+              
+            }else{
+            
+              $k += 1;
+              break;
+            
+            }//if/else
+          
+          }//if
+        
+          $val .= $str[$k];
+        
+        }//for
+      
+        $i = $k;
+        $ret_map[$key] = $val;
+      
+      }//if
+    
+    }//foreach
+
+    ///\out::e($ret_map);
+    return $ret_map;
+
   }//method
   
 }//class     

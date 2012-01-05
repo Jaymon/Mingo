@@ -202,7 +202,9 @@ abstract class MingoInterface extends MingoMagic {
       
       if($this->hasDebug()){
         if(!is_bool($ret_bool)){
-          throw new UnexpectedValueException(sprintf('%s is not the expected return type of boolean',gettype($ret_bool)));
+          throw new UnexpectedValueException(
+            sprintf('_%s() expected to return: boolean, got: %s',__FUNCTION__,gettype($ret_bool))
+          );
         }//if
       }//if
     
@@ -347,7 +349,9 @@ abstract class MingoInterface extends MingoMagic {
       
       if($this->hasDebug()){
         if(!is_int($ret_int)){
-          throw new UnexpectedValueException(sprintf('%s is not the expected return type of integer',gettype($ret_int)));
+          throw new UnexpectedValueException(
+            sprintf('_%s() expected to return type: integer, got: %s',__FUNCTION__,gettype($ret_int))
+          );
         }//if
       }//if
     

@@ -176,10 +176,36 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    *      
    *  @since  1-3-12
    */
-  public function testCreateTable(){
+  public function testSetTable(){
   
     $this->getTable(__FUNCTION__);
   
+  }//method
+  
+  /**
+   *  make sure interface can remove tables
+   *  
+   *  pretty much needs all the same interface methods as {@link testSetTable()} does
+   */
+  public function testKillTable(){
+  
+    $db = $this->getDb();
+    $table = new MingoTable(__FUNCTION__);
+    $ret_bool = $db->killTable($table);
+    $this->assertTrue($ret_bool);
+    
+    $this->assertFalse($db->hasTable($table));
+    
+    $table_list = $db->getTables($table);
+    $this->assertNotContains($table,$table_list);
+    
+    $this->assertTrue($db->setTable($table));
+    $this->assertTrue($db->hasTable($table));
+    
+    $ret_bool = $db->killTable($table);
+    $this->assertTrue($ret_bool);
+    $this->assertFalse($db->hasTable($table));
+    
   }//method
   
   /**
@@ -243,38 +269,57 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $where_criteria->setBounds($limit,0);
     
     $list = $db->get($table,$where_criteria);
-    
-    \out::e($list);
-    
     $this->assertInternalType('array',$list);
     $this->assertLessThanOrEqual($limit,count($list));
   
   }//method
   
   /**
-   *  @depends  testInsert
+   *  test counting
+   *  
+   *  requires getCount() to be implemented
+   *  
+   *  @since  1-4-12
    */
-  public function testGet($db_map){
+  public function testGetCount(){
   
-    $db = $db_map['db'];
-    $_id_list = $db_map['_id_list'];
-    $table = $this->getTable();
+    $limit = 20;
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+    $_id_list = $this->insert($table,$limit);
     
     $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
     
     $total = $db->getCount($table,$where_criteria);
-    $this->assertEquals(20,$total);
+    $this->assertEquals($limit,$total);
+  
+  }//method
+  
+  /**
+   *  test get() with a criteria
+   *  
+   *  requires get() to be implemented      
+   */
+  public function testGet(){
+  
+    $limit = 10;
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+    $_id_list = $this->insert($table,$limit);
     
-    $where_criteria->setLimit(10);
+    $where_criteria = new MingoCriteria();
+    $where_criteria->in_id($_id_list);
+    $where_criteria->setLimit($limit);
+    
     $_id_seen_list = array();
     
-    for($offset = 0,$max = count($_id_list); $offset < $max ;$offset += 10){
+    for($offset = 0,$max = count($_id_list); $offset < $max ;$offset += $limit){
       
       $where_criteria->setOffset($offset);
       $list = $db->get($table,$where_criteria);
       $this->assertInternalType('array',$list);
-      $this->assertEquals(10,count($list));
+      $this->assertEquals($limit,count($list));
       
       foreach($list as $map){
       
@@ -292,11 +337,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       
     }//for
     
-    $map = $db->getOne($table,$where_criteria);
-    $this->assertArrayHasKey('_id',$map);
-    $this->assertContains((string)$map['_id'],$_id_list);
-    
-    // make sure counts and results are right when we have mutltiple ids...
+    // make sure counts and results are right when we have mutltiple ids that are the same...
     $where_criteria = new MingoCriteria();
     $where_criteria->in_id(
       array(
@@ -307,22 +348,20 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     );
     $list = $db->get($table,$where_criteria);
     $this->assertEquals(2,count($list));
-    
-    $count = $db->getCount($table,$where_criteria);
-    $this->assertEquals(2,$count);
-  
-    return $db_map;
   
   }//method
   
   /**
-   *  @depends  testGet
+   *  test updating maps
+   *  
+   *  requires update() and getOne() to be implemented 
    */
-  public function testUpdate($db_map){
+  public function testUpdate(){
   
-    $db = $db_map['db'];
-    $_id_list = $db_map['_id_list'];
-    $table = $this->getTable();
+    $limit = 10;
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+    $_id_list = $this->insert($table,$limit);
     $time = microtime(true);
   
     foreach($_id_list as $_id){
@@ -338,32 +377,35 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       $this->assertArrayHasKey('bar',$map);
       $this->assertEquals($time,$map['bar']);
       
-      // now pull to make sure it really did get updated...
+      // now pull from db to make sure it really did get updated...
       $where_criteria = new MingoCriteria();
       $where_criteria->is_id($_id);
       $map = $db->getOne($table,$where_criteria);
       $this->assertInternalType('array',$map);
       $this->assertArrayHasKey('_id',$map);
       $this->assertArrayHasKey('bar',$map);
-      $this->assertEquals($time,$map['bar']);
+      // for some reason, casting the 'bar' to a double didn't work to make the types match
+      $this->assertEquals((string)$time,$map['bar']);
     
     }//foreach
     
-    return $db_map;
-  
   }//method
   
   /**
-   *  @depends  testUpdate
+   *  test removing from the db
+   *  
+   *  requires kill() and get() to be implemented      
    */
-  public function testKill($db_map){
+  public function testKill(){
   
-    $db = $db_map['db'];
-    $_id_list = $db_map['_id_list'];
-    $table = $this->getTable();
-    
+    $limit = 10;
+    $db = $this->getDb();
+    $table = $this->getTable(__FUNCTION__);
+    $_id_list = $this->insert($table,$limit);
+  
     $where_criteria = new MingoCriteria();
     $where_criteria->in_id($_id_list);
+    
     $ret_bool = $db->kill($table,$where_criteria);
     $this->assertTrue($ret_bool);
     
@@ -388,9 +430,8 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $foo = 'foo';
     $timestamp = time();
 
-    for($i = 0; $i < 2000 ;$i++)
-    ///for($i = 0; $i < 201 ;$i++)
-    {
+    for($i = 0; $i < 2000 ;$i++){
+    
       $timestamp += 1;
     
       $map = array();
@@ -411,6 +452,9 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
+  /**
+   *  make sure removing lots of rows using just the _ids works   
+   */        
   public function testKillLots2(){
   
     $db = $this->getDb();
@@ -420,8 +464,8 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     // now let's make sure _id deletion works also...
     $_id_list = array();
-    for($i = 0; $i < 201 ;$i++)
-    {
+    for($i = 0; $i < 201 ;$i++){
+    
       $timestamp += 1;
     
       $map = array();
@@ -446,13 +490,18 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   /**
    *  test to make sure you can force a table to delete all rows
    *
+   *  by default, Mingo won't let you just delete all the rows from a table, this is
+   *  to protect from a developer passing in a bad criteria that they didn't mean to
+   *  pass, you have to pass in true as the third param to have kill() remove all 
+   *  the tables         
+   *      
    *  @since  9-29-11   
-   */        
+   */
   public function testKillAll(){
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $_id_list = $this->addRows($db,$table,10);
+    $_id_list = $this->insert($table,10);
   
     $where_criteria = new MingoCriteria();
     
@@ -467,11 +516,10 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     
     }//try/catch
     
-    if(!$e_thrown){
-      $this->fail(
-        'UnexpectedValueException was not thrown when an empty criteria was passed to unforced kill()'
-      );
-    }//if
+    $this->assertTrue(
+      $e_thrown,
+      'UnexpectedValueException was not thrown when an empty criteria was passed to unforced kill()'
+    );
     
     $db->kill($table,$where_criteria,true);
   
@@ -480,24 +528,29 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     
   }//method
   
-  public function testKillTable(){
+  /**
+   *  test the ability of the interface to autocreate the table
+   *
+   *  @since  5-9-11   
+   */        
+  public function testAutoCreateTable(){
   
     $db = $this->getDb();
-    $table = new MingoTable(__FUNCTION__);
-    $ret_bool = $db->killTable($table);
-    $this->assertTrue($ret_bool);
+    $table = parent::getTable(__FUNCTION__);
+  
+    // get rid of the table
+    $db->killTable($table);
+  
+    $ret_bool = $db->hasTable($table);
+    $this->assertFalse($ret_bool);
     
-    $this->assertFalse($db->hasTable($table));
+    $where_criteria = new MingoCriteria();
+    $where_criteria->isFoo(1);
     
-    $table_list = $db->getTables($table);
-    $this->assertNotContains($table,$table_list);
+    $db->get($table,$where_criteria);
     
-    $this->assertTrue($db->setTable($table));
     $this->assertTrue($db->hasTable($table));
-    $ret_bool = $db->killTable($table);
-    $this->assertTrue($ret_bool);
-    $this->assertFalse($db->hasTable($table));
-    
+  
   }//method
   
   /**
@@ -507,8 +560,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable(__FUNCTION__);
-    
-    $_id_list = $this->addRows($db,$table,5);
+    $_id_list = $this->insert($table,5);
     
     $where_criteria = new MingoCriteria();
     $where_criteria->inFoo(1,2);
@@ -527,8 +579,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable(__FUNCTION__);
-    
-    $_id_list = $this->addRows($db,$table,5);
+    $_id_list = $this->insert($table,5);
     
     $where_criteria = new MingoCriteria();
     $where_criteria->ninFoo(1,2);
@@ -552,28 +603,23 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $db = $this->getDb();
     $table = $this->getTable(__FUNCTION__);
     $count = 20;
-    
-    $_id_list = $this->addRows($db,$table,$count);
+    $_id_list = $this->insert($table,$count);
     
     $where_criteria = new MingoCriteria();
-    ///$where_criteria->in_id($_id_list);
     $where_criteria->descFoo();
-    ///$where_criteria->ascFoo();
     
     $list = $db->get($table,$where_criteria);
-    ///out::e($list);
+    out::e($list);
     $this->assertEquals($count,count($list));
     $this->assertSubset($list,$_id_list);
     
     $last_val = $count;
     foreach($list as $map){
     
-      $this->assertEquals($map['foo'],$last_val - 1);
-      $last_val = $map['foo'];
+      $this->assertEquals($map['foo'],$last_val);
+      $last_val--;
     
     }//foreach
-    
-    $this->assertSubset($list,$_id_list);
   
   }//method
   
@@ -690,14 +736,14 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   public function testRequiredField(){
   
     $db = $this->getDb();
-    $table = $this->getTable();
+    $table = $this->getTable(__FUNCTION__);
     $foo = $table->getField('foo');
     $foo->setRequired(true);
   
     $foo = $table->getField('foo');
     $this->assertTrue($foo->isRequired());
     
-    $map['map'] = array('baz' => 'string','bar' => 234);
+    $map = array('baz' => 'string','bar' => 234);
     
     $foo->setDefaultVal(1234);
     $rmap = $db->set($table,$map);
@@ -743,8 +789,8 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   public function testSerialize(){
   
     $db = $this->getDb();
-    $table = $this->getTable();
-    $_id_list = $this->addRows($db,$table,1);
+    $table = $this->getTable(__FUNCTION__);
+    $_id_list = $this->insert($table,1);
     
     $sdb = serialize($db);
     $this->assertInternalType('string',$sdb);
@@ -765,6 +811,9 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
   }//method
   
+  /**
+   *  make sure that all the maps in $list have _ids that are in $_id_list
+   */
   protected function assertSubset(array $list,array $_id_list){
   
     foreach($list as $map){
@@ -773,30 +822,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       $this->assertContains($map['_id'],$_id_list);
     
     }//foreach
-  
-  }//method
-  
-  protected function addRows(MingoInterface $db,MingoTable $table,$count){
-  
-    $_id_list = array();
-  
-    for($i = 0; $i < $count ;$i++){
-    
-      $map = array(
-        'foo' => $i
-      );
-      
-      $map = $db->set($table,$map);
-      
-      $this->assertArrayHasKey('foo',$map);
-      $this->assertArrayHasKey('_id',$map);
-      $this->assertLessThanOrEqual(24,mb_strlen($map['_id']));
-      $this->assertNotContains($map['_id'],$_id_list);
-      $_id_list[] = (string)$map['_id'];
-    
-    }//for
-  
-    return $_id_list;
   
   }//method
   

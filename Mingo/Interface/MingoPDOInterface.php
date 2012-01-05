@@ -236,6 +236,7 @@ abstract class MingoPDOInterface extends MingoInterface {
   
     $ret_map = array();
     $ret_map['select_str'] = '*';
+    $ret_map['table_str'] = $this->normalizeTableSQL($table);
     $ret_map['where_criteria'] = $where_criteria;
     $ret_map['where_str'] = '';
     $ret_map['where_params'] = array();
