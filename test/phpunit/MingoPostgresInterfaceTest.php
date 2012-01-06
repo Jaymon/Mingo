@@ -1,7 +1,14 @@
 <?php
-
+/**
+ *  handle testing of Postgres hstore interface
+ *  
+ *  @version 0.3
+ *  @author Jay Marcyes
+ *  @since 12-30-11
+ *  @package mingo
+ *  @subpackage test
+ ******************************************************************************/
 require_once('MingoInterfaceTest.php');
-require_once('/vagrant/out_class.php');
 
 class MingoPostgresInterfaceTest extends MingoInterfaceTest {
   

@@ -1,37 +1,31 @@
 <?php
 /**
- *  handle mingo db connections transparently between the different interfaces, this
- *  class is used to establish the singleton, and then allow the map to interact
- *  with the db layer.
+ *  handle mingo db connections transparently between different interfaces
  *  
  *  if you want to make an interface for mingo, just create a class that extends
- *  this class and implement all the functions below.
- *  
- *  the nice thing about this layer is that it handles all the error checking before
- *  passing anything to the interface, this allows interface developers to focus on the
- *  meat of their interface instead of worrying about error handling
+ *  this class and implement all the abstract functions.
  *  
  *  @notes
  *    - when implementing the interface, you don't really have to worry about error checking
  *      because the public methods handle all the error checking before passing anything 
- *      to the interface, this allows interface developers to focus on the meat of 
- *      their interface instead of worrying about error handling
+ *      to the protected interface methods, this allows interface developers to focus 
+ *      on the meat of their interface instead of worrying about error handling
  *    - in php 5.3 you can set default values for any of the abstract method params without
  *      an error being thrown, in php <5.3 the implemented method signatures have to match
  *      the abstract signature exactly 
- *    - there are certain reserved rows any implementation will have to deal with:
+ *    - there are certain reserved fields any implementation will have to deal with:
  *      - _id = the unique id assigned to a newly inserted row, this is a 1-24 character
  *              randomly created string, if you don't want to make your own, and there
  *              isn't an included one (like mongo) then you can use {@link getUniqueId()}
  *              defined in this class
  *      - _rowid = this is an auto increment row, ie, the row number. This technically only
- *                 needs to be generated when the backend supports it and is set up (mongo ignores
- *                 it, mysql and sqlite set it) 
+ *                 needs to be generated when the backend supports it and is set up (eg, mongo 
+ *                 ignores it, mysql and sqlite set it) 
  *  
  *  @link http://www.php.net/manual/en/language.oop5.abstract.php    
  *
- *  @version 0.6
- *  @author Jay Marcyes {@link http://marcyes.com}
+ *  @version 0.7
+ *  @author Jay Marcyes
  *  @since 11-08-09
  *  @package mingo 
  ******************************************************************************/
@@ -615,9 +609,9 @@ abstract class MingoInterface extends MingoMagic {
       // add all the indexes for this table...
       if($table->hasIndexes()){
       
-        foreach($table->getIndexes() as $index_map){
+        foreach($table->getIndexes() as $index){
           
-          $this->setIndex($table,$index_map);
+          $this->setIndex($table,$index);
         
         }//foreach
       
@@ -737,17 +731,12 @@ abstract class MingoInterface extends MingoMagic {
    *  adds an index to $table
    *  
    *  @param  string  $table  the table to add the index to
-   *  @param  array $map  the keys are the field names, the values are the definitions for each field      
+   *  @param  \MingoIndex $index  the index to add to the table      
    *  @return boolean
    */
-  protected function setIndex(MingoTable $table,array $index_map){
+  protected function setIndex(MingoTable $table,MingoIndex $index){
   
-    // canary...
-    if(empty($index_map)){
-      throw new InvalidArgumentException('$index_map was empty');
-    }//if
-  
-    $index = $this->normalizeIndex($table,$index_map);
+    $index = $this->normalizeIndex($table,$index);
     $itable = $this->normalizeTable($table);
     return $this->_setIndex($itable,$index);
   
@@ -767,11 +756,11 @@ abstract class MingoInterface extends MingoMagic {
    *
    *  @since  5-2-11
    *  @param  MingoTable  $table 
-   *  @param  array $index_map  an index map that is usually in the form of array(field_name => options,...)      
+   *  @param  \MingoIndex $index  the index to add to the table       
    *  @return mixed whatever this interface will understand
    */
-  protected function normalizeIndex(MingoTable $table,array $index_map){
-    return $index_map;
+  protected function normalizeIndex(MingoTable $table,MingoIndex $index){
+    return $index;
   }//method
   
   /**

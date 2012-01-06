@@ -91,7 +91,6 @@ abstract class MingoPDOInterface extends MingoInterface {
       $this->con_db = new $con_class($dsn,$username,$password,$pdo_options);
       
       $connected = true;
-      $this->onConnect();
       
     }catch(Exception $e){
     
@@ -99,6 +98,7 @@ abstract class MingoPDOInterface extends MingoInterface {
       if($this->hasDebug()){
       
         $e_msg = array();
+        $e_msg[] = $e->getMessage();
         
         $con_map_msg = array();
         foreach($pdo_options as $key => $val){
@@ -129,6 +129,8 @@ abstract class MingoPDOInterface extends MingoInterface {
       }//if/else
     
     }//try/catch
+    
+    if($connected){ $this->onConnect(); }//if
     
     return $connected;
   
@@ -166,6 +168,10 @@ abstract class MingoPDOInterface extends MingoInterface {
         $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
       
       }else if($col_count === 0){
+
+        ///$arr = $stmt_handler->errorInfo();
+        ///\out::e($arr);
+        ///\out::e($stmt_handler->errorCode());
 
         $ret_mixed = true;
       

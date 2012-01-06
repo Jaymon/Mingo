@@ -2,7 +2,7 @@
 
 require_once('MingoInterfaceTest.php');
 
-abstract class MingoSQLInterfaceTest extends MingoInterfaceTest {
+abstract class MingoRDBMSInterfaceTest extends MingoInterfaceTest {
   
   /**
    *  make sure row_id persists in an update
@@ -12,7 +12,7 @@ abstract class MingoSQLInterfaceTest extends MingoInterfaceTest {
    *  
    *  @since  9-23-11
    */
-  public function testRowId(){
+  public function xtestRowId(){
   
     $db = $this->getDb();
     $table = $this->getTable();
@@ -44,7 +44,7 @@ abstract class MingoSQLInterfaceTest extends MingoInterfaceTest {
    *      
    *  @since  1-5-11
    */
-  public function testBadKill(){
+  public function xtestBadKill(){
   
     $db = $this->getDb();
     $table = $this->getTable();

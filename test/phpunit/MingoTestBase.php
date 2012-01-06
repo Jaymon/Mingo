@@ -42,9 +42,9 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
     
     if(empty($name)){ $name = get_class($this); }//if
     $table = new MingoTable($name);
-    $table->setIndex('foo','bar','baz');
+    $table->setIndex('foobarbaz',array('foo','bar','baz'));
     $table->setField('foo',MingoField::TYPE_INT);
-    $table->setIndex('bar','baz');
+    $table->setIndex('barbaz',array('bar','baz'));
     
     return $table;
     

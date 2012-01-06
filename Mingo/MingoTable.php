@@ -85,38 +85,40 @@ class MingoTable extends MingoMagic {
   /**
    *  add an index on the table this schema represents
    *
-   *  @param  string|array  $field,...
-   *                          1 - pass in a bunch of strings, each one representing
-   *                              a field name: setIndex('field_1','field_2',...);
-   *                          2 - pass in an array with this structure: array('field_name' => options,...)
-   *                              where the field's name is the key and the value is anything your chosen
-   *                              interface can understand (bear in mind using options might limits 
-   *                              portability)      
-   *  @return MingoSchema
+   *  @since  1-5-12  this is the new setIndex() that replaces addIndex()
+   *  @param  string  $name the name of the index   
+   *  @param  array $fields either an array with a list of fields or a key/val array with
+   *                        key as fieldname and val as the definition
+   *  @return self
    */
-  public function addIndex(){
+  public function setIndex($name,array $fields){
   
-    $args = func_get_args();
-    
     // canary...
-    if(empty($args)){ throw new InvalidArgumentException('no fields specified for the index'); }//if
+    if(empty($name)){ throw new InvalidArgumentException('the index must have a name'); }//if
+    if(empty($fields)){ throw new InvalidArgumentException('no fields specified for the index'); }//if
     
-    $field_list = array();
-    $index_map = $this->normalizeIndex($args);
+    $index = new MingoIndex($name,$fields);
+    return $this->addIndex($index);
     
+  }//method
+  
+  /**
+   *  add an index to the table
+   *  
+   *  @param  \MingoIndex $index  the index to add to the table         
+   *  @return self
+   */
+  public function addIndex(MingoIndex $index){
+  
     // canary...
-    if(isset($index_map['_id'])){
-      throw new UnexpectedValueException('a table index cannot include the _id field');
+    if($index->hasField('_id')){
+      throw new UnexpectedValueException('an index cannot include the _id field');
     }//if
-    
-    $this->index_map[] = $index_map;
-    
+  
+    $name = $index->getName();
+    $this->index_map[$name] = $index;
     return $this;
   
-  }//method
-  public function setIndex(){
-    $args = func_get_args();
-    return call_user_func_array(array($this,'addIndex'),$args);
   }//method
   
   /**
@@ -130,9 +132,22 @@ class MingoTable extends MingoMagic {
   /**
    *  return the index map
    *     
+   *  @param  string  $name the name of the index   
    *  @return array
    */
-  public function getIndex(){ return $this->getIndexes(); }//method
+  public function getIndex($name){
+    
+    $ret_index = array();
+    $index_map = $this->getIndexes();
+    if(isset($index_map[$name])){
+    
+      $ret_index = $index_map[$name];
+    
+    }//if
+    
+    return $ret_index;
+    
+  }//method
   
   /**
    *  true if this schema has indexes of any type
@@ -141,7 +156,22 @@ class MingoTable extends MingoMagic {
    *  @return boolean
    */
   public function hasIndexes(){ return !empty($this->index_map); }//method
-  public function hasIndex(){ return $this->hasIndexes(); }//method
+  public function hasIndex($name){
+  
+    $ret_index = array();
+    $index_map = $this->getIndexes();
+    if(isset($index_map[$name])){
+    
+      $ret_index = $index_map[$name];
+    
+    }//if
+    
+    return $ret_index;
+    
+  
+    return $this->hasIndexes();
+    
+  }//method
   
   /**
    *  Set a value given it's key e.g. $A['title'] = 'foo';
@@ -256,46 +286,6 @@ class MingoTable extends MingoMagic {
     if(empty($name)){ throw new InvalidArgumentException('$name cannot be empty'); }//if
     $this->option_map[$name] = $val;
     
-  }//method
-  
-  /**
-   *  normalizes all the index fields
-   *  
-   *  @param  array $field_list these are the fields that will be in the index
-   *  @return array an array with field name keys and type values
-   */
-  protected function normalizeIndex($field_list){
-  
-    $index_map = array();
-    $i = 0;
-    
-    foreach($field_list as $field){
-    
-      if(is_array($field)){
-      
-        foreach($field as $field_name => $type){
-        
-          $field_name = $this->normalizeName($field_name);
-          $index_map[$field_name] = $type;
-        
-          $i++;
-        
-        }//foreach
-      
-      }else{
-      
-        $field = $this->normalizeName($field);
-        ///$index_map[$field] = self::INDEX_ASC;
-        $index_map[$field] = '';
-      
-      }//if/else
-    
-      $i++;
-    
-    }//foreach
-  
-    return $index_map;
-  
   }//method
 
 }//class     

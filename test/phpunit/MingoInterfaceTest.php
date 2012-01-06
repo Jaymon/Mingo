@@ -1,5 +1,20 @@
 <?php
-
+/**
+ *  handle common testing of an interface
+ *  
+ *  when writing a new interface, the tests are actually in a good order to write
+ *  the interface (ie, start with connecting, move to creating the table, then to
+ *  removing the table, then to inserting, etc.) so you can just use the --filter
+ *  command line param to do each test while you're writing the interface. Just extend
+ *  this class with an interface specific test class, then define the abstract methods
+ *  and you should be good to go
+ *  
+ *  @version 0.8
+ *  @author Jay Marcyes
+ *  @since 3-19-10
+ *  @package mingo 
+ *  @subpackage test 
+ ******************************************************************************/
 require_once('MingoTestBase.php');
 
 abstract class MingoInterfaceTest extends MingoTestBase {
@@ -8,14 +23,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    *  singleton db object
    */     
   protected static $db = null;
-  
-  /**
-   *  holds true for each table name that it made sure the table was "set"
-   *
-   *  @since  5-24-11   
-   *  @var  array table/boolean pairs   
-   */
-  protected static $table_map = array();
   
   /**
    *  get a new MingoInterface instance
@@ -32,130 +39,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    *  @return \MingoConfig
    */
   abstract public function createConfig();
-  
-  /**
-   *  returns a singleton connected \MingoInterface instance
-   *  
-   *  @return \MingoInterface
-   */
-  public function getDb(){
-  
-    // canary...
-    if(self::$db !== null){ return self::$db; }//if
-  
-    self::$db = $this->createInterface();
-    self::$db = $this->connect(self::$db);
-    
-    return self::$db;
-  
-  }//method
-  
-  /**
-   *  get a table and make sure it also exists in the db
-   *  
-   *  @return MingoTable
-   */
-  protected function getTable($name = ''){
-    
-    $table = $this->createTable($name);
-    $db = $this->getDb();
-    
-    $db->setTable($table);
-    $this->assertTable($table);
-    
-    return $table;
-    
-  }//method
-  
-  /**
-   *  get a fresh table that hasn't been created in the db yet
-   *
-   *  this will remove the table from the db to make sure it really isn't in the db
-   *      
-   *  @since  1-3-12
-   *  @return MingoTable
-   */
-  protected function createTable($name = ''){
-    
-    $db = $this->getDb();
-    $table = parent::getTable($name);
-    
-    // get rid of the table
-    $db->killTable($table);
-  
-    $ret_bool = $db->hasTable($table);
-    $this->assertFalse($ret_bool);
-    
-    return $table;
-    
-  }//method
-  
-  /**
-   *  make sure the table exists and its structure in the db matches its MingoTable structure
-   *
-   *  @since  1-3-12  a variation of this method was called setTable()    
-   */
-  protected function assertTable(MingoTable $table){
-  
-    $db = $this->getDb();
-  
-    $this->assertTrue($db->hasTable($table));
-  
-    // make sure index exists...
-    $index_list = $db->getIndexes($table);
-    
-    $this->assertGreaterThanOrEqual(count($table->getIndexes()),count($index_list));
-    
-    return true;
-  
-  }//method
-  
-  /**
-   *  connect to the db
-   *  
-   *  @param  \MingoInterface $db
-   *  @return \MingoInterface         
-   */
-  protected function connect(MingoInterface $db){
-    
-    $config = $this->createConfig();
-    $ret_bool = $db->connect($config);
-    $this->assertTrue($ret_bool);
-
-    return $db;
-  
-  }//method
-  
-  /**
-   *  insert $count rows into the db $table
-   *
-   *  @since  1-4-12
-   *  @return array a list of _ids   
-   */
-  public function insert(MingoTable $table,$count){
-  
-    $db = $this->getDb();
-    $_id_list = array();
-  
-    for($i = 1; $i <= $count ;$i++){
-    
-      $map = array(
-        'foo' => $i
-      );
-      
-      $map = $db->set($table,$map);
-      
-      $this->assertArrayHasKey('foo',$map);
-      $this->assertArrayHasKey('_id',$map);
-      $this->assertLessThanOrEqual(24,mb_strlen($map['_id']));
-      $this->assertNotContains($map['_id'],$_id_list);
-      $_id_list[] = (string)$map['_id'];
-    
-    }//for
-    
-    return $_id_list;
-  
-  }//method
   
   /**
    *  make sure the interface can connect
@@ -808,6 +691,130 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       $this->assertContains($map['_id'],$_id_list);
     
     }//foreach
+  
+  }//method
+  
+  /**
+   *  returns a singleton connected \MingoInterface instance
+   *  
+   *  @return \MingoInterface
+   */
+  public function getDb(){
+  
+    // canary...
+    if(self::$db !== null){ return self::$db; }//if
+  
+    self::$db = $this->createInterface();
+    self::$db = $this->connect(self::$db);
+    
+    return self::$db;
+  
+  }//method
+  
+  /**
+   *  get a table and make sure it also exists in the db
+   *  
+   *  @return MingoTable
+   */
+  protected function getTable($name = ''){
+    
+    $table = $this->createTable($name);
+    $db = $this->getDb();
+    
+    $db->setTable($table);
+    $this->assertTable($table);
+    
+    return $table;
+    
+  }//method
+  
+  /**
+   *  get a fresh table that hasn't been created in the db yet
+   *
+   *  this will remove the table from the db to make sure it really isn't in the db
+   *      
+   *  @since  1-3-12
+   *  @return MingoTable
+   */
+  protected function createTable($name = ''){
+    
+    $db = $this->getDb();
+    $table = parent::getTable($name);
+    
+    // get rid of the table
+    $db->killTable($table);
+  
+    $ret_bool = $db->hasTable($table);
+    $this->assertFalse($ret_bool);
+    
+    return $table;
+    
+  }//method
+  
+  /**
+   *  connect to the db
+   *  
+   *  @param  \MingoInterface $db
+   *  @return \MingoInterface         
+   */
+  protected function connect(MingoInterface $db){
+    
+    $config = $this->createConfig();
+    $ret_bool = $db->connect($config);
+    $this->assertTrue($ret_bool);
+
+    return $db;
+  
+  }//method
+  
+  /**
+   *  insert $count rows into the db $table
+   *
+   *  @since  1-4-12
+   *  @return array a list of _ids   
+   */
+  public function insert(MingoTable $table,$count){
+  
+    $db = $this->getDb();
+    $_id_list = array();
+  
+    for($i = 1; $i <= $count ;$i++){
+    
+      $map = array(
+        'foo' => $i
+      );
+      
+      $map = $db->set($table,$map);
+      
+      $this->assertArrayHasKey('foo',$map);
+      $this->assertArrayHasKey('_id',$map);
+      $this->assertLessThanOrEqual(24,mb_strlen($map['_id']));
+      $this->assertNotContains($map['_id'],$_id_list);
+      $_id_list[] = (string)$map['_id'];
+    
+    }//for
+    
+    return $_id_list;
+  
+  }//method
+  
+  /**
+   *  make sure the table exists and its structure in the db matches its MingoTable structure
+   *
+   *  @since  1-3-12  a variation of this method was called setTable()    
+   */
+  protected function assertTable(MingoTable $table){
+  
+    $db = $this->getDb();
+  
+    $this->assertTrue($db->hasTable($table));
+  
+    // make sure index exists...
+    $index_list = $db->getIndexes($table);
+    
+    $this->assertGreaterThanOrEqual(count($table->getIndexes()),count($index_list));
+    
+    return true;
   
   }//method
   
