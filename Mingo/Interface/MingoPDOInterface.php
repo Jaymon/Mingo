@@ -487,14 +487,15 @@ abstract class MingoPDOInterface extends MingoInterface {
    *  this function puts all the different parts together
    *      
    *  @param  string  $table  the table
-   *  @param  array $sql_map  can have a number of keys:
+   *  @param  array $sql_map  usually an array returned from {@link normalizeCriteria()}, can have keys:
+   *                            'table_str' - REQUIRED - the table to select from
    *                            'select_str' - string - the fields to select from (usually * or count(*), or _id)
    *                            'where_str' - string - the where part of the string (starts with WHERE ...)
    *                            'sort_str' - string - the sort part of the string (ORDER BY ...)
    *                            'limit_str' - string - the limit part of the string (LIMIT n OFFSET n)   
    *  @return string  the built query
    */
-  protected function getSelectQuery($table,array $sql_map){
+  protected function getSelectQuery(array $sql_map){
   
     $query = 'SELECT';
     $printf_vars = array();
@@ -513,7 +514,7 @@ abstract class MingoPDOInterface extends MingoInterface {
     }//if/else
     
     $query .= ' FROM %s';
-    $printf_vars[] = $this->normalizeTableSql($table);
+    $printf_vars[] = $sql_map['table_str'];
     
     if(!empty($sql_map['where_str'])){
     

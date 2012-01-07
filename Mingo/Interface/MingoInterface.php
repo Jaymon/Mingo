@@ -378,7 +378,7 @@ abstract class MingoInterface extends MingoMagic {
    *  @return array the $map that was just saved with _id set   
    */
   public function set(MingoTable $table,array $map){
-  
+
     // canary...
     $this->assure($table);
     if(empty($map)){ throw new InvalidArgumentException('no point in setting an empty $map'); }//if

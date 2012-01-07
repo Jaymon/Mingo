@@ -34,7 +34,21 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    */
   protected function _getCount($table,$where_criteria){
 
-  
+    $ret_int = 0;
+    
+    $where_criteria['select_str'] = sprintf(
+      'count(*) as %s',
+      $this->normalizeNameSQL('ct')
+    );
+    
+    $result = $this->getQuery(
+      $this->getSelectQuery($where_criteria),
+      $where_criteria['where_params']
+    );
+    
+    $ret_int = (int)reset($result);
+    return $ret_int;
+    
   }//method
   
   /**
@@ -47,103 +61,78 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
   protected function _get($table,$where_criteria){
 
     $ret_list = array();
-    $_id_list = array();
+    $query_main_table = true;
+    // used to correct order on the main table when selecting from index table
+    // the key is the _rowid and the value is the index position the map with _rowid 
+    // has in the final list
     $order_map = array();
-    $list = array();
     
-    if(empty($where_criteria['_id_list'])){
+    // we need to query on the index table before querying on the main table
+    if(!empty($where_criteria['is_index'])){
     
-      $query_map = $where_criteria['query_map'];
-      $query = $this->getSelectQuery($where_criteria['table'],$query_map);
+      $_rowid_list = $this->getQuery(
+        $this->getSelectQuery($where_criteria),
+        $where_criteria['where_params']
+      );
+    
+      if(empty($_rowid_list)){
       
-      if(empty($where_criteria['is_index'])){
-        
-        $list = $this->getQuery($query,$where_criteria['val_list']);
+        $query_main_table = false;
       
       }else{
       
-        $stmt_handler = $this->getStatement($query,$where_criteria['val_list']);
-        $_id_list = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
-        
-        if(!empty($_id_list)){
-          $order_map = array_flip($_id_list);
-        }//if
-
+        if(!empty($_rowid_list)){ $order_map = array_flip($_rowid_list); }//if
+      
+        // rebuild the criteria to select on the main table
+        $criteria = new MingoCriteria();
+        $criteria->in_rowid($_rowid_list);
+        $where_criteria = $this->normalizeCriteria($table,$criteria);
+      
       }//if/else
-      
-    }else{
     
-      $_id_list = $where_criteria['_id_list'];
-    
-    }//if/else
-    
-    if(!empty($_id_list)){
-      
-      $query = $this->getSelectQuery(
-        $table,
-        array(
-          'select' => '*',
-          'where' => sprintf('WHERE _id IN (%s)',join(',',array_fill(0,count($_id_list),'?')))
-        )
-      );
-      
-      $list = $this->getQuery($query,$_id_list);
-      
     }//if
-    
-    if(!empty($list)){
-    
-      // sort the list if an order map was set, this is done because the rows
-      // returned from the main table are not guarranteed to be in the same order
-      // that the index table returned (I'm looking at you MySQL)...
-      if(!empty($order_map)){
-        $ret_list = array_fill(0,count($list),null);
-      }//if
 
-      foreach($list as $key => $map){
-      
-        $ret_map = $this->getMap($map['body']);
-        $ret_map['_id'] = $map['_id'];
-        $ret_map['_rowid'] = (int)$map['_rowid'];
-        $ret_map['_created'] = (int)$map['_created'];
+    if($query_main_table){
+    
+      // query the main table
+      $list = $this->getQuery(
+        $this->getSelectQuery($where_criteria),
+        $where_criteria['where_params']
+      );
+    
+      if(!empty($list)){
+    
+        // sort the list if an order map was set, this is done because the rows
+        // returned from the main table are not guaranteed to be in the same order
+        // that the index table returned them (I'm looking at you MySQL)...
+        if(!empty($order_map)){
+          $ret_list = array_fill(0,count($list),null);
+        }//if
+  
+        // build the final list
+        foreach($list as $key => $map){
         
-        // put the ret_map in the right place...
-        if(isset($order_map[$map['_id']])){
-        
-          $ret_list[$order_map[$map['_id']]] = $ret_map;
-          unset($order_map[$map['_id']]);
-        
-        }else{
-        
-          $ret_list[$key] = $ret_map;
-        
-        }//if/else
-      
-      }//foreach
-      
-      // do some self correcting if there were rows in the index tables not in the main table
-      // I'm not entirely sure how this happens, but it has cropped up, plus, if a user
-      // manually deletes a row from the main table, we want to eventually sync the index
-      // tables again...
-      if(!empty($order_map)){
-      
-        $dead_id_list = array();
-      
-        foreach($order_map as $dead_id => $dead_index){
-        
-          $dead_id_list[] = $dead_id;
-          unset($ret_list[$dead_index]);
+          $ret_map = $this->getMap($map['body']);
+          foreach($this->non_body_fields as $field){
+          
+            if(isset($map[$field])){ $ret_map[$field] = $map[$field]; }//if
+          
+          }//foreach
+          
+          // put the ret_map in the right place...
+          if(isset($order_map[$map['_rowid']])){
+          
+            $ret_list[$order_map[$map['_rowid']]] = $ret_map;
+            unset($order_map[$map['_rowid']]);
+          
+          }else{
+          
+            $ret_list[$key] = $ret_map;
+          
+          }//if/else
         
         }//foreach
-      
-        // quick check to make sure we don't try and delete a whole table...
-        if(!empty($dead_id_list)){
-          $this->killIndexes($table,$dead_id_list);
-        }//if
-      
-        // reset keys...
-        $ret_list = array_values($ret_list);
-      
+        
       }//if
     
     }//if
@@ -359,6 +348,57 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    */
   protected function update($table,$_id,array $map){
 
+    $db = $this->getDb();
+    \out::e($map);
+
+    try{
+    
+      $query = sprintf(
+        'UPDATE %s SET %s=?,%s=? WHERE %s=?',
+        $this->normalizeTableSQL($table),
+        $this->normalizeNameSQL('body'),
+        $this->normalizeNameSQL('_updated'),
+        $this->normalizeNameSQL('_id')
+      );
+    
+      $val_list = array(
+        $this->getBody($map),
+        (int)$map['_updated'],
+        $_id
+      );
+    
+      // begin the insert transaction...
+      $db->beginTransaction();
+      
+      $ret_bool = $this->getQuery($query,$val_list);
+      
+      \out::e($db->lastInsertId());
+      
+      if($ret_bool){
+        
+        // we need to update all the index tables, and it's easier to delete and re-add...
+        if($table->hasIndexes()){
+        
+          $this->killIndexes($table,$map['_rowid']);
+          $this->insertIndexes($table,$map);
+        
+        }//if
+      
+      }//if
+      
+      // finish the insert transaction...
+      $db->commit();
+      
+    }catch(Exception $e){
+    
+       // get rid of any changes that were made since we failed...
+      $db->rollback();
+      throw $e;
+    
+    }//try/catch
+    
+    return $map;
+
 
   }//method
   
@@ -472,6 +512,43 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
   
   }//method
   
+   /**
+   *  removes all the indexes for a given $_id
+   *  
+   *  this is called after updating the value and before calling {@link setIndexes()}
+   *
+   *  @param  MingoTable  $table
+   *  @param  string|array  $_rowid  either one _rowid or many in an array
+   *  @return boolean
+   */
+  protected function killIndexes(MingoTable $table,$_rowid){
+  
+    $ret_bool = false;
+    $_rowid = (array)$_rowid;
+    $_rowid_bind_list = join(',',array_fill(0,count($_rowid),'?'));
+  
+    foreach($table->getIndexes() as $index){
+      
+      $index_table = $this->findIndexTableName($table,$index);
+      if(!empty($index_table)){
+      
+        $query = sprintf(
+          'DELETE FROM %s WHERE %s IN (%s)',
+          $this->normalizeTableSQL($index_table),
+          $this->normalizeNameSQL('_rowid'),
+          $_rowid_bind_list
+        );
+        
+        $ret_bool = $this->getQuery($query,$_rowid);
+  
+      }//if
+      
+    }//foreach
+  
+    return $ret_bool;
+  
+  }//method
+  
   /**
    *  @see  killTable()
    *  
@@ -561,71 +638,30 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
   
     $ret_map = parent::normalizeCriteria($table,$where_criteria);
   
-    $check_index_tables = false;
-    if($where_criteria !== null){
-    
-      $check_index_tables = ($where_criteria->hasWhere() || $where_criteria->hasSort());
-      
-    }//if
-  
     if(empty($where_criteria)){
     
       // we're selecting raw, so just load results with no WHERE...
       // SELECT * FROM <table>;
-      $ret_map['index_table'] = '';
+      $ret_map['is_index'] = false;
     
     }else{
-  
-      // first get the criteria info...
-      $where_map = $where_criteria->getWhere();
-      $sort_map = $where_criteria->getSort();
       
       // now, find the right index table to select from...
       $index_table = $this->findIndexTableName($table,$where_criteria);
       
       if(empty($index_table)){
         
-        $ret_map['table'] = $table->getName();
+        // since an index table couldn't be found and no exception was thrown, the
+        // criteria must be ok for selecting on the main table
         $ret_map['is_index'] = false;
-      
-        if(isset($where_map['_id']) && empty($sort_map)){
-          
-          $ret_map['_id_list'] = $val_list;
-          
-          // enforce limit on an _id_list also...
-          if(!empty($limit[0])){
-          
-            if(count($ret_map['_id_list']) > $limit[0]){
-            
-              $ret_map['_id_list'] = array_slice($ret_map['_id_list'],$limit[1],$limit[0]);
-            
-            }//if
-          
-          }//if
-          
-        }else{
-        
-          // you can directly select on the table using "_rowid" also...
-          $ret_map['query_map'] = array(
-            'select' => '*',
-            'where' => $where_query,
-            'sort' => $sort_query
-          );
-          
-          $ret_map['val_list'] = $val_list; 
-        
-        }//if/else
          
       }else{
         
-        $ret_map['table'] = $index_table;
+        // we are going to query for _rowid on the index table first, before querying
+        // select * from <table> where _rowid in (...) on the main table
+        $ret_map['table_str'] = $this->normalizeTableSQL($index_table);
+        $ret_map['select_str'] = $this->normalizeNameSQL('_rowid');
         $ret_map['is_index'] = true;
-        $ret_map['query_map'] = array(
-          'select' => 'DISTINCT _id',
-          'where' => $where_query,
-          'sort' => $sort_query
-        );
-        $ret_map['val_list'] = $val_list; 
         
       }//if/else
       

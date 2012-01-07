@@ -96,7 +96,7 @@ class MingoPostgresInterface extends MingoPDOInterface {
     $where_criteria['select_str'] = 'count(*)';
     $where_criteria['sort_str'] = '';
     $where_criteria['limit_str'] = '';
-    $select_query = $this->getSelectQuery($table,$where_criteria);
+    $select_query = $this->getSelectQuery($where_criteria);
     
     $ret_list = $this->getQuery(
       $select_query,
@@ -119,7 +119,7 @@ class MingoPostgresInterface extends MingoPDOInterface {
   protected function _get($table,$where_criteria){
 
     // what fields do we want to select
-    $select_query = $this->getSelectQuery($table,$where_criteria);
+    $select_query = $this->getSelectQuery($where_criteria);
     ///\out::e($select_query);
     
     $stmt =  $this->getstatement(
