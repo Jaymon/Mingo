@@ -23,7 +23,7 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    *
    *  @var  array   
    */
-  protected $non_body_fields = array('_id','_rowid','_created','_updated');
+  protected $non_body_fields = array('_id','_created','_updated');
   
   /**
    *  @see  getCount()
@@ -63,29 +63,29 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
     $ret_list = array();
     $query_main_table = true;
     // used to correct order on the main table when selecting from index table
-    // the key is the _rowid and the value is the index position the map with _rowid 
+    // the key is the _id and the value is the index position the map with _id 
     // has in the final list
     $order_map = array();
     
     // we need to query on the index table before querying on the main table
     if(!empty($where_criteria['is_index'])){
     
-      $_rowid_list = $this->getQuery(
-        $this->getSelectQuery($where_criteria),
-        $where_criteria['where_params']
-      );
+      $query = $this->getSelectQuery($where_criteria);
+      $_id_list = $this->getQuery($query,$where_criteria['where_params']);
     
-      if(empty($_rowid_list)){
+      ///\out::e($query,$_id_list,$where_criteria);
+    
+      if(empty($_id_list)){
       
         $query_main_table = false;
       
       }else{
       
-        if(!empty($_rowid_list)){ $order_map = array_flip($_rowid_list); }//if
+        if(!empty($_id_list)){ $order_map = array_flip($_id_list); }//if
       
         // rebuild the criteria to select on the main table
         $criteria = new MingoCriteria();
-        $criteria->in_rowid($_rowid_list);
+        $criteria->in_id($_id_list);
         $where_criteria = $this->normalizeCriteria($table,$criteria);
       
       }//if/else
@@ -120,10 +120,10 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
           }//foreach
           
           // put the ret_map in the right place...
-          if(isset($order_map[$map['_rowid']])){
+          if(isset($order_map[$map['_id']])){
           
-            $ret_list[$order_map[$map['_rowid']]] = $ret_map;
-            unset($order_map[$map['_rowid']]);
+            $ret_list[$order_map[$map['_id']]] = $ret_map;
+            unset($order_map[$map['_id']]);
           
           }else{
           
@@ -149,6 +149,33 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    */
   protected function _kill($table,$where_criteria){
 
+    // build delete query...
+    $query = sprintf('DELETE FROM %s',$where_criteria['table_str']);
+    if(!empty($where_criteria['where_str'])){ $query .= ' '.$where_criteria['where_str']; }//if
+    if(!empty($where_criteria['limit_str'])){ $query .= ' '.$where_criteria['limit_str']; }//if
+    
+    $ret_bool = $this->getQuery(
+      $query,
+      $where_criteria['where_params']
+    );
+  
+    return $ret_bool;
+  
+  }//method
+  
+  /**
+   *  gets the last insert id of the $table's auto increment key 
+   *
+   *  this is here because postgres has to be different
+   *      
+   *  @since  1-9-12   
+   *  @param  \MingoTable $table
+   *  @return integer   
+   */
+  protected function getInsertId(MingoTable $table){
+  
+    $db = $this->getDb();
+    return $db->lastInsertId();
   
   }//method
   
@@ -166,7 +193,6 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
     
     // build the field map that will be used to insert into the main table
     $field_map = array();
-    $field_map['_id'] = $this->getUniqueId($table);
     $field_map['body'] = $this->getBody($map);
     
     foreach($this->non_body_fields as $field){
@@ -181,8 +207,9 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
     }//foreach
     
     // insert the saved map into the table...
-    $field_name_str = join(',',array_map(array($this,'normalizeNameSQL'),array_keys($field_map)));
-    $field_val_str = join(',',array_fill(0,count($field_map),'?'));
+    $fields = array_keys($field_map);
+    $field_name_str = join(',',array_map(array($this,'normalizeNameSQL'),$fields));
+    $field_val_str = join(',:',$fields);
 
     try{
 
@@ -190,24 +217,22 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
       $db->beginTransaction();
    
       $query = sprintf(
-        'INSERT INTO %s (%s) VALUES (%s)',
+        'INSERT INTO %s (%s) VALUES (:%s)',
         $this->normalizeTableSQL($table),
         $field_name_str,
         $field_val_str
       );
       
-      $val_list = array_values($field_map);
-      
-      $ret_bool = $this->getQuery($query,$val_list);
+      $ret_bool = $this->getQuery($query,$field_map);
       if($ret_bool){
    
         // get the row id...
-        $map['_rowid'] = $db->lastInsertId();
+        $map['_id'] = $this->getInsertId($table);
 
         // we need to add to all the index tables...
         if($table->hasIndexes()){
         
-          $this->insertIndexes($table,$map);
+          $this->insertIndexes($table,$map['_id'],$map);
         
         }//if
         
@@ -239,17 +264,18 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    *  update the index tables with the new values
    *  
    *  @param  MingoTable  $table
+   *  @param  integer $_id  the unique id
    *  @param  array $map  the key/value pairs found in $table's body field
    *  @return boolean
    */
-  protected function insertIndexes(MingoTable $table,array $map){
+  protected function insertIndexes(MingoTable $table,$_id,array $map){
     
     $ret_bool = false;
     
     foreach($table->getIndexes() as $index){
     
       $index = $this->normalizeIndex($table,$index);
-      $ret_bool = $this->insertIndex($table,$map,$index);
+      $ret_bool = $this->insertIndex($table,$_id,$map,$index);
       
     }//foreach
     
@@ -260,17 +286,17 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
   /**
    *  insert into an index table
    *  
-   *  @see  recursiveInsertIndex()   
    *  @param  \MingoTable $table  the master table, not the index table
+   *  @param  integer $_id  the unique id   
    *  @param  array $map  the key/value pairs found in $table's body field
    *  @param  \MingoIndex $index  the index
    *  @return boolean
    */
-  protected function insertIndex(MingoTable $table,array $map,MingoIndex $index){
+  protected function insertIndex(MingoTable $table,$_id,array $map,MingoIndex $index){
     
     // canary
-    if(!isset($map['_rowid'])){
-      throw new InvalidArgumentException('$map did not contain _rowid key');
+    if(empty($_id)){
+      throw new InvalidArgumentException('empty _id key');
     }//if
     
     $ret_bool = false;
@@ -301,8 +327,8 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
     if(!empty($field_name_list)){
     
       list($sql_name,$sql_val,$sql_bind) = $this->normalizeInsertSql(
-        $table->getField('_rowid'),
-        $map['_rowid']
+        $table->getField('_id'),
+        $_id
       );
       $field_name_list[] = $sql_name;
       $val_list[] = $sql_val;
@@ -349,7 +375,6 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
   protected function update($table,$_id,array $map){
 
     $db = $this->getDb();
-    \out::e($map);
 
     try{
     
@@ -371,16 +396,14 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
       $db->beginTransaction();
       
       $ret_bool = $this->getQuery($query,$val_list);
-      
-      \out::e($db->lastInsertId());
-      
+
       if($ret_bool){
         
         // we need to update all the index tables, and it's easier to delete and re-add...
         if($table->hasIndexes()){
         
-          $this->killIndexes($table,$map['_rowid']);
-          $this->insertIndexes($table,$map);
+          $this->killIndexes($table,$_id);
+          $this->insertIndexes($table,$_id,$map);
         
         }//if
       
@@ -483,13 +506,10 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    */
   protected function populateIndex($table,MingoIndex $index){
   
-    \out::e('tbi');
-    return false;
-  
     $ret_bool = false;
     $where_criteria = new MingoCriteria();
     
-    $limit = 100;
+    $limit = 500;
     $offset = 0;
     $where_criteria->setLimit($limit);
     $where_criteria->setOffset($offset);
@@ -518,28 +538,29 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    *  this is called after updating the value and before calling {@link setIndexes()}
    *
    *  @param  MingoTable  $table
-   *  @param  string|array  $_rowid  either one _rowid or many in an array
+   *  @param  string|array  $_id  either one id or many in an array
    *  @return boolean
    */
-  protected function killIndexes(MingoTable $table,$_rowid){
+  protected function killIndexes(MingoTable $table,$_id){
   
     $ret_bool = false;
-    $_rowid = (array)$_rowid;
-    $_rowid_bind_list = join(',',array_fill(0,count($_rowid),'?'));
+    $_id = (array)$_id;
+    $_id_bind_list = join(',',array_fill(0,count($_id),'?'));
   
     foreach($table->getIndexes() as $index){
       
-      $index_table = $this->findIndexTableName($table,$index);
+      $index = $this->normalizeIndex($table,$index);
+      $index_table = $this->getIndexTableName($table,$index);
       if(!empty($index_table)){
       
         $query = sprintf(
           'DELETE FROM %s WHERE %s IN (%s)',
           $this->normalizeTableSQL($index_table),
-          $this->normalizeNameSQL('_rowid'),
-          $_rowid_bind_list
+          $this->normalizeNameSQL('_id'),
+          $_id_bind_list
         );
         
-        $ret_bool = $this->getQuery($query,$_rowid);
+        $ret_bool = $this->getQuery($query,$_id);
   
       }//if
       
@@ -657,10 +678,10 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
          
       }else{
         
-        // we are going to query for _rowid on the index table first, before querying
-        // select * from <table> where _rowid in (...) on the main table
+        // we are going to query for _id on the index table first, before querying
+        // select * from <table> where _id in (...) on the main table
         $ret_map['table_str'] = $this->normalizeTableSQL($index_table);
-        $ret_map['select_str'] = $this->normalizeNameSQL('_rowid');
+        $ret_map['select_str'] = $this->normalizeNameSQL('_id');
         $ret_map['is_index'] = true;
         
       }//if/else
@@ -680,8 +701,10 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    */
   protected function findIndexTableName(MingoTable $table,MingoCriteria $where_criteria){
   
-    $ret_str = '';
+    if(!$where_criteria->hasWhere() && !$where_criteria->hasSort()){ return ''; }//if
   
+    $ret_str = '';
+    $is_match = false;
     $where_map = $where_criteria->getWhere();
     $sort_map = $where_criteria->getSort();
     
@@ -695,12 +718,11 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
       $field_list = array_unique(array_merge($field_list,array_keys($sort_map)));
     
     }//if
-    
+
     // now go through the index and see if it matches all the fields...
     foreach($table->getIndexes() as $index){
-    
+
       $field_i = 0;
-      $is_match = false;
     
       foreach($index->getFieldNames() as $field){
         
@@ -721,60 +743,62 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
         }//if/else
       
       }//foreach
-      
+
       if($is_match){
       
         // we're done, we found a match...
         $ret_str = $this->getIndexTableName($table,$index);
         break;
         
-      }else{
-      
-        // since we couldn't find an index table, make sure the query can be valid
-        // on the main table
-        
-        // we are selecting on the main table (no index is being used) so we can only
-        // select or sort on 4 fields (by default): _id, _rowid, _created, and _updated
-        
-        foreach($field_list as $field){
-        
-          // if a field in the where map is not in the main table we've got trouble
-          // since an index table couldn't be found
-          if(!in_array($field,$this->non_body_fields)){
-            
-            $e_msg = sprintf(
-              'Could not match fields: [%s] sorted by fields: [%s] with an index table.',
-              join(',',array_keys($where_map)),
-              join(',',array_keys($sort_map))
-            );
-          
-            // list the available index tables if we are in debug mode...
-            if($this->hasDebug()){
-            
-              $e_msg .= ' Indexes available: ';
-            
-              $index_list = $this->getIndexes($table);
-              $e_index_list = array();
-              
-              foreach($index_list as $index){
-              
-                $e_index_list = sprintf('[%s]',join(',',array_keys($index->getFieldNames())));
-              
-              }//foreach
-            
-              $e_msg .= join(', ',$e_index_list);
-            
-            }//if
-          
-            throw new RuntimeException($e_msg);
-            
-          }//if
-        
-        }//foreach
-      
-      }//if/else
+      }//if
       
     }//foreach
+    
+    if(!$is_match){
+      
+      // since we couldn't find an index table, make sure the query can be valid
+      // on the main table
+      
+      // we are selecting on the main table (no index is being used) so we can only
+      // select or sort on 4 fields (by default): _id, _created, and _updated
+      
+      foreach($field_list as $field){
+      
+        // if a field in the where map is not in the main table we've got trouble
+        // since an index table couldn't be found
+        if(!in_array($field,$this->non_body_fields)){
+          
+          $e_msg = sprintf(
+            'Could not match fields: [%s] sorted by fields: [%s] with an index table.',
+            join(',',array_keys($where_map)),
+            join(',',array_keys($sort_map))
+          );
+        
+          // list the available index tables if we are in debug mode...
+          if($this->hasDebug()){
+          
+            $e_msg .= ' Indexes available: ';
+          
+            $index_list = $this->getIndexes($table);
+            $e_index_list = array();
+            
+            foreach($index_list as $index){
+            
+              $e_index_list[] = sprintf('%s(%s)',$index->getName(),join(',',$index->getFieldNames()));
+            
+            }//foreach
+          
+            $e_msg .= join(', ',$e_index_list);
+          
+          }//if
+        
+          throw new RuntimeException($e_msg);
+          
+        }//if
+      
+      }//foreach
+    
+    }//if/else
     
     return $ret_str;
     

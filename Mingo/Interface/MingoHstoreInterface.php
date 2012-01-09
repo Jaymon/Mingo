@@ -3,6 +3,10 @@
 /**
  *  handle Postgres connection using hstore
  *  
+ *  Postgres Hstore is great, incredibly fast (at least for the datasets I've tried)
+ *  but doesn't work well when you, ya know, want to sort the data (if it isn't a
+ *  string)  
+ *  
  *  @todo sorting numberic values (except __rowid) doesn't work
  *  
  *  a query like:
@@ -27,7 +31,7 @@
  *  @since 12-31-2011
  *  @package mingo
  ******************************************************************************/
-class MingoPostgresInterface extends MingoPDOInterface {
+class MingoHstoreInterface extends MingoPDOInterface {
   
   /**
    *  get the dsn connection string that PDO will use to connect to the backend

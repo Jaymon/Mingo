@@ -71,8 +71,7 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
   
     $query = sprintf(
       'CREATE TABLE %s (
-        _rowid INTEGER NOT NULL PRIMARY KEY ASC,
-        _id VARCHAR(24) UNIQUE COLLATE NOCASE NOT NULL,
+        _id INTEGER NOT NULL PRIMARY KEY ASC,
         _created INTEGER NOT NULL,
         _updated INTEGER NOT NULL,
         body BLOB
@@ -140,15 +139,15 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
     }//foreach
 
     // this will be the foreign key to the main blob table
-    $format_query[] = '_rowid INTEGER UNIQUE NOT NULL,';
+    $format_query[] = '_id INTEGER UNIQUE NOT NULL,';
     
     // primary key is all the fields in the index + foreign key
-    $format_query[] = 'PRIMARY KEY (%s,_rowid),';
+    $format_query[] = 'PRIMARY KEY (%s,_id),';
     $format_vars[] = join(',',$field_list);
     
     // _rowid will be our binding to the master table
     // http://www.sqlite.org/foreignkeys.html
-    $format_query[] = 'FOREIGN KEY(_rowid) REFERENCES %s(_rowid)';
+    $format_query[] = 'FOREIGN KEY(_id) REFERENCES %s(_id) ON DELETE CASCADE';
     $format_vars[] = $this->normalizeTableSQL($table);
     
     $format_query[] = ')';
@@ -248,7 +247,8 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
     //  create index [if not exists] name ON table_name (col_one[,col...])
     
     $query = sprintf(
-      'CREATE INDEX IF NOT EXISTS %s ON %s (%s)',
+      'CREATE INDEX IF NOT EXISTS %s_%s ON %s (%s)',
+      $table,
       $index->getName(),
       $this->normalizeTableSQL($table),
       join(',',$index->getFieldNames())

@@ -15,12 +15,9 @@
  *      the abstract signature exactly 
  *    - there are certain reserved fields any implementation will have to deal with:
  *      - _id = the unique id assigned to a newly inserted row, this is a 1-24 character
- *              randomly created string, if you don't want to make your own, and there
- *              isn't an included one (like mongo) then you can use {@link getUniqueId()}
- *              defined in this class
- *      - _rowid = this is an auto increment row, ie, the row number. This technically only
- *                 needs to be generated when the backend supports it and is set up (eg, mongo 
- *                 ignores it, mysql and sqlite set it) 
+ *              randomly created string or auto increment integer, if you don't want 
+ *              to make your own, and there isn't an included one (like mongo) then 
+ *              you can use {@link getUniqueId()} defined in this class
  *  
  *  @link http://www.php.net/manual/en/language.oop5.abstract.php    
  *

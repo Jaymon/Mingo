@@ -10,9 +10,9 @@
  ******************************************************************************/
 require_once('MingoInterfaceTest.php');
 
-class MingoPostgresInterfaceTest extends MingoInterfaceTest {
+class MingoHstoreInterfaceTest extends MingoInterfaceTest {
   
-  public function createInterface(){ return new MingoPostgresInterface(); }//method
+  public function createInterface(){ return new MingoHstoreInterface(); }//method
   
   public function createConfig(){
   

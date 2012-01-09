@@ -9,7 +9,6 @@
  *  @subpackage test
  ******************************************************************************/
 require_once('MingoRDBMSInterfaceTest.php');
-require_once('/vagrant/out_class.php');
 
 class MingoSQLiteInterfaceTest extends MingoRDBMSInterfaceTest {
 

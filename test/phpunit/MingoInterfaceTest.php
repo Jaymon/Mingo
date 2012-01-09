@@ -268,7 +268,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       $this->assertArrayHasKey('_id',$map);
       $this->assertArrayHasKey('bar',$map);
       // for some reason, casting the 'bar' to a double didn't work to make the types match
-      $this->assertEquals((string)$time,$map['bar']);
+      $this->assertEquals((string)$time,(string)$map['bar']);
     
     }//foreach
     
@@ -492,7 +492,6 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $where_criteria->descFoo();
     
     $list = $db->get($table,$where_criteria);
-    out::e($list);
     $this->assertEquals($count,count($list));
     $this->assertSubset($list,$_id_list);
     
@@ -524,14 +523,15 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $table->setField('url',MingoField::TYPE_STR);
     
     // set defaults like the MingoOrm getTable() would...
-    $table->setField(MingoOrm::_ROWID,MingoField::TYPE_INT);
     $table->setField(MingoOrm::_CREATED,MingoField::TYPE_INT);
     $table->setField(MingoOrm::_UPDATED,MingoField::TYPE_INT);
     
-    $table->setIndex(MingoOrm::_CREATED);
-    $table->setIndex('url','userId');
-    $table->setIndex('userId', MingoOrm::_ROWID);
-    $this->setTable($table);
+    $table->setIndex('created_index',array(MingoOrm::_CREATED));
+    $table->setIndex('url_and_user',array('url','userId'));
+    $table->setIndex('user_and_created',array('userId',MingoOrm::_CREATED));
+    
+    $db->setTable($table);
+    $this->assertTable($table);
     
     // add some rows...
     for($i = 0; $i < $row_count ;$i++){
@@ -543,9 +543,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       
       $map = $db->set($table,$map);
       $this->assertArrayHasKey('_id',$map);
-      
-      ///out::e($map);
-    
+
     }//for
   
     // test sort...
@@ -553,23 +551,23 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       
       $where_criteria = new MingoCriteria();
       $where_criteria->setUserId($user_id);
-      $where_criteria->desc_RowId();
+      $where_criteria->desc_created();
       
       ///out::i($where_criteria);
       
       $list = $db->get($table,$where_criteria);
       
-      $last_row_id = null;
+      $last_id = null;
       foreach($list as $map){
       
         $this->assertSame($user_id,$map['userid']);
-        if($last_row_id !== null){
+        if($last_id !== null){
         
-          $this->assertLessThan($last_row_id,(int)$map['_rowid']);
+          $this->assertLessThan($last_id,(int)$map['_id']);
         
         }//if/else
         
-        $last_row_id = (int)$map['_rowid'];
+        $last_id = (int)$map['_id'];
       
       }//foreach
       
@@ -597,8 +595,8 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $table = $this->getTable(__FUNCTION__);
   
     // create 2 similar indexes...
-    $table->setIndex('foo','bar');
-    $table->setIndex('foo','che');
+    $table->setIndex('foo_and_bar',array('foo','bar'));
+    $table->setIndex('foo_and_che',array('foo','che'));
   
     // now try and query the second index...
     $where_criteria = new MingoCriteria();
