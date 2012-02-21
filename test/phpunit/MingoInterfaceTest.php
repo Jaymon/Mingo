@@ -61,7 +61,32 @@ abstract class MingoInterfaceTest extends MingoTestBase {
    */
   public function testSetTable(){
   
-    $this->getTable(__FUNCTION__);
+    $table = $this->getTable(__FUNCTION__);
+  
+  }//method
+  
+  /**
+   *  make sure you can get tables
+   *
+   *  @since  1-12-12   
+   */
+  public function testGetTables(){
+  
+    $t1_name = sprintf('%s1',__FUNCTION__);
+    $t1 = $this->getTable($t1_name);
+  
+    $t2_name = sprintf('%s2',__FUNCTION__);
+    $t2 = $this->getTable($t2_name);
+  
+    $db = $this->getDb();
+    $table_list = $db->getTables();
+    $this->assertGreaterThanOrEqual(2,count($table_list));
+  
+    $table_list = $db->getTables($t1);
+    $this->assertCount(1,$table_list);
+  
+    $table_list = $db->getTables($t2);
+    $this->assertCount(1,$table_list);
   
   }//method
   
@@ -246,7 +271,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $table = $this->getTable(__FUNCTION__);
     $_id_list = $this->insert($table,$limit);
     $time = microtime(true);
-  
+
     foreach($_id_list as $_id){
     
       $map = array(
@@ -300,6 +325,61 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   }//method
   
   /**
+   *  make sure you can do an arbitrary where criteria and have it delete all the rows
+   *   
+   *  @since  1-11-12
+   */        
+  public function testKillCriteria(){
+  
+    $db = $this->getDb();
+    
+    $table = $this->getTable();
+    $timestamp = time();
+    $foo_list = array();
+
+    foreach(array(1,2) as $foo){
+  
+      $foo_list[$foo] = array();
+  
+      for($i = 0; $i < 10 ;$i++){
+      
+        $timestamp += 1;
+      
+        $map = array();
+        $map['foo'] = $foo;
+        $map['bar'] = $timestamp;
+        $map = $db->set($table,$map);
+      
+        $foo_list[$foo] = $map['_id'];
+      
+      }//for
+      
+    }//foreach
+    
+    foreach($foo_list as $foo => $_id_list){
+      
+      // kill all the rows with the given foo...
+      $where_criteria = new MingoCriteria();
+      $where_criteria->isFoo($foo);
+      
+      $ret_bool = $db->kill($table,$where_criteria);
+      $this->assertTrue($ret_bool);
+    
+      // see if there are any foo=1 rows left (hint, there shouldn't be)
+      $list = $db->get($table,$where_criteria);
+      $this->assertEmpty($list);
+      
+      // now make sure they are gone via _id check
+      $where_criteria = new MingoCriteria();
+      $where_criteria->in_id($_id_list);
+      $list = $db->get($table,$where_criteria);
+      $this->assertEmpty($list);
+      
+    }//foreach
+  
+  }//method
+  
+  /**
    *  load up the table with 2000 rows, and then delete them
    *   
    *  @since  12-19-10
@@ -310,7 +390,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     ///$db->setDebug(false);
     
     $table = $this->getTable();
-    $foo = 'foo';
+    $foo = 43;
     $timestamp = time();
 
     for($i = 0; $i < 2000 ;$i++){
@@ -342,7 +422,7 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   
     $db = $this->getDb();
     $table = $this->getTable();
-    $foo = 'foo2';
+    $foo = 44;
     $timestamp = time();
   
     // now let's make sure _id deletion works also...
@@ -526,12 +606,11 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     $table->setField(MingoOrm::_CREATED,MingoField::TYPE_INT);
     $table->setField(MingoOrm::_UPDATED,MingoField::TYPE_INT);
     
-    $table->setIndex('created_index',array(MingoOrm::_CREATED));
+    ///$table->setIndex('created_index',array(MingoOrm::_CREATED));
     $table->setIndex('url_and_user',array('url','userId'));
     $table->setIndex('user_and_created',array('userId',MingoOrm::_CREATED));
     
-    $db->setTable($table);
-    $this->assertTable($table);
+    $this->setTable($table);
     
     // add some rows...
     for($i = 0; $i < $row_count ;$i++){
@@ -552,22 +631,15 @@ abstract class MingoInterfaceTest extends MingoTestBase {
       $where_criteria = new MingoCriteria();
       $where_criteria->setUserId($user_id);
       $where_criteria->desc_created();
-      
-      ///out::i($where_criteria);
-      
+
       $list = $db->get($table,$where_criteria);
       
-      $last_id = null;
+      $last_created = time() + 500;
       foreach($list as $map){
       
         $this->assertSame($user_id,$map['userid']);
-        if($last_id !== null){
-        
-          $this->assertLessThan($last_id,(int)$map['_id']);
-        
-        }//if/else
-        
-        $last_id = (int)$map['_id'];
+        $this->assertLessThanOrEqual($last_created,(int)$map['_created']);
+        $last_created = (int)$map['_created'];
       
       }//foreach
       
@@ -592,11 +664,19 @@ abstract class MingoInterfaceTest extends MingoTestBase {
   public function testSimilarIndexes(){
   
     $db = $this->getDb();
-    $table = $this->getTable(__FUNCTION__);
-  
+    
+    // create a more advanced table...
+    $table = new MingoTable(__FUNCTION__);
+    $table->setField('foo',MingoField::TYPE_STR);
+    $table->setField('bar',MingoField::TYPE_STR);
+    $table->setField('che',MingoField::TYPE_STR);
+    
     // create 2 similar indexes...
     $table->setIndex('foo_and_bar',array('foo','bar'));
     $table->setIndex('foo_and_che',array('foo','che'));
+  
+    // make sure the table exists in the db
+    $this->setTable($table);
   
     // now try and query the second index...
     $where_criteria = new MingoCriteria();
@@ -747,6 +827,22 @@ abstract class MingoInterfaceTest extends MingoTestBase {
     
     return $table;
     
+  }//method
+  
+  /**
+   *  @since  1-10-12
+   */
+  protected function setTable(MingoTable $table){
+  
+    $db = $this->getDb();
+  
+    // get rid of the table and then re-add it
+    $db->killTable($table);
+    $db->setTable($table);
+    $this->assertTable($table);
+    
+    return $table;
+  
   }//method
   
   /**

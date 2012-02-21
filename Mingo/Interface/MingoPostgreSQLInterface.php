@@ -3,6 +3,8 @@
 /**
  *  handle relational db abstraction for mingo for Postgres
  *  
+ *  @link http://www.petefreitag.com/cheatsheets/postgresql/
+ *    
  *  @version 0.1
  *  @author Jay Marcyes
  *  @since 1-7-12
@@ -23,99 +25,6 @@ class MingoPostgreSQLInterface extends MingoRDBMSInterface {
   
     $db = $this->getDb();
     return $db->lastInsertId($table.'__id_seq');
-  
-  }//method
-  
-  /**
-   *  return true if a string is binary
-   *   
-   *  this method is a cross between http://bytes.com/topic/php/answers/432633-how-tell-if-file-binary
-   *  and this: http://groups.google.co.uk/group/comp.lang.php/msg/144637f2a611020c?dmode=source
-   *  but I'm still not completely satisfied that it is 100% accurate, though it seems to be
-   *  accurate for my purposes.
-   *  
-   *  @param  string  $val  the val to check to see if contains binary characters
-   *  @return boolean true if binary, false if not
-   */
-  protected function isBinaryString($val){
-  
-    $val = (string)$val;
-    $ret_bool = false;
-    $not_printable_count = 0;
-    for($i = 0, $max = strlen($val); $i < $max ;$i++){
-      if(ord($val[$i]) === 0){ $ret_bool = true; break; }//if
-      if(!ctype_print($val[$i])){
-        if(++$not_printable_count > 5){ $ret_bool = true; break; }//if
-      }//if 
-    }//for
-    
-    return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  prepares and executes the query and returns the PDOStatement instance
-   *  
-   *  @param  string  $query  the query to prepare and run
-   *  @param  array $val_list the values list for the query, if the query has ?'s then 
-   *                          the values should be in this array      
-   *  @return \PDOStatement
-   */
-  public function getStatement($query,array $val_list = array()){
-  
-    $query = trim($query);
-    $this->addQuery($query);
-  
-    // prepare the statement and run the query...
-    // http://us2.php.net/manual/en/function.PDO-prepare.php
-    $stmt_handler = $this->con_db->prepare($query);
-    
-    try{
-
-      if(!empty($val_list)){
-  
-        $k = key($val_list);
-        if(ctype_digit((string)$k)){
-        
-          // indexes are 1 based, not zero based
-          foreach($val_list as $i => $val){
-          
-            $stmt_handler->bindValue($i+1,$val,PDO::PARAM_STR);
-          
-          }//foreach
-        
-        }else{
-    
-          if(isset($val_list['body'])){
-          
-            $stmt_handler->bindValue(':body',$val_list['body'],PDO::PARAM_LOB);
-            unset($val_list['body']);
-          
-          }//if
-    
-          foreach($val_list as $key => $val){
-          
-            $stmt_handler->bindValue(sprintf(':%s',$key),$val,PDO::PARAM_STR);
-              
-          }//foreach
-          
-        }//if/else
-        
-      }//if
-    
-      // execute the query...
-      // passing in the values this way instead of doing bindValue() seems to
-      // work fine even though all the values get treated like a string
-      $is_success = $stmt_handler->execute();
-      
-    }catch(Exception $e){
-    
-      $stmt_handler->closeCursor();
-      throw $e;
-    
-    }//try/catch
-  
-    return $stmt_handler;
   
   }//method
   
@@ -145,7 +54,7 @@ class MingoPostgreSQLInterface extends MingoRDBMSInterface {
    *  @see  handleException()
    *  
    *  @param  MingoTable  $table
-   *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
+   *  @return boolean false on unsolvable the exception, true if $e can be successfully resolved
    */
   protected function canHandleException(Exception $e){
     
@@ -169,7 +78,7 @@ class MingoPostgreSQLInterface extends MingoRDBMSInterface {
    *  @param  MingoTable  $table       
    *  @return boolean
    */
-  protected function _setTable(MingoTable $table){
+  protected function createTable(MingoTable $table){
   
     $query = sprintf(
       'CREATE TABLE %s (
@@ -207,10 +116,10 @@ class MingoPostgreSQLInterface extends MingoRDBMSInterface {
    *  http://www.sqlite.org/syntaxdiagrams.html#column-constraint
    *      
    *  @since  10-18-10
-   *  @param  string  $table
-   *  @param  array $index  the index structure
+   *  @param  \MingoTable $table
+   *  @param  \MingoIndex $index  the index structure
    */
-  protected function setIndexTable(MingoTable $table,MingoIndex $index){
+  protected function createIndexTable(MingoTable $table,MingoIndex $index){
   
     $index_table = $this->getIndexTableName($table,$index);
     $format_vars = array();
@@ -449,6 +358,21 @@ class MingoPostgreSQLInterface extends MingoRDBMSInterface {
   
     return $ret_str;
   
+  }//method
+  
+  /**
+   *  opposite of {@link getBody()}
+   *  
+   *  this is overridden because pgsql returns a resource stream instead of just a string   
+   *      
+   *  @param  string  $body the getBody() compressed string, probably returned from a db call
+   *  @return array the key/value pairs restored to their former glory
+   */
+  protected function getMap($body){
+  
+    if(is_resource($body)){ $body = stream_get_contents($body); }//if
+    return parent::getMap($body);
+    
   }//method
   
 }//class     

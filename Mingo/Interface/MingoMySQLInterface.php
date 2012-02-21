@@ -3,46 +3,22 @@
 /**
  *  handle relational db abstraction for mingo for MySQL   
  *
- *  @version 0.2
- *  @author Jay Marcyes {@link http://marcyes.com}
+ *  @version 0.3
+ *  @author Jay Marcyes
  *  @since 3-19-10
  *  @package mingo 
  ******************************************************************************/
-class MingoMySQLInterface extends MingoSQLInterface {
+class MingoMySQLInterface extends MingoRDBMSInterface {
 
   /**
    *  this will be the default engine for all tables
    */
-  const ENGINE = 'InnoDB';
+  protected $engine = 'InnoDB';
 
   /**
-   *  gets all the fields in the given table
-   *  
-   *  @todo right now it just returns the field names, but it would be easy to
-   *        add a detail boolean after table name that would return the entire array
-   *        with all the field info, this might be useful in the future            
-   *      
-   *  @param  MingoTable  $table      
-   *  @return array all the field names found, empty array if none found
-   */        
-  public function getTableFields(MingoTable $table){
-    
-    $ret_list = array();
-    
-    $query = 'SHOW COLUMNS FROM '.$table_name;
-    $field_index = 'Field';
-    
-    if($result_list = $this->_getQuery($query)){
-    
-      foreach($result_list as $result_map){
-        if(isset($result_map[$field_index])){ $ret_list[] = $result_map[$field_index]; }//if
-      }//foreach
-      
-    }//if
-    
-    return $ret_list;
-  
-  }//method
+   *  everything is utf-8, I'm not even giving people a choice
+   */
+  protected $charset = 'UTF8';
   
   /**
    *  @see  getTables()
@@ -52,8 +28,6 @@ class MingoMySQLInterface extends MingoSQLInterface {
    */
   protected function _getTables(MingoTable $table = null){
   
-    $ret_list = array();
-    
     $query = 'SHOW TABLES';
     $query_vars = array();
     if($table !== null){
@@ -61,48 +35,49 @@ class MingoMySQLInterface extends MingoSQLInterface {
       $query_vars[] = $table;
     }//if
     
-    $list = $this->getQuery($query,$query_vars);
-    if(!empty($list)){
-      
-      // for some reason, mysql puts each table in an array with a horrible name: Tables_in_DBNAME
-      foreach($list as $table_map){
-        $array_keys = array_keys($table_map);
-        if(isset($table_map[$array_keys[0]])){ $ret_list[] = $table_map[$array_keys[0]]; }//if
-      }//foreach
-      
-    }//if
+    // mysql returns each table in an array with a horrible name: Tables_in_DBNAME, but that is
+    // only one row, so getQuery() just returns a list of the tables
+    return $this->getQuery($query,$query_vars);
     
-    return $ret_list;
+  }//method
+  
+  /**
+   *  things to before the connection is established
+   *  
+   *  this is to allow the db interface to add options or whatnot before connecting      
+   *   
+   *  @since  1-11-12
+   */
+  protected function preConnect(MingoConfig $config){
+  
+    // http://stackoverflow.com/questions/1566602/is-set-character-set-utf8-necessary
+    // another: 'SET CHARACTER SET UTF8';
+    $config->setOption(PDO::MYSQL_ATTR_INIT_COMMAND,sprintf('SET NAMES %s',$this->charset));
   
   }//method
   
   /**
    *  get the dsn connection string that PDO will use to connect to the backend
    *   
+   *  @link http://us2.php.net/manual/en/ref.pdo-mysql.php
+   *  @link http://us2.php.net/manual/en/ref.pdo-mysql.connection.php   
    *  @since  10-18-10
-   *  @param  string  $name  the database name
-   *  @param  string  $host the host
-   *  @return string  the dsn         
+   *  @param  \MingoConfig  $config
+   *  @return string  the dsn   
    */
-  protected function getDsn($name,$host){
+  protected function getDsn(MingoConfig $config){
   
     // canary...
-    if(empty($host)){ throw new InvalidArgumentException('no $host specified'); }//if
+    if(!$config->hasHost()){ throw new InvalidArgumentException('no host specified'); }//if
+    if(!$config->hasName()){ throw new InvalidArgumentException('no name specified'); }//if
   
-    return sprintf('mysql:host=%s;dbname=%s;charset=%s',$host,$name,self::CHARSET);
-  
-  }//method
-  
-  /**
-   *  things to do once the connection is established
-   *   
-   *  @since  10-18-10
-   */
-  protected function onConnect(){
-  
-    // http://stackoverflow.com/questions/1566602/is-set-character-set-utf8-necessary
-    $query_charset = sprintf('SET NAMES %s',self::CHARSET); // another: 'SET CHARACTER SET UTF8';
-    $this->getQuery($query_charset);
+    // charset is actually ignored <5.3.6
+    return sprintf(
+      'mysql:host=%s;dbname=%s;charset=%s',
+      $config->getHost(),
+      $config->getName(),
+      $this->charset
+    );
   
   }//method
   
@@ -111,16 +86,21 @@ class MingoMySQLInterface extends MingoSQLInterface {
    *  @param  MingoTable  $table       
    *  @return boolean
    */
-  protected function _setTable(MingoTable $table){
+  protected function createTable(MingoTable $table){
   
-    $query = sprintf('CREATE TABLE `%s` (
-      `_rowid` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      `_id` VARCHAR(24) NOT NULL,
-      `_created` INT(11) NOT NULL,
-      `body` LONGBLOB,
-      UNIQUE KEY (`_id`),
-      KEY (`_created`)
-    ) ENGINE=%s CHARSET=%s',$table,self::ENGINE,self::CHARSET);
+    $query = sprintf(
+      'CREATE TABLE %s (
+        `_id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        `_created` INT(11) NOT NULL,
+        `_updated` INT(11) NOT NULL,
+        `body` BLOB,
+        KEY (`_created`),
+        KEY (`_updated`)
+      ) ENGINE=%s CHARSET=%s',
+      $this->normalizeTableSQL($table),
+      $this->engine,
+      $this->charset
+    );
     
     return $this->getQuery($query);
   
@@ -130,175 +110,66 @@ class MingoMySQLInterface extends MingoSQLInterface {
    *  create an index table for the given $table and $index_map      
    *   
    *  @since  10-18-10
-   *  @param  string  $table
-   *  @param  array $index_map  the index structure 
+   *  @param  \MingoTable $table
+   *  @param  \MingoIndex $index  the index structure
    */
-  protected function createIndexTable($table,array $index_map){
+  protected function createIndexTable(MingoTable $table,MingoIndex $index){
   
-    $index_table = $this->getIndexTableName($table,$index_map);
-    $printf_vars = array();
+    $index_table = $this->getIndexTableName($table,$index);
+    $format_vars = array();
     $spatial_field = '';
     $pk_field_list = array();
-    $engine = self::ENGINE;
+    $engine = $this->engine;
   
-    $query = array();
-    $query[] = 'CREATE TABLE `%s` (';
-    $printf_vars[] = $index_table;
+    $format_query = array();
+    $format_query[] = 'CREATE TABLE %s (';
+    $format_vars[] = $this->normalizeTableSQL($index_table);
     
-    foreach($index_map as $field => $index_type){
+    foreach($index->getFieldNames() as $field){
     
-      if($this->isSpatialIndexType($index_type)){
+      $sql_field = $this->normalizeNameSQL($field);
     
-        // canary...
-        if(!empty($spatial_field)){
-          throw new DomainException('the index table can only have one spatial index');
-        }//if
-    
-        // according to this: http://dev.mysql.com/doc/refman/5.0/en/creating-spatial-columns.html
-        // InnoDB POINT column support was added in 5.0.16, but index support is still lacking, so
-        // to have an index, spatial tables have to be MyIsam tables...
-        $engine = 'MyISAM';
-    
-        $spatial_field = $field;
-        $query[] = '`%s` POINT NOT NULL,';
-        $printf_vars[] = $field;
+      $format_query[] = '%s %s,';
       
-      }else{
-        
-        $query[] = '`%s` %s,';
-        $printf_vars[] = $field;
-        $printf_vars[] = $this->getSqlType($table,$field);
-        $pk_field_list[] = $field;
-        
-        
-      }//if/else
+      $pk_field_list[] = $sql_field;
+      $format_vars[] = $sql_field;
+      $format_vars[] = $this->normalizeSqlType($table,$field);
     
     }//foreach
   
-    $query[] = '`_id` VARCHAR(24) NOT NULL,';
+    // this will be the foreign key to the main blob table
+    $sql_field = $this->normalizeNameSQL('_id');
+    $pk_field_list[] = $sql_field;
+    $format_query[] = sprintf('%s INT(11) UNSIGNED UNIQUE NOT NULL,',$sql_field);
+    $format_query[] = sprintf('PRIMARY KEY (%s),',join(',',$pk_field_list));
     
-    if(!empty($pk_field_list)){
+    $format_query[] = sprintf(
+      'CONSTRAINT `%s_fk` FOREIGN KEY (%s) REFERENCES %s (%s) ON DELETE CASCADE',
+      $index_table,
+      $this->normalizeNameSQL('_id'),
+      $this->normalizeTableSQL($table),
+      $this->normalizeNameSQL('_id')
+    );
     
-      $query[] = sprintf('PRIMARY KEY (`%s`,`_id`),',join('`,`',$pk_field_list));
-      
-    }//if
+    $format_query[] = ') ENGINE=%s CHARSET=%s';
+    $format_vars[] = $engine;
+    $format_vars[] = $this->charset;
     
-    if(!empty($spatial_field)){
+    $query = vsprintf(join(PHP_EOL,$format_query),$format_vars);
     
-      $query[] = 'SPATIAL INDEX (`%s`),';
-      $printf_vars[] = $spatial_field;
-    
-    }//if
-    
-    $query[] = 'KEY (`_id`)';
-    
-    $query[] = ') ENGINE=%s CHARSET=%s';
-    $printf_vars[] = $engine;
-    $printf_vars[] = self::CHARSET;
-    
-    $query = vsprintf(join(PHP_EOL,$query),$printf_vars);
     return $this->getQuery($query);
   
   }//method
   
-  protected function getTableIndexes($table){
-  
-    $ret_list = array();
-  
-    // http://www.techiegyan.com/?p=209
-      
-    // see also: http://www.xaprb.com/blog/2006/08/28/how-to-find-duplicate-and-redundant-indexes-in-mysql/
-    // for another way to find indexes
-    
-    // also good reading: http://www.mysqlperformanceblog.com/2006/08/17/duplicate-indexes-and-redundant-indexes/
-  
-    $query = sprintf('SHOW INDEX FROM `%s`',$table);
-    $index_list = $this->getQuery($query);
-    
-    $ret_map = array();
-    
-    foreach($index_list as $i => $index_map){
-    
-      if($index_map['Seq_in_index'] > 1){
-      
-        $ret_map[$index_map['Column_name']] = 1;
-        
-      }else{
-      
-        $ret_map = array();
-        
-        if($index_map['Index_type'] === 'SPATIAL'){
-        
-          $ret_map[$index_map['Column_name']] = self::INDEX_SPATIAL;
-        
-        }else{
-        
-          $ret_map[$index_map['Column_name']] = self::INDEX_ASC;
-        
-        }//if/else
-      
-      }//if/else
-      
-      $next_i = $i + 1;
-      $have_index = !isset($index_list[$next_i]) || ($index_list[$next_i]['Seq_in_index'] == 1);
-      if($have_index){
-      
-        $ret_list[] = $ret_map;
-        $ret_map = array();
-        
-      }//if
-      
-    }//foreach
-
-    return $ret_list;
-  
-  }//method
-  
   /**
-   *  handle sql'ing a spatial point
+   *  @see  handleException()
    *  
    *  @since  10-18-10   
-   *  @param  string  $symbol the symbol to use in the sQL string
-   *  @param  string  $name the name of the field      
-   *  @param  array $args the entire map under the $name key         
-   *  @return array array($sql,$val);
+   *  @param  MingoTable  $table
+   *  @return boolean false on unsolvable the exception, true if $e can be successfully resolved
    */
-  protected function handleSpatialSql($symbol,$name,$args){
+  protected function canHandleException(Exception $e){
     
-    reset($args);
-    $point = current($args);
-    $distance = end($args);
-  
-    $ret_str = sprintf(' Intersects(`%s`,GeomFromText(?))',(string)$name);
-    
-    // create a bounding rectangle...
-    list($point_a,$point_b,$point_c,$point_d) = $this->getSpatialBoundingBox($distance,$point);
-    
-    $val_list = array();
-    // POLYGON(( $point_a, $point_b, $point_c, $point_d, $point_a ))
-    $val_list[] = sprintf(
-      'LineString(%s, %s, %s, %s, %s)',
-      join(' ',$point_a), 
-      join(' ',$point_b),
-      join(' ',$point_c),
-      join(' ',$point_d),
-      join(' ',$point_a)
-    );
-    
-    return array($ret_str,$val_list);
-  
-  }//method
-  
-  /**
-   *  true if the $e is for a missing table exception
-   *
-   *  @since  10-18-10
-   *  @see  handleException()         
-   *  @param  Exception $e  the thrown exception
-   *  @return boolean
-   */
-  protected function isNoTableException(Exception $e){
-  
     $ret_bool = false;
   
     $e_code = $e->getCode();
@@ -312,41 +183,41 @@ class MingoMySQLInterface extends MingoSQLInterface {
     
   }//method
   
-  /**
-   *  adds an index to $table
-   *  
-   *  I don't currently have a use for this method, but thought I would keep it around
-   *      
-   *  @param  string  $table  the table to add the index to
-   *  @param  array $map  usually something like array('field_name' => 1), this isn't need for sql
-   *                      but it's the same way to keep compatibility with Mongo   
-   *  @return boolean
-   */
-  protected function createIndex($table,array $index_map){
+  protected function getTableIndexes($table){
+  
+    $ret_list = array();
+  
+    // http://www.techiegyan.com/?p=209
+      
+    // see also: http://www.xaprb.com/blog/2006/08/28/how-to-find-duplicate-and-redundant-indexes-in-mysql/
+    // for another way to find indexes
     
-    // ALTER TABLE table_name`ADD|DROP [FULLTEXT] INDEX(column_name,...);
-    // http://www.w3schools.com/sql/sql_alter.asp
-    //
-    // good info on indexes: http://www.mysqlperformanceblog.com/2006/08/17/duplicate-indexes-and-redundant-indexes/
-    //  and: http://www.xaprb.com/blog/2006/08/28/how-to-find-duplicate-and-redundant-indexes-in-mysql/
-    //  http://www.sql-server-performance.com/tips/optimizing_indexes_general_p2.aspx
-    //  http://www.sql-server-performance.com/articles/per/index_not_equal_p1.aspx
-    //  http://www.databasejournal.com/features/mysql/article.php/1382791
-    //  Error 1170 when trying to create an index, means you are creating an unlimited index:
-    //    http://www.mydigitallife.info/2007/07/09/mysql-error-1170-42000-blobtext-column-used-in-key-specification-without-a-key-length/
-    // you can see indexes on the table using this: SHOW INDEX FROM ‘table’
-    //
-    // Mysql syntax...
-    //  http://dev.mysql.com/doc/refman/5.0/en/alter-table.html
+    // also good reading: http://www.mysqlperformanceblog.com/2006/08/17/duplicate-indexes-and-redundant-indexes/
+  
+    $query = sprintf('SHOW INDEX FROM %s',$this->normalizeTableSQL($table));
+    $index_list = $this->getQuery($query);
     
-    // the order bit is ignored for sql, so we just need the keys...
-    $field_list = array_keys($index_map);
-    $field_list_str = join('`,`',$field_list);
-    $index_name = 'i'.md5($field_list_str);
+    $ret_map = array(); // key will be index name with val being an array of fields
+      
+    foreach($index_list as $index_map){
     
-    $query = sprintf('ALTER TABLE `%s` ADD INDEX `%s` (`%s`)',$table,$index_name,$field_list_str);
+      $index_name = sprintf('%s-%s',$index_map['Table'],$index_map['Key_name']);
     
-    return $this->getQuery($query);
+      if(!isset($ret_map[$index_name])){
+        $ret_map[$index_name] = array();
+      }//if
+    
+      $ret_map[$index_name][] = $index_map['Column_name'];
+    
+    }//foreach
+    
+    foreach($ret_map as $index_name => $index_fields){
+    
+      $ret_list[] = new MingoIndex($index_name,$index_fields);
+    
+    }//foreach
+    
+    return $ret_list;
   
   }//method
   
@@ -358,7 +229,7 @@ class MingoMySQLInterface extends MingoSQLInterface {
    *  @param  MingoSchema $schema the schema for the table         
    *  @return string
    */
-  protected function getSqlType(MingoTable $table,$field){
+  protected function normalizeSqlType(MingoTable $table,$field){
   
     $ret_str = '';
     $field_instance = $table->getField($field);
@@ -436,88 +307,23 @@ class MingoMySQLInterface extends MingoSQLInterface {
   }//method
   
   /**
-   *  formats the insert sql for index tables
-   *  
-   *  @since  10-21-10
-   *  @param  string  $field  the field name
-   *  @param  mixed $val  the field value
-   *  @param  mixed $index_type the index type for $field
-   *  @return array array($field,$val,$bind) where $bind is usually a question mark
-   */
-  protected function handleInsertSql($field,$val,$index_type = null){
-  
-    $field = sprintf('`%s`',$field);
-    $bind = '?';
-  
-    if($this->isSpatialIndexType($index_type)){
-    
-      // canary, check the field is properly formatted...
-      $mf = new MingoField();
-      $mf->setType(MingoField::TYPE_POINT);
-      $val = $mf->normalizeInVal($val);
-  
-      $val = sprintf(
-        'POINT(%s %s)',
-        (float)$val[0],
-        (float)$val[1]
-      );
-  
-      $bind = 'PointFromText(?)';
-  
-    }//if
-  
-    return array($field,$val,$bind);
-  
-  }//method
-  
-  /**
    *  if you want to do anything special with the table's name, override this method
    *  
    *  @since  10-21-10   
    *  @param  string  $table
    *  @return string  $table, formatted
    */
-  protected function handleTableSql($table){ return sprintf('`%s`',$table); }//method
+  protected function normalizeTableSql($table){ return sprintf('`%s`',$table); }//method
   
   /**
-   *  get a bounding box for a given $point using $miles
+   *  if you want to do anything special with the field's name, override this method
    *  
-   *  the bounding box will basically be $miles from $point in any direction
+   *  for example, mysql might want to wrap teh name in `, so foo would become `foo`      
    *  
-   *  links that helped me calculate miles to a point:
-   *  http://mathforum.org/library/drmath/view/55461.html
-   *  http://wiki.answers.com/Q/How_many_miles_are_in_a_degree_of_longitude_or_latitude
-   *  http://answers.yahoo.com/question/index?qid=20070911165150AAQGeJc 
-   *  
-   *  @since  8-19-10   
-   *  @param  integer $miles  how many miles we want to go in any direction from $point
-   *  @param  array $point  array($lat,$long)
-   *  @return array basically 4 points: array($sw,$se,$ne,$nw)
-   */              
-  protected function getSpatialBoundingBox($miles,$point){
-  
-    // canary...
-    if(empty($miles)){ throw InvalidArgumentException('$miles should not be empty'); }//if
-  
-    list($latitude,$longitude) = $point;
-  
-    $latitude_miles = 69; // 1 degree of latitude, this is approximate but it's close enough
-    $latitude_bounding = ($miles / $latitude_miles);
-    
-    // get the longitude bounding using cosine...
-    $longitude_percentage = abs(cos($latitude * (pi()/180)));
-    $longitude_miles = $latitude_miles * $longitude_percentage;
-    $longitude_bounding = ($miles / $longitude_miles);
-    
-    // create a bounding rectangle...
-    // http://maisonbisson.com/blog/post/12148/find-stuff-by-minimum-bounding-rectangle/
-    $sw = array($latitude - $latitude_bounding,$longitude - $longitude_bounding);
-    $se = array($latitude - $latitude_bounding,$longitude + $longitude_bounding);
-    $ne = array($latitude + $latitude_bounding,$longitude + $longitude_bounding);
-    $nw = array($latitude + $latitude_bounding,$longitude - $longitude_bounding);
-    
-    return array($sw,$se,$ne,$nw);
-    
-  }//method
+   *  @since  1-2-12
+   *  @param  string  $name
+   *  @return string  the $name, formatted
+   */
+  protected function normalizeNameSQL($name){ return sprintf('`%s`',$name); }//method
   
 }//class     

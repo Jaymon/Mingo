@@ -74,6 +74,8 @@ abstract class MingoPDOInterface extends MingoInterface {
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
     );
     
+    $this->preConnect($config);
+    
     $username = $config->getUsername();
     $password = $config->getPassword();
     $options = $config->getOptions();
@@ -89,7 +91,6 @@ abstract class MingoPDOInterface extends MingoInterface {
     try{
     
       $this->con_db = new $con_class($dsn,$username,$password,$pdo_options);
-      
       $connected = true;
       
     }catch(Exception $e){
@@ -130,18 +131,27 @@ abstract class MingoPDOInterface extends MingoInterface {
     
     }//try/catch
     
-    if($connected){ $this->onConnect(); }//if
+    if($connected){ $this->postConnect(); }//if
     
     return $connected;
   
   }//method
   
   /**
+   *  things to before the connection is established
+   *  
+   *  this is to allow the db interface to add options or whatnot before connecting      
+   *   
+   *  @since  1-11-12
+   */
+  protected function preConnect(MingoConfig $config){}//method
+  
+  /**
    *  things to do once the connection is established
    *   
    *  @since  10-18-10
    */
-  protected function onConnect(){}//method
+  protected function postConnect(){}//method
 
   /**
    *  @see  getQuery()
@@ -151,81 +161,166 @@ abstract class MingoPDOInterface extends MingoInterface {
    */
   protected function _getQuery($query,array $options = array()){
   
-    ///\out::b($query,3);
-  
-    $ret_mixed = false;
-  
-    // prepare the statement and run the query...
-    // http://us2.php.net/manual/en/function.PDO-prepare.php
-    $stmt_handler = $this->getStatement($query,$options);
+    $stmt = $this->getStatement($query,$options);
+    return $this->execStatement($stmt);
     
-    try{
-    
-      $col_count = $stmt_handler->columnCount();
-      
-      if($col_count === 1){
-      
-        $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_COLUMN,0);
-      
-      }else if($col_count === 0){
-
-        ///$arr = $stmt_handler->errorInfo();
-        ///\out::e($arr);
-        ///\out::e($stmt_handler->errorCode());
-
-        $ret_mixed = true;
-      
-      }else{
-        
-        $ret_mixed = $stmt_handler->fetchAll(PDO::FETCH_ASSOC);
-        
-      }//if/else
-      
-      $stmt_handler->closeCursor();
-    
-    }catch(Exception $e){
-    
-      $stmt_handler->closeCursor();
-      throw $e;
-    
-    }//try/catch
-
-    return $ret_mixed;
-  
   }//method
   
   /**
    *  prepares and executes the query and returns the PDOStatement instance
    *  
    *  @param  string  $query  the query to prepare and run
-   *  @param  array $val_list the values list for the query, if the query has ?'s then 
-   *                          the values should be in this array      
+   *  @param  array $vals the values list for the query, if the query has ?'s then 
+   *                      the values should be in this arrary numerically, if the $query
+   *                      has :param then the param name will be the key in $vals
    *  @return \PDOStatement
    */
-  public function getStatement($query,array $val_list = array()){
+  public function getStatement($query,array $vals = array()){
   
+    $db = $this->getDb();
     $query = trim($query);
     $this->addQuery($query);
   
     // prepare the statement and run the query...
     // http://us2.php.net/manual/en/function.PDO-prepare.php
-    $stmt_handler = $this->con_db->prepare($query);
+    $stmt = $db->prepare($query);
+    $stmt = $this->bindStatement($stmt,$vals);
+    return $stmt;
+  
+  }//method
+  
+  /**
+   *  bind the $vals to the $stmt
+   *  
+   *  @since  1-10-12
+   *  @param  \PDOStatement $stmt the statement with the query already prepared
+   *  @param  array $vals the values to bind to the statement
+   *  @return \PDOStatement
+   */
+  protected function bindStatement(PDOStatement $stmt,array $vals = array()){
+  
+    // canary
+    if(empty($vals)){ return $stmt; }//if
+  
+    $k = key($vals);
+    if(ctype_digit((string)$k)){
     
+      // indexes are 1 based, not zero based
+      foreach($vals as $i => $val){
+      
+        $this->bindValue($stmt,$i+1,$val);
+        ///$stmt->bindValue($i+1,$val,PDO::PARAM_STR);
+      
+      }//foreach
+    
+    }else{
+
+      foreach($vals as $key => $val){
+      
+        $this->bindValue($stmt,sprintf(':%s',$key),$val);
+        ///$stmt->bindValue(sprintf(':%s',$key),$val,PDO::PARAM_STR);
+          
+      }//foreach
+      
+    }//if/else
+    
+    return $stmt;
+    
+  }//method
+
+  /**
+   *  bind the $val to the $stmt at $key
+   *
+   *  @param  \PDOStatement $stmt
+   *  @param  string|integer  $key  the value, either integer, or ":param" string
+   *  @param  mixed $val  the value to bind         
+   */          
+  protected function bindValue(PDOStatement $stmt,$key,$val){
+  
+    if(ctype_digit((string)$val)){
+
+      $stmt->bindValue($key,$val,PDO::PARAM_INT);
+    
+    }else{
+    
+      $stmt->bindValue($key,$val,PDO::PARAM_STR);
+    
+    }//if/else
+  
+    return $stmt;
+  
+  }//method
+  
+  /**
+   *  execute a previously bounded $stmt
+   *  
+   *  @param  \PDOStatement $stmt should already have been passed through {@link bindStatement()}
+   *  @return mixed boolean if the statement is something like INSERT, DELETE, or UPDATE, the result
+   *                set if statement is SELECT
+   */
+  protected function execStatement(PDOStatement $stmt){
+  
+    $ret_mixed = false;
+  
     try{
     
-      // execute the query...
-      // passing in the values this way instead of doing bindValue() seems to
-      // work fine even though all the values get treated like a string
-      $is_success = empty($val_list) ? $stmt_handler->execute() : $stmt_handler->execute($val_list);
+      if($stmt->execute()){
       
+        $col_count = $stmt->columnCount();
+        
+        if($col_count === 1){
+        
+          $ret_mixed = $stmt->fetchAll(PDO::FETCH_COLUMN,0);
+        
+        }else if($col_count === 0){
+  
+          $ret_mixed = true;
+        
+        }else{
+          
+          $ret_mixed = $stmt->fetchAll(PDO::FETCH_ASSOC);
+          
+        }//if/else
+        
+      }else{
+      
+        // error stuff? I'm actually not sure this will ever execute
+        ///$arr = $stmt->errorInfo();
+        ///\out::e($arr);
+        ///\out::e($stmt->errorCode());
+        ///$db = $this->getDb();
+        ///\out::e($db->errorInfo());
+        ///\out::e($db->errorCode());
+      
+      }//if/else
+      
+      $stmt->closeCursor();
+    
     }catch(Exception $e){
     
-      $stmt_handler->closeCursor();
+      $stmt->closeCursor();
       throw $e;
     
     }//try/catch
   
-    return $stmt_handler;
+    return $ret_mixed;
+  
+  }//method
+  
+  /**
+   *  gets the last insert id of the $table's auto increment key 
+   *
+   *  this is here because postgres has to be different, and others might be different also,
+   *  so I wanted the standard way to get this, but then allow others to override      
+   *      
+   *  @since  1-9-12   
+   *  @param  \MingoTable $table
+   *  @return integer   
+   */
+  protected function getInsertId(MingoTable $table){
+  
+    $db = $this->getDb();
+    return $db->lastInsertId();
   
   }//method
   
@@ -363,21 +458,39 @@ abstract class MingoPDOInterface extends MingoInterface {
     
     }//foreach
 
-    if($where_criteria !== null){
-      $ret_map['limit'] = array((int)$where_criteria->getLimit(),(int)$where_criteria->getOffset());
-    }//if
+    $ret_map = $this->normalizeLimitCriteria(
+      $ret_map,
+      $where_criteria->getLimit(),
+      $where_criteria->getOffset()
+    );
 
-    if(!empty($ret_map['limit'][0])){
+    return $ret_map;
+  
+  }//method
+
+  /**
+   *  set the limit criteria into the $map
+   *  
+   *  @since  1-12-12
+   *  @param  integer $limit
+   *  @param  integer $offset
+   *  @return array $map   
+   */
+  protected function normalizeLimitCriteria(array $map,$limit,$offset){
+  
+    $map['limit'] = array((int)$limit,(int)$offset);
+  
+    if(!empty($map['limit'][0])){
     
-      $ret_map['limit_str'] = sprintf(
+      $map['limit_str'] = sprintf(
         'LIMIT %d OFFSET %d',
-        $ret_map['limit'][0],
-        (empty($ret_map['limit'][1]) ? 0 : $ret_map['limit'][1])
+        $map['limit'][0],
+        (empty($map['limit'][1]) ? 0 : $map['limit'][1])
       );
       
     }//if
-
-    return $ret_map;
+    
+    return $map;
   
   }//method
   

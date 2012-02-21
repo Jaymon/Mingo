@@ -197,6 +197,14 @@ abstract class MingoMagic implements ArrayAccess {
   }//method
   
   /**
+   *  true if there are any fields
+   *  
+   *  @since  1-11-12   
+   *  @return boolean
+   */
+  public function hasFields(){ return !empty($this->field_map); }//method
+  
+  /**
    *  return the defined fields
    *  
    *  @since  11-4-10   

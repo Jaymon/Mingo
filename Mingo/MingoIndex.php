@@ -105,6 +105,14 @@ class MingoIndex extends MingoMagic implements Countable {
   }//method
   
   /**
+   *  true if there are any fields
+   *  
+   *  @since  1-11-12   
+   *  @return boolean
+   */
+  public function hasFields(){ return !empty($this->fields); }//method
+  
+  /**
    *  return all the fields in the index
    *  
    *  @return array

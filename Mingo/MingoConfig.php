@@ -38,7 +38,7 @@ class MingoConfig implements IteratorAggregate {
   public function __construct($name = '',$host = '',$username = '',$password = '',array $options = array()){
   
     $this->setName($name);
-    if(!empty($host)){ $this->setHost($host); }//if
+    $this->setHost($host);
     $this->setUsername($username);
     $this->setPassword($password);
     $this->setOptions($options);
@@ -56,11 +56,19 @@ class MingoConfig implements IteratorAggregate {
 
   public function setHost($val){
   
-    list($host,$port) = $this->splitHost($val);
-  
-    $this->host = $host;
+    if(empty($val)){
     
-    if(!empty($port)){ $this->setPort($port); }//if
+      $this->host = $val;
+    
+    }else{
+    
+      list($host,$port) = $this->splitHost($val);
+    
+      $this->host = $host;
+      
+      if(!empty($port)){ $this->setPort($port); }//if
+      
+    }//if/else
   
     return $this;
     
@@ -125,9 +133,24 @@ class MingoConfig implements IteratorAggregate {
   public function hasPassword(){ return !empty($this->password); }//method
   
   /**
+   *  set a specific option
+   *  
+   *  @since  1-11-12      
+   *  @param  string  $name the option name
+   *  @param  mixed $val  the value
+   *  @return self      
+   */
+  public function setOption($name,$val){
+  
+    $this->options[$name] = $val;
+    return $this;
+  
+  }//method
+  
+  /**
    *  @since  3-6-11
    */
-  public function setOptions($val){
+  public function setOptions(array $val){
   
     $this->options = $val;
     return $this;
@@ -153,6 +176,10 @@ class MingoConfig implements IteratorAggregate {
    *  @link http://us2.php.net/iteratoraggregate
    *  @return \Traversable   
    */
-  public function getIterator(){ return new ArrayIterator($this); }
+  public function getIterator(){
+  
+    return new ArrayIterator(get_object_vars($this));
+    
+  }//method
 
 }//class   

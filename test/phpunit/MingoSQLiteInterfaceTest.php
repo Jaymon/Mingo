@@ -8,9 +8,9 @@
  *  @package mingo
  *  @subpackage test
  ******************************************************************************/
-require_once('MingoRDBMSInterfaceTest.php');
+require_once('MingoInterfaceTest.php');
 
-class MingoSQLiteInterfaceTest extends MingoRDBMSInterfaceTest {
+class MingoSQLiteInterfaceTest extends MingoInterfaceTest {
 
   public function createInterface(){ return new MingoSQLiteInterface(); }//method
   

@@ -26,6 +26,52 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
   protected $non_body_fields = array('_id','_created','_updated');
   
   /**
+   *  @see  setTable(),_setTable()
+   *  @param  MingoTable  $table       
+   *  @return boolean
+   */
+  abstract protected function createTable(MingoTable $table);
+  
+  /**
+   *  @see  setTable()
+   *       
+   *  @param  MingoTable  $table       
+   *  @return boolean
+   */
+  protected function _setTable(MingoTable $table){
+  
+    // ignore indexes that should be on the main table
+    foreach($table->getIndexes() as $index){
+    
+      $fields = $index->getFieldNames();
+      
+      if(count($fields) == 1){
+      
+        foreach($this->non_body_fields as $unindex_field){
+      
+          if($fields[0] === $unindex_field){
+          
+            throw new RuntimeException(
+              sprintf(
+                'Table field %s cannot be solo indexed, please remove index "%s"',
+                $unindex_field,
+                $index->getName()
+              )
+            );
+          
+          }//if
+          
+        }//foreach
+      
+      }//if
+      
+    }//foreach
+    
+    return $this->createTable($table);
+  
+  }//method
+  
+  /**
    *  @see  getCount()
    *  
    *  @param  mixed $table  the table ran through {@link normalizeTable()}
@@ -113,6 +159,15 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
         foreach($list as $key => $map){
         
           $ret_map = $this->getMap($map['body']);
+          
+          // make sure we always get an array back, I spent 30 minutes tyring to find
+          // a bug that came back to this exact problem
+          if($ret_map === null){
+            throw new UnexpectedValueException(
+              sprintf('getMap() expected to return type: array, got: %s',gettype($ret_map))
+            );
+          }//if
+          
           foreach($this->non_body_fields as $field){
           
             if(isset($map[$field])){ $ret_map[$field] = $map[$field]; }//if
@@ -149,33 +204,55 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    */
   protected function _kill($table,$where_criteria){
 
-    // build delete query...
-    $query = sprintf('DELETE FROM %s',$where_criteria['table_str']);
-    if(!empty($where_criteria['where_str'])){ $query .= ' '.$where_criteria['where_str']; }//if
-    if(!empty($where_criteria['limit_str'])){ $query .= ' '.$where_criteria['limit_str']; }//if
+    $ret_bool = false;
+
+    if(empty($where_criteria['is_index'])){
+  
+      // we aren't deleting on an index table, so we can just remove from the main
+      // table which will cause the foreign keys to drop on all the index tables
+  
+      // build delete query...
+      $query = sprintf('DELETE FROM %s',$where_criteria['table_str']);
+      if(!empty($where_criteria['where_str'])){ $query .= ' '.$where_criteria['where_str']; }//if
+      if(!empty($where_criteria['limit_str'])){ $query .= ' '.$where_criteria['limit_str']; }//if
+      
+      $ret_bool = $this->getQuery(
+        $query,
+        $where_criteria['where_params']
+      );
+      
+    }else{
     
-    $ret_bool = $this->getQuery(
-      $query,
-      $where_criteria['where_params']
-    );
+      // we need to use the index table to get the _ids of the main table and delete the matching
+      // rows on the main table, this will cause all the index tables to drop references to those
+      // rows also
+    
+      $db = $this->getDb();
+      $limit = 500; // SQLite has a 500 variable IN (...) limit
+      $offset = 0; // we don't ever have to increment this because we delete the rows as we pull them
+    
+      do{
+      
+        // query the index table to get just the _ids of the main table
+        $where_criteria = $this->normalizeLimitCriteria($where_criteria,$limit,$offset);
+        $query = $this->getSelectQuery($where_criteria);
+        $_id_list = $this->getQuery($query,$where_criteria['where_params']);
+      
+        if(!empty($_id_list)){
+        
+          // now use the _ids to build a criteria that will select on the main table and
+          // delete the main table rows
+          $c = new MingoCriteria();
+          $c->in_id($_id_list);
+          $ret_bool = $this->kill($table,$c);
+        
+        }//if
+  
+      }while(count($_id_list) >= $limit);
+    
+    }//if/else
   
     return $ret_bool;
-  
-  }//method
-  
-  /**
-   *  gets the last insert id of the $table's auto increment key 
-   *
-   *  this is here because postgres has to be different
-   *      
-   *  @since  1-9-12   
-   *  @param  \MingoTable $table
-   *  @return integer   
-   */
-  protected function getInsertId(MingoTable $table){
-  
-    $db = $this->getDb();
-    return $db->lastInsertId();
   
   }//method
   
@@ -229,19 +306,19 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
         // get the row id...
         $map['_id'] = $this->getInsertId($table);
 
-        // we need to add to all the index tables...
-        if($table->hasIndexes()){
-        
-          $this->insertIndexes($table,$map['_id'],$map);
-        
-        }//if
-        
         // restore the field names
         foreach($this->non_body_fields as $field){
       
           if(isset($field_map[$field])){ $map[$field] = $field_map[$field]; }//if
           
         }//foreach
+
+        // we need to add to all the index tables...
+        if($table->hasIndexes()){
+        
+          $this->insertIndexes($table,$map['_id'],$map);
+        
+        }//if
         
       }//if
     
@@ -379,24 +456,23 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
     try{
     
       $query = sprintf(
-        'UPDATE %s SET %s=?,%s=? WHERE %s=?',
+        'UPDATE %s SET %s=:body,%s=:_updated WHERE %s=:_id',
         $this->normalizeTableSQL($table),
         $this->normalizeNameSQL('body'),
         $this->normalizeNameSQL('_updated'),
         $this->normalizeNameSQL('_id')
       );
     
-      $val_list = array(
-        $this->getBody($map),
-        (int)$map['_updated'],
-        $_id
+      $vals = array(
+        'body' => $this->getBody($map),
+        '_updated' => (int)$map['_updated'],
+        '_id' => $_id
       );
     
       // begin the insert transaction...
       $db->beginTransaction();
       
-      $ret_bool = $this->getQuery($query,$val_list);
-
+      $ret_bool = $this->getQuery($query,$vals);
       if($ret_bool){
         
         // we need to update all the index tables, and it's easier to delete and re-add...
@@ -422,7 +498,31 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
     
     return $map;
 
-
+  }//method
+  
+  /**
+   *  bind the $vals to the $stmt
+   *  
+   *  @since  1-10-12
+   *  @param  \PDOStatement $stmt the statement with the query already prepared
+   *  @param  array $vals the values to bind to the statement
+   *  @return \PDOStatement
+   */
+  protected function bindStatement(PDOStatement $stmt,array $vals = array()){
+  
+    // canary
+    if(empty($vals)){ return $stmt; }//if
+  
+    if(isset($vals['body'])){
+  
+      // found this here: http://stackoverflow.com/questions/5313066/    
+      $stmt->bindValue(':body',$vals['body'],PDO::PARAM_LOB);
+      unset($vals['body']);
+    
+    }//if
+    
+    return parent::bindStatement($stmt,$vals);
+  
   }//method
   
   /**
@@ -437,8 +537,12 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
     // canary, don't bother trying to re-create the index table if it already exists...
     $index_table = $this->getIndexTableName($table,$index);
     if($this->hasTable(new MingoTable($index_table))){ return true; }//if
+    // canary, index can't be empty...
+    if(!$index->hasFields()){
+      throw new InvalidArgumentException('$index contained no fields');
+    }//if
   
-    $ret_bool = $this->setIndexTable($table,$index);
+    $ret_bool = $this->createIndexTable($table,$index);
 
     if($ret_bool){
     
@@ -578,11 +682,30 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    */
   protected function _killTable($table){
 
-    // sqlite: http://www.sqlite.org/lang_droptable.html...
-    // postgres: http://www.postgresql.org/docs/8.2/static/sql-droptable.html
-    $query = sprintf('DROP TABLE IF EXISTS %s',$this->normalizeTableSQL($table));
-    $ret_bool = $this->getQuery($query);
-    if($ret_bool){ $this->killIndexTables($table); }//if
+    $ret_bool = false;
+    $db = $this->getDb();
+    
+    try{
+      
+      $db->beginTransaction();
+  
+      // first remove the index tables since they have foreign keys to the main table
+      $ret_bool = $this->killIndexTables($table);
+  
+      // sqlite: http://www.sqlite.org/lang_droptable.html...
+      // postgres: http://www.postgresql.org/docs/8.2/static/sql-droptable.html
+      $query = sprintf('DROP TABLE IF EXISTS %s',$this->normalizeTableSQL($table));
+      $ret_bool = $this->getQuery($query);
+
+      $db->commit();
+      
+    }catch(Exception $e){
+    
+       // get rid of any changes that were made since we failed...
+      $db->rollback();
+      throw $e;
+    
+    }//try/catch
     
     return $ret_bool;
 
@@ -634,7 +757,7 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    *  @param  \MingoTable $table   
    *  @param  \MingoIndex $index
    */
-  abstract protected function setIndexTable(MingoTable $table,MingoIndex $index);
+  abstract protected function createIndexTable(MingoTable $table,MingoIndex $index);
   
   /**
    *  allows customizing the field sql type using the schema's field hints

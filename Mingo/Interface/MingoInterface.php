@@ -92,7 +92,9 @@ abstract class MingoInterface extends MingoMagic {
       if($this->hasDebug()){
         if(!is_bool($this->connected)){
           throw new UnexpectedValueException(
-            sprintf('%s is not the expected return type of boolean',
+            sprintf(
+              '_%s() expected to return type: boolean, got: %s',
+              __FUNCTION__,
               gettype($this->connected)
             )
           );
@@ -101,16 +103,16 @@ abstract class MingoInterface extends MingoMagic {
       
     }catch(Exception $e){
 
-      if($this->getConfig()->hasDebug()){
+      if($this->hasDebug()){
       
         $e_msg = array();
         $msg = array();
-        foreach($this->field_map as $key => $val){
+        foreach($config as $key => $val){
           $msg[] = sprintf('[%s] => %s',$key,empty($val) ? '""' : $val);
         }//foreach
         
         $e_msg[] = sprintf(
-          'db connection failed with message "%s" and connection variables: [%s]',
+          'db connection failed with message "%s" and connection variables: %s',
           $e->getMessage(),
           join(',',$msg)
         );
@@ -384,7 +386,7 @@ abstract class MingoInterface extends MingoMagic {
   
     // add created and last touched fields...
     $now = time();
-    if(empty($map['_created'])){ $map['_created'] = $now; }//if
+    if(!isset($map['_created'])){ $map['_created'] = $now; }//if
     $map['_updated'] = $now;
     
     $map = $this->assureFields($table,$map);
@@ -483,7 +485,9 @@ abstract class MingoInterface extends MingoMagic {
       $ret_bool = $this->_killTable($itable);
       if($this->hasDebug()){
         if(!is_bool($ret_bool)){
-          throw new UnexpectedValueException(sprintf('%s is not the expected return type of boolean',gettype($ret_bool)));
+          throw new UnexpectedValueException(
+            sprintf('_%s() expected to return type: boolean, got: %s',__FUNCTION__,gettype($ret_bool))
+          );
         }//if
       }//if
       
@@ -520,7 +524,9 @@ abstract class MingoInterface extends MingoMagic {
       $ret_list = $this->_getTables($table);
       if($this->hasDebug()){
         if(!is_array($ret_list)){
-          throw new UnexpectedValueException(sprintf('%s is not the expected return type of array',gettype($ret_list)));
+          throw new UnexpectedValueException(
+            sprintf('_%s() expected to return type: array, got: %s',__FUNCTION__,gettype($ret_list))
+          );
         }//if
       }//if
       

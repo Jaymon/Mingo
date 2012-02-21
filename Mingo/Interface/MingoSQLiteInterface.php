@@ -41,7 +41,7 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
    *   
    *  @since  10-18-10
    */
-  protected function onConnect(){
+  protected function postConnect(){
   
     // turn on foreign keys...
     // http://www.sqlite.org/foreignkeys.html
@@ -53,7 +53,7 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
    *  @see  handleException()
    *  
    *  @param  MingoTable  $table
-   *  @return boolean false on failure to solve the exception, true if $e was successfully resolved
+   *  @return boolean false on unsolvable the exception, true if $e can be successfully resolved
    */
   protected function canHandleException(Exception $e){
     
@@ -67,7 +67,7 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
    *  @param  MingoTable  $table       
    *  @return boolean
    */
-  protected function _setTable(MingoTable $table){
+  protected function createTable(MingoTable $table){
   
     $query = sprintf(
       'CREATE TABLE %s (
@@ -120,7 +120,7 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
    *  @param  string  $table
    *  @param  array $index  the index structure
    */
-  protected function setIndexTable(MingoTable $table,MingoIndex $index){
+  protected function createIndexTable(MingoTable $table,MingoIndex $index){
   
     $index_table = $this->getIndexTableName($table,$index);
     $format_vars = array();

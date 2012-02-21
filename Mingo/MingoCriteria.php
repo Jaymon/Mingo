@@ -285,9 +285,13 @@ class MingoCriteria extends MingoMagic {
    *  get rid of the internally set criteria maps
    */
   public function reset(){
+    
     $this->map_where = array();
     $this->map_sort = array();
     $this->map_bounds = array();
+    
+    return $this;
+    
   }//method
   
   /**
@@ -351,6 +355,7 @@ class MingoCriteria extends MingoMagic {
     
     $this->map_where = $map;
     return $this;
+    
   }//method
   
   public function getSort(){ return $this->map_sort; }//method
@@ -359,6 +364,7 @@ class MingoCriteria extends MingoMagic {
     
     $this->map_sort = $map;
     return $this;
+    
   }//method
   public function killSort(){ return $this->setSort(array()); }//method
   
@@ -367,7 +373,12 @@ class MingoCriteria extends MingoMagic {
    *  
    *  @param  integer
    */
-  public function setLimit($val){ $this->map_bounds['limit'] = (int)$val; }//method
+  public function setLimit($val){
+  
+    $this->map_bounds['limit'] = (int)$val;
+    return $this;
+    
+  }//method
   public function getLimit(){ return empty($this->map_bounds['limit']) ? 0 : $this->map_bounds['limit']; }//method
   public function hasLimit(){ return !empty($this->map_bounds['limit']); }//method
   
@@ -379,8 +390,11 @@ class MingoCriteria extends MingoMagic {
    *  @param  integer
    */
   public function setPage($val){
+    
     unset($this->map_bounds['offset']);
     $this->map_bounds['page'] = (int)$val;
+    return $this;
+    
   }//method
   public function getPage(){ return empty($this->map_bounds['page']) ? 0 : $this->map_bounds['page']; }//method
   public function hasPage(){ return !empty($this->map_bounds['page']); }//method
@@ -395,8 +409,11 @@ class MingoCriteria extends MingoMagic {
    *  @param  integer
    */
   public function setOffset($val){
+  
     unset($this->map_bounds['page']);
     $this->map_bounds['offset'] = (int)$val;
+    return $this;
+    
   }//method
   public function getOffset(){ return empty($this->map_bounds['offset']) ? 0 : $this->map_bounds['offset']; }//method
   public function hasOffset(){ return !empty($this->map_bounds['offset']); }//method
@@ -427,6 +444,8 @@ class MingoCriteria extends MingoMagic {
       $this->setPage($page);
       
     }//if/else
+    
+    return $this;
     
   }//method
   
