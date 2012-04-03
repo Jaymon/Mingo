@@ -13,7 +13,7 @@
  *    - created = holds a unix timestamp of when the row was created, always set  
  *  
  *  @abstract 
- *  @version 0.8
+ *  @version 0.9
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
@@ -123,6 +123,19 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     
     // load the id list if passed in...
     $this->loadBy_Id($_id_list);
+  
+  }//method
+  
+  /**
+   *  return a query object that will be used to query the db
+   *     
+   *  @since  4-3-12      
+   *  @param  MingoInterface  $db the db connection to use to perform the query
+   *  @return MingoQuery
+   */
+  public static function createQuery(MingoInterface $db = null){
+  
+    return new MingoQuery(get_called_class(),$db);
   
   }//method
   

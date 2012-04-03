@@ -4,15 +4,23 @@
  *  create a query instance that can be used to query the db
  *  
  *  this is a great class to extend if you want to create a Peer or Table class
- *  that will do all the selecting for a MingoOrm class 
+ *  that will do all the selecting for a MingoOrm class
+ *  
+ *  This class is the first step of the transition from using MingoOrm's load*() methods
+ *  and having MingoOrm do everything to a more traditional Table class and row class that
+ *  most Orms use. I think the one class to rule them all was a nice idea in theory, it made
+ *  for some confusing code. Also, if you added a function that should only work on one row
+ *  in the MingoOrm child class you would have to check to make sure the MingoOrm class had
+ *  only loaded one child and throw an error if it had more than one row loaded, this was
+ *  impractical over the long haul
  *  
  *  @example
  *  
- *    // get all the foo fields that match the values:
+ *    // get all the FooBar table's foo fields that match the values:
  *    $query = new MingoQuery('FooBar',$db);
  *    $iterator =  $query->inFoo(1,2,3,4)->get();
  *    
- *    // get the first 5 values the foo values matching 1 and sort them by bar   
+ *    // get the first 5 values of FooBar's foo values matching 1 and sort them by bar   
  *    $query = new MingoQuery('FooBar',$db);
  *    $iterator =  $query->isFoo(1)->descBar()->setLimit(5)->get();  
  * 
@@ -57,7 +65,7 @@ class MingoQuery extends MingoCriteria {
   /**
    *  return a result set
    *  
-   *  @return \MingoIterator  this will always return an iterator, even if there are no rwos matching
+   *  @return \MingoIterator  this will always return an iterator, even if there are no rows matching
    */
   public function get(){
   
