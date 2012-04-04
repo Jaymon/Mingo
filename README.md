@@ -3,7 +3,7 @@
 Mingo is an easy to use database abstraction layer that uses the db as a schema-less document 
 storage engine based on [how Friendfeed uses MySql](http://bret.appspot.com/entry/how-friendfeed-uses-mysql).
 
-Currently, by default, it can use  MySQL, SQLite, or PostgreSQL databases as the backend. 
+Currently, by default, Mingo can use  MySQL, SQLite, or PostgreSQL databases as the backend. 
 I've updated the code quite a bit so I've disabled the __Mongo__, __Lucene__, and __Postgres Hstore__ 
 interfaces until I can refactor and update them. 
 
@@ -136,7 +136,7 @@ Mingo requires php >=5.3, but if you have to use Mingo in something like 5.2, yo
 use the MingoOrm::createQuery() method, though this will change in the future as the code becomes
 namespaced and uses more 5.3+ features.
 
-If yo have `PHPUnit` installed then you should be able to run the unit tests found in the `test/phpunit` 
+If you have `PHPUnit` installed then you should be able to run the unit tests found in the `test/phpunit` 
 folder (though you may have to edit the connection variables in any of the interface tests to use your 
 versions of whatever db you want to use).
 
@@ -157,14 +157,10 @@ you need to do special things.
 ## Mingo in the press:
 
 [Techcrunch Jan, 12, 2010](http://www.techcrunch.com/2010/01/12/plancast-facebook-events/)
-"Plancast has started using a 'No SQL' solution for some of their data. More tech-savvy readers may 
+"[Plancast](http://plancast.com) has started using a 'No SQL' solution for some of their data. More tech-savvy readers may 
 recognize that is also a solution FriendFeed is using on their backend, as Facebook's Bret Taylor wrote 
 about at length [here](http://bret.appspot.com/entry/how-friendfeed-uses-mysql). 
 Plancast has [open-sourced](http://github.com/Jaymon/Mingo) their version of this."
-
-## Mingo in action
-
-[Plancast.com](http://plancast.com).
 
 ## License
 
