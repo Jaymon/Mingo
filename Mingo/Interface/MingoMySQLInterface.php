@@ -281,7 +281,6 @@ class MingoMySQLInterface extends MingoRDBMSInterface {
       case MingoField::TYPE_STR:
       case MingoField::TYPE_LIST:
       case MingoField::TYPE_MAP:
-      case MingoField::TYPE_OBJ:
       case MingoField::TYPE_DEFAULT:
       default:
         

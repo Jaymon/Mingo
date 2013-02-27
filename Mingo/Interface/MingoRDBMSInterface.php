@@ -932,7 +932,7 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
    *  get the body that is the key/val pairs that will go in the body field of the table
    *  
    *  I zlib compress: http://www.php.net/manual/en/ref.zlib.php
-   *  Not really sure why except that Friendfeed does it, and I don't want to be different         
+   *  Not really sure why except that Friendfeed does it, and I don't want to be different
    *      
    *  @param  array $map  the key/value pairings
    *  @return string  a zlib compressed json encoded string
@@ -944,21 +944,18 @@ abstract class MingoRDBMSInterface extends MingoPDOInterface {
       if(isset($map[$field])){ unset($map[$field]); }//if
     }//foreach
     
-    return gzcompress(serialize($map));
+    return gzcompress(json_encode($map));
   
   }//method
   
   /**
    *  opposite of {@link getBody()}
    *  
-   *  between version .1 and .2 this changed from json to serialize because of the
-   *  associative arrays becoming stdObjects problem   
-   *      
    *  @param  string  $body the getBody() compressed string, probably returned from a db call
    *  @return array the key/value pairs restored to their former glory
    */
   protected function getMap($body){
-    return unserialize(gzuncompress($body));
+    return json_decode(gzuncompress($body), true);
   }//method
   
   

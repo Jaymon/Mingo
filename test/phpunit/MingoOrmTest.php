@@ -6,6 +6,7 @@
  */    
 
 require_once('MingoTestBase.php');
+//include('/vagrant/out_class.php');
 
 class MingoOrmTest extends MingoTestBase {
 
@@ -142,7 +143,6 @@ class MingoOrmTest extends MingoTestBase {
   
     $orm = $this->getOrm();
     $orm = $orm[0][0];
-    \out::e($orm->getMap(0));
 
     $orm->reset();
 

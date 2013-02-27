@@ -1,9 +1,9 @@
 # What is Mingo?
 
 Mingo is an easy to use database abstraction layer that uses the db as a schema-less document 
-storage engine based on [how Friendfeed uses MySql](http://bret.appspot.com/entry/how-friendfeed-uses-mysql).
+storage engine based on [how Friendfeed used MySql](http://bret.appspot.com/entry/how-friendfeed-uses-mysql).
 
-Currently, by default, Mingo can use  MySQL, SQLite, or PostgreSQL databases as the backend. 
+Currently, by default, Mingo can use MySQL, SQLite, or PostgreSQL databases as the backend. 
 I've updated the code quite a bit so I've disabled the __Mongo__, __Lucene__, and __Postgres Hstore__ 
 interfaces until I can refactor and update them. 
 
@@ -23,13 +23,13 @@ Using Mingo is as easy as creating a new class that extends MingoOrm. For our ex
         // we don't have to define all the fields, but it helps with indexes
         
         // the username is a string of 0, 32 characters
-        $field = new MingoField('username',MingoField::TYPE_STR,array(0,32));
+        $field = new MingoField('username', MingoField::TYPE_STR, array(0, 32));
         
         // the password is a hash of 32 characters
-        $field = new MingoField('password',MingoField::TYPE_STR,32);
+        $field = new MingoField('password', MingoField::TYPE_STR, 32);
         
         // now set an index, the index name is "un_and_pw" and it uses the username, and password fields
-        $table->setIndex('un_and_pw',array('username','password'));
+        $table->setIndex('un_and_pw', array('username', 'password'));
       
       }//method
 

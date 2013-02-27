@@ -18,6 +18,13 @@ MingoAutoload::register();
 abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
 
   /**
+   * looks like assertType was removed from PHPUnit, this just adds it back
+   */
+  public function assertType($expected, $actual, $message = ''){
+    return $this->assertInternalType($expected, $actual, $message);
+  }//method
+
+  /**
    *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
    */        
   public function getOrm(){

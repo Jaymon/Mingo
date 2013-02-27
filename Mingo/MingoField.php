@@ -17,9 +17,8 @@ class MingoField {
   const TYPE_POINT = 3;
   const TYPE_LIST = 4;
   const TYPE_MAP = 5;
-  const TYPE_OBJ = 6;
-  const TYPE_BOOL = 7;
-  const TYPE_FLOAT = 8;
+  const TYPE_BOOL = 6;
+  const TYPE_FLOAT = 7;
   
   /**
    *  handle the type hints
@@ -220,17 +219,6 @@ class MingoField {
         }//if
         break;
       
-      case self::TYPE_OBJ:
-      
-        if(!is_object($val)){
-        
-          throw new UnexpectedValueException(
-            sprintf('an object instance was expected, %s given',gettype($val))
-          );
-        
-        }//if
-        break;
-      
       case self::TYPE_BOOL:
       
         $val = empty($val) ? 0 : 1;
@@ -243,7 +231,8 @@ class MingoField {
     
       case self::TYPE_DEFAULT:
       default:
-      
+
+        if(is_object($val)){ $val = (string)$val; }//if
         if(is_bool($val)){ $val = empty($val) ? 0 : 1; }//if
         break;
     
