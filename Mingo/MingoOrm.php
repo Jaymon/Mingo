@@ -1287,6 +1287,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   /**
    *  attach a new row to this instance
    *  
+   *  @deprecated
+   *  NOTE: this is going to be made private, use setFields() instead
+   *  
    *  @param  array|object  either an associative array or instance of this class, to attach to
    *                        the end of this object
    *  @param  boolean $is_modified  if true, then the contents of $map will be saved when set() is called
@@ -1339,6 +1342,19 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   
     return true;
   
+  }//method
+
+  /**
+   * I'm slowly moving this to one orm represents one row, sadly, there is still
+   * a lot code that needs to be changed/updated, this should be used over attach()
+   * for replacing the internal contents of an orm
+   *
+   * @since 2013-3-7
+   * @param array $map  the fields you want to set into the orm
+   */
+  public function setFields(array $map){
+    $this->reset();
+    $this->attach($map, true);
   }//method
   
   /**

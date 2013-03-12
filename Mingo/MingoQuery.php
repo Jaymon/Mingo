@@ -33,7 +33,7 @@
  *  @since 1-12-12
  *  @package mingo 
  ******************************************************************************/
-class MingoQuery extends MingoCriteria {
+class MingoQuery extends MingoCriteria implements IteratorAggregate {
 
   /**
    *  the \MingoOrm orm name
@@ -131,5 +131,19 @@ class MingoQuery extends MingoCriteria {
    *  @return \MingoIterator   
    */
   protected function createIterator(){ return new MingoIterator(); }//method
+
+  
+  /**
+   * returns an iterator with the results
+   *
+   * basically, this is just to make it easy to put stuff in the query, and then just
+   * start foreaching the query and have the results work without explicitely calling get()
+   *
+   * @since 2013-3-7
+   * @return  Traversable
+   */
+  public function getIterator(){
+    return $this->get();
+  }//method
 
 }//class     

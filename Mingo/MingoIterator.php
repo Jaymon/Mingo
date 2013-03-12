@@ -8,7 +8,7 @@
  *  @since 1-12-12
  *  @package mingo 
  ******************************************************************************/
-class MingoIterator implements ArrayAccess, Iterator, Count {
+class MingoIterator implements ArrayAccess, Iterator, Countable {
 
   /**
    *  the \MingoOrm that will be used to iterate
