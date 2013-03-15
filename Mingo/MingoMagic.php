@@ -213,6 +213,20 @@ abstract class MingoMagic implements ArrayAccess {
   public function getFields(){ return $this->field_map; }//method
 
   /**
+   * completely replace the internal field map with $field_map
+   *
+   * this can be dangerous if you replace the internal field map with a field
+   * map that has a different structure, you have been warned
+   *
+   * @since 2013-3-14
+   * @param array $field_map
+   */
+  public function setFields(array $field_map){
+    $this->field_map = $field_map;
+    return $this;
+  }//method
+
+  /**
    *  get the best value for a field
    *
    *  @since  3-24-11

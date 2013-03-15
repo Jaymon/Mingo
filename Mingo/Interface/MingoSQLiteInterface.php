@@ -145,7 +145,6 @@ class MingoSQLiteInterface extends MingoRDBMSInterface {
     $format_query[] = 'PRIMARY KEY (%s,_id),';
     $format_vars[] = join(',',$field_list);
     
-    // _rowid will be our binding to the master table
     // http://www.sqlite.org/foreignkeys.html
     $format_query[] = 'FOREIGN KEY(_id) REFERENCES %s(_id) ON DELETE CASCADE';
     $format_vars[] = $this->normalizeTableSQL($table);

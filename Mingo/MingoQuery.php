@@ -50,6 +50,14 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
   protected $db = null;
 
   /**
+   * holds the count cache if count() is called
+   *
+   * @since 2013-3-14
+   * @var integer
+   */
+  protected $count = null;
+
+  /**
    *  build a query
    *  
    *  @param  string  $orm_name the name of the \MingoOrm class      
@@ -61,6 +69,27 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
     $this->db = $db;
   
   }//method
+
+  public function setDb(MingoInterface $db = null){ $this->db = $db; }//method
+  public function hasDb(){ return !empty($this->db); }//method
+  
+  /**
+   *  return the db object that this instance is using
+   *  
+   *  @see  setDb()   
+   *  @return MingoInterface  an instance of the db object that will be used
+   */
+  public function getDb(){
+    
+    // canary...
+    if(empty($this->db)){
+      throw new UnexpectedValueException('a valid MingoInterface instance has not been set using setDb()');
+    }//if
+    
+    return $this->db;
+    
+  }//method
+  
   
   /**
    *  return a result set
@@ -69,14 +98,42 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
    */
   public function get(){
   
+    $has_more = false;
     $orm = $this->createOrm();
-    $iterator = $this->createIterator();
-  
-    $orm->load($this);
+    $db = $this->getDb();
+    $limit = $offset = $limit_paginate = 0;
+    list($limit, $offset, $limit_paginate) = $this->getBounds();
+
+    // get stuff from the db...
+    $list = $db->get($orm->getTable(), $this);
+    
+    // re-populate this instance...
+    if(!empty($list)){
+      
+      // set whether more results are available or not...
+      $count = count($list);
+      if(!empty($limit_paginate) && ($count == $limit_paginate)){
+        
+        // cut off the final row since it wasn't part of the original requested rows...
+        $list = array_slice($list, 0, -1);
+        $has_more = true;
+        $count--;
+        
+      }else{
+      
+        $has_more = false;
+        $this->count = $count;
+        
+      }//if/else
+      
+    }//if
+    
+    $iterator = $this->createIterator($list);
     $iterator->setOrm($orm);
-  
+    $iterator->setMore($has_more);
+
     return $iterator;
-  
+    
   }//method
   
   /**
@@ -86,13 +143,28 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
    */
   public function getOne(){
   
+    $db = $this->getDb();
     $orm = $this->createOrm();
-    if(!$orm->loadOne($this)){
-    
-      $orm = null;
-    
-    }//if
   
+    $db = $this->getDb();
+    $orm = $this->createOrm();
+    
+    // get stuff from the db...
+    $map = $db->getOne(
+      $this->getTable(),
+      $where_criteria
+    );
+    
+    if(empty($map)){
+
+      $orm = null;
+
+    }else{
+
+      $orm->setFields($map);
+
+    }//if/else
+    
     return $orm;
   
   }//method
@@ -104,9 +176,23 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
    */
   public function count(){
   
+    if($this->count !== null){ return $this->count; }//if
+
+    $db = $this->getDb();
     $orm = $this->createOrm();
-    return $orm->loadTotal($this);
+    $this->count = $db->getCount($orm->getTable(), $this);
   
+  }//method
+
+  public function kill(){
+
+    $ret_bool = false;
+    $orm = $this->createOrm();
+    $db = $this->getDb();
+    $ret_bool = $db->kill($orm->getTable(), $this);
+  
+    return $ret_bool;
+
   }//method
   
   /**

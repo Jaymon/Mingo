@@ -7,18 +7,17 @@
  *  the start() method 
  *
  *  this class reserves some keywords as special: 
- *    - _rowid = the auto increment key, always set on SQL db
  *    - _id = the unique id of the row, always set for both mongo and sql
  *    - updated = holds a unix timestamp of the last time the row was saved into the db, always set
  *    - created = holds a unix timestamp of when the row was created, always set  
  *  
  *  @abstract 
- *  @version 0.9
+ *  @version 0.9.1
  *  @author Jay Marcyes {@link http://marcyes.com}
  *  @since 11-14-09
  *  @package mingo 
  ******************************************************************************/
-abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
+abstract class MingoOrm extends MingoMagic {
 
   /**
    *  every row that has, or will be, saved into the db will carry an _id
@@ -26,13 +25,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  the id is usually a ~24 character hash/string
    */
   const _ID = '_id';
-  
-  /**
-   *  this is an auto-increment row id 
-   *  
-   *  the _rowid is an integer
-   */
-  const _ROWID = '_rowid';
   
   /**
    *  when the row was last updated
@@ -57,52 +49,12 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   protected $table = null;
   
   /**
-   *  holds the pointer to the current map in {@link $list}
-   *  @var  integer
+   * set to true if the internal field map is changed in any way
+   *
+   * @since 2013-3-14
+   * @var boolean
    */
-  protected $current_i = 0;
-  
-  /**
-   *  holds the total maps in {@link $list}
-   *  @var  integer
-   */
-  protected $count = 0;
-  
-  /**
-   *  the internal representation of the lists that this class represents
-   *  @var  array an array with each index having 'modified' and 'map' keys
-   */
-  protected $list = array();
-
-  /**
-   *  if {@link load()} could have loaded more results, this will be set to true
-   *  @var  boolean   
-   */
-  protected $more = false;
-  /**
-   *  if {@link load()} has $set_load_count=true then get the total results that could
-   *  be returned if no limit was specified
-   *        
-   *  @var  integer
-   */
-  protected $total = 0;
-
-  /**
-   *  set to true if you want this instance to act like an array even if {@link hasCount()}
-   *  equals 1 (ie, this instance only represents one row)
-   *  
-   *  @var  boolean
-   */
-  protected $multi = false;
-  
-  /**
-   *  this will point to the last loaded criteria object passed into methods like load()
-   *  
-   *  @see  load(), loadOne()
-   *      
-   *  @var  MingoCriteria
-   */
-  protected $criteria = null;
+  protected $is_modified = false;
   
   /**
    *  holds this class's db access instance
@@ -115,18 +67,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   private $db = null;
 
   /**
-   *  default constructor
-   *  
-   *  @param  array|string  $_id_list one or more unique _ids to load into this instance      
-   */
-  public function __construct($_id_list = array()){
-    
-    // load the id list if passed in...
-    $this->loadBy_Id($_id_list);
-  
-  }//method
-  
-  /**
    *  return a query object that will be used to query the db
    *     
    *  @since  4-3-12      
@@ -135,7 +75,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    */
   public static function createQuery(MingoInterface $db = null){
   
-    return new MingoQuery(get_called_class(),$db);
+    return new MingoQuery(get_called_class(), $db);
   
   }//method
   
@@ -153,32 +93,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     return array_keys($map);
   
   }//method
-  
-  /**
-   *  get how many rows this class represents, remember if it's greater than 1 then
-   *  this class represents multiple rows, so any get*, set* access functions will
-   *  work on all the rows, so if you do something like $this->setTitle('blah') and
-   *  there are 4 rows, then each row will have its title set to 'blah'
-   *  
-   *  @return integer how many rows this class represents               
-   */
-  public function getCount(){ return $this->count; }//method
-  public function hasCount(){ return !empty($this->count); }//method
-  public function isCount($count){ return ($this->count == $count); }//method
-  /**
-   *  Required definition for Countable, allows count($this) to work
-   *  @link http://www.php.net/manual/en/class.countable.php
-   */
-  public function count(){ return $this->getCount(); }//method
-
-  /**
-   *  return true if the last db load could load more, but was limited by $limit 
-   *
-   *  @return boolean
-   */
-  public function hasMore(){ return !empty($this->more); }//method
-  protected function setMore($val){ $this->more = $val; }//method
-  protected function getMore(){ return $this->more; }//method
   
   public function setDb(MingoInterface $db = null){ $this->db = $db; }//method
   public function hasDb(){ return !empty($this->db); }//method
@@ -201,16 +115,6 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   }//method
   
   /**
-   *  if the instance has loaded any rows then the criteria that was used should be 
-   *  stored using this method
-   *  
-   *  @param  MingoCriteria $criteria
-   */        
-  protected function setCriteria(MingoCriteria $criteria = null){ $this->criteria = $criteria; }//method
-  public function getCriteria(){ return $this->criteria; }//method
-  public function hasCriteria(){ return !empty($this->criteria); }//method
-  
-  /**
    *  get the table name that this class will use in the db
    *
    *  @since  11-1-11
@@ -231,9 +135,8 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     $table = new MingoTable($this->getTableName());
     
     // set some of the default fields...
-    $table->setField(self::_ROWID,MingoField::TYPE_INT);
-    $table->setField(self::_CREATED,MingoField::TYPE_INT);
-    $table->setField(self::_UPDATED,MingoField::TYPE_INT);
+    $table->setField(self::_CREATED, MingoField::TYPE_INT);
+    $table->setField(self::_UPDATED, MingoField::TYPE_INT);
     
     // let some custom stuff be added...
     $this->populateTable($table);
@@ -262,414 +165,59 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  MingoTable  $table
    */
   abstract protected function populateTable(MingoTable $table);
-  
-  /**
-   *  pass in true to make this instance act like it is a list no matter what
-   *  
-   *  eg, you want to iterate through the results of a get* call using foreach
-   *  but there might only be one result (which would normally cause only the value
-   *  to be returned instead of a list of values)
-   *  
-   *  example:
-   *    // Foo extends MingoOrm...   
-   *    $foo = new Foo();
-   *    $foo->set_id($_id);
-   *    $foo->load();
-   *    // foo will only have one row loaded since _id is always unique...
-   *    $foo->get_id(); // '4z4b59960417cff191587927'
-   *    $foo->setMulti(true);
-   *    $foo->get_id(); // array(0 => '4z4b59960417cff191587927')        
-   *                
-   *  
-   *  @param  boolean $val
-   */
-  public function setMulti($multi){ $this->multi = $multi; }//method
-  public function isMulti(){ return !empty($this->multi); }//method
-  
-  /**
-   *  get the internal representation of this class
-   *  
-   *  the better method to use is {@link get()} because it will create instances
-   *  for all the rows that get detached from this instance, this returns the raw
-   *  array list only, it needs to be public so {@link attach()} will work when 
-   *  attaching other instances of this class   
-   *  
-   *  @return array the internal {@link $list} array
-   */
-  public function getList(){ return $this->list; }//method
 
   /**
-   *  returns a list of all the maps this class contains         
-   *      
-   *  @param  integer $i  the index we want to get if we don't want all of them      
-   *  @return array
+   * return true if the map has been modified and can be set() into the db
+   *
+   * @since 2013-3-14
+   * @return  boolean
    */
-  public function get($i){
+  public function isModified(){ return $this->is_modified; }//method
   
-    $ret_mix = null;
-    $args = func_get_args();
-  
-    if(empty($args)){
-    
-      $ret_mix = array();
-    
-      foreach($this as $map){ $ret_mix[] = $map; }//foreach
-    
-    }else{
-    
-      if(isset($args[1])){
-        foreach($args as $arg){ $ret_mix[] = $this->detach($arg); }//foreach
-      }else{
-        $ret_mix = $this->detach($args[0]);
-      }//if
-    
-    }//if/else
-    
-    return $ret_mix;
-  
-  }//method
-  
-  /**
-   *  returns a list of all the array maps this class contains
-   *  
-   *  Unlike {@link get()} which returns separate instances for each map this class represents
-   *  this will return an actual map (eg, key/val paired array). Like get() you can do $this->getMap(0)
-   *  to just get one map array      
-   *  
-   *  @param  integer $i  the index we want to get if we don't want all of them      
-   *  @return array
-   */
-  public function getMap($i){
-  
-    $ret_mix = null;
-    $args = func_get_args();
-  
-    if(empty($args)){
-    
-      $ret_mix = array();
-    
-      foreach($this->list as $map){ $ret_mix[] = $map['map']; }//foreach
-      
-    }else{
-    
-      $ret_mix = array();
-      
-      if(isset($args[1])){
-      
-        foreach($args as $arg){
-          if(isset($this->list[$arg])){
-            $ret_mix[] = $this->list[$arg]['map'];
-          }//if
-        }//foreach
-        
-      }else{
-        
-        if(isset($this->list[$args[0]])){
-          $ret_mix = $this->list[$args[0]]['map'];
-        }//if
-        
-      }//if
-    
-    }//if/else
-    
-    return $ret_mix;
-  
-  }//method
-
   /**
    *  save this instance into the db
    *  
-   *  @return integer how many objects were persisted
+   *  @return boolean true if db successfully saved, false otherwise
    */
   public function set(){
-  
-    $ret_count = 0;
-    
-    foreach(array_keys($this->list) as $key){
-    
-      // only try and save if it has changes...
-      if(!empty($this->list[$key]['modified'])){
-      
-        $this->list[$key]['map'] = $this->setOne($this->detach($key));
-        $this->list[$key]['modified'] = false; // reset
-        $ret_count++;
-        
-      }//if
-      
-    }//foreach
-  
-    return $ret_count;
-  
-  }//method
-  
-  /**
-   *  just set the individual row
-   *  
-   *  this is blown out from {@link set()} to make it easier for the child classes
-   *  to mess with one row right before saving it
-   *  
-   *  @since  10-18-11
-   *  @param  MingoOrm  $orm  the Orm that represents just one row   
-   *  @return array the map from the orm, now saved
-   */
-  protected function setOne(MingoOrm $orm){
-  
-    $db = $this->getDb();
-    $map = $db->set($this->getTable(),$orm->getMap(0));
-    return $map;
-  
-  }//method
-  
-  /**
-   *  just set the individual map
-   *  
-   *  this is blown out from {@link set()} to make it easier for the child classes
-   *  to mess with the map right before saving it
-   *  
-   *  @since  6-24-11   
-   *  @param  array $map  the map that will be saved into the db   
-   *  @return array the same map, but now saved
-   */
-  protected function setMap(array $map){
-  
-    $db = $this->getDb();
-    $map = $db->set($this->getTable(),$map);
-    return $map;
-  
-  }//method
-  
-  protected function setTotal($val){ $this->total = $val; }//method
-  public function getTotal(){ return $this->total; }//method
-  public function hasTotal(){ return !empty($this->total); }//method
-  
-  /**
-   *  load the total number of rows $where_criteria touches
-   *  
-   *  this is like doing a select count(*)... sql query
-   *  
-   *  @param  MingoCriteria  $where_criteria  criteria that will restrict the count
-   *  @return integer the total rows counted
-   */
-  public function loadTotal(MingoCriteria $where_criteria = null){
-    
-    $db = $this->getDb();
-    $this->setTotal(
-      $db->getCount($this->getTable(),$where_criteria)
-    );
-    
-    return $this->getTotal();
-    
-  }//method
-  
-  /**
-   *  load the contents from the db
-   *  
-   *  contents are loaded passing in a $where_criteria that is used to load the 
-   *  internal contents of this instance
-   *  
-   *  @example                      
-   *    // load something using $where_criteria:
-   *    $mc = new MingoCriteria();
-   *    $mc->in_id('4affd9e8da7f000000003645');
-   *    $instance->load($mc);
-   *
-   *  @param  MingoCriteria  $where_criteria  criteria for loading db rows into this object
-   *  @param  boolean $set_load_total if true, then {@link getTotal()} will return how many results
-   *                                  are possible (eg, if you have a limit of 10 but there are 100
-   *                                  results matching $where_criteria, getTotal() will return 100      
-   *  @return integer how many rows were loaded
-   */
-  public function load(MingoCriteria $where_criteria = null,$set_load_total = false){
-  
-    // go back to square one...
-    $this->reset();
-  
-    $ret_int = 0;
-    $db = $this->getDb();
-    $limit = $offset = $limit_paginate = 0;
-    $c = null;
 
-    // figure out what criteria to use on the load...
-    if($where_criteria !== null){
-    
-      $c = clone $where_criteria; // let's make a deep copy
-      list($limit,$offset,$limit_paginate) = $where_criteria->getBounds();
-      $c->setLimit($limit_paginate);
-      $c->setOffset($offset);
-    
-    }//if
-    
-    // get stuff from the db...
-    $list = $db->get($this->getTable(),$c);
-    
-    // re-populate this instance...
-    if(!empty($list)){
-      
-      // set whether more results are available or not...
-      $ret_int = count($list);
-      if(!empty($limit_paginate) && ($ret_int == $limit_paginate)){
-        
-        // cut off the final row since it wasn't part of the original requested rows...
-        $list = array_slice($list,0,-1);
-        $this->setMore(true);
-        $ret_int--;
-        
-        if($set_load_total && ($c !== null)){
-          $bounds_map = $c->getBounds();
-          $c->setBounds(0,0);
-          $this->loadTotal($c);
-          $c->setBounds($bounds_map);
-        }else{
-          $this->setTotal($ret_int);
-        }//if/else
-        
-        $where_criteria->setLimit($limit);
-        
-      }else{
-      
-        $this->setMore(false);
-        $this->setTotal($ret_int);
-        
-      }//if/else
-      
-      // we attach so that the structure of the internal map is maintained...
-      array_map(array($this,'attach'),$list);
-      ///foreach($list as $map){ $this->attach($map); }//foreach
-      
-    }//if
-    
-    $this->setMulti(true); // any load is multi, use loadOne to make multi false
-    /* if($ret_int > 0){
-      
-      if($ret_int === 1){
-        $this->setMulti(false);
-      }else{
-        $this->setMulti(true);
-      }//if/else
-      
-    }//if */
-    
-    $this->setCriteria($c);
-    return $ret_int;
+    // canary
+    if(empty($this->is_modified)){ return false; }//if
   
-  }//method
-  
-  /**
-   *  load one row from the db
-   *  
-   *  @example                      
-   *    // load something using $where_criteria:
-   *    $mc = new MingoCriteria();
-   *    $mc->is_id('4affd9e8da7f000000003645');
-   *    $this->loadOne($mc);
-   *
-   *  @param  MingoCriteria  $where_criteria  criteria for loading db rows into this object      
-   *  @return boolean
-   */
-  public function loadOne(MingoCriteria $where_criteria){
-  
-    // go back to square one...
-    $this->reset();
-  
-    $ret_bool = false;
     $db = $this->getDb();
-    $this->setCriteria($where_criteria);
-    
-    // get stuff from the db...
-    $map = $db->getOne(
-      $this->getTable(),
-      $where_criteria
-    );
-    
-    // re-populate this instance...
-    if(!empty($map)){
-      
-      $this->setMore(false);
-      $this->attach($map);
-      $this->setMulti(false);
-      $ret_bool = true;
-      
-    }//if
-    
-    return $ret_bool;
+    $this->_set();
+    $this->field_map = $db->set($this->getTable(), $orm->getFields());
+    $this->is_modified = false;
+    return true;
   
   }//method
   
   /**
-   *  load by the unique _ids
+   * called right before $this is set into the db
    *
-   *  @param  integer|array $_id_list one or more _ids
-   *  @return integer how many rows were loaded
+   * it just gives you an opportunity to manipulate the internal field map right before
+   * it is saved into the db, but after all the error checking is done
+   *  
+   * @since  10-18-11
    */
-  public function loadBy_Id($_id_list){
-  
-    // canary...
-    if(empty($_id_list)){ return 0; }//if
-    
-    $ret_int = 0;
-    
-    $where_criteria = new MingoCriteria();
-    if(is_array($_id_list)){
-      $where_criteria->inField(self::_ID,$_id_list);
-      $ret_int = $this->load($where_criteria);
-    }else{
-      $where_criteria->isField(self::_ID,$_id_list);
-      if($this->loadOne($where_criteria)){ $ret_int = 1; }//if
-    }//if/else
-  
-    return $ret_int;
-  
-  }//method
+  protected function _set(){}//method
   
   /**
    *  remove all the rows in this instance from the db
    *  
-   *  @param  MingoCriteria  $where_criteria  criteria for deleting db rows   
    *  @return boolean will only return true if all the rows were successfully removed, false otherwise      
    */
-  public function kill(MingoCriteria $where_criteria = null){
-  
+  public function kill(){
+
     $ret_bool = false;
-    $db = $this->getDb();
-  
-    if($where_criteria !== null){
-    
-      $ret_bool = $db->kill($this->getTable(),$where_criteria);
-        
-    }else{
-  
-      $_id_list = array();
-  
-      // get all the ids...
-      if($this->hasField(self::_ID)){
-      
-        $_id_list = $this->getField(self::_ID);
-      
-      }else{
-      
-        for($i = 0; $i < $this->count ;$i++){
-      
-          if(isset($this->list[$i]['map']['_id'])){
-            $_id_list[] = $this->list[$i]['map']['_id'];
-          }//if
-          
-        }//for
-      
-      }//if/else
-      
-      if(!empty($_id_list)){
-        
-        $where_criteria = new MingoCriteria();
-        $where_criteria->inField(self::_ID,$_id_list);
-        if($db->kill($this->getTable(),$where_criteria)){
-          $this->reset();
-          $ret_bool = true;
-        }//if
-        
-      }//if/else
-      
-    }//if/else
-  
+    $query = static::createQuery(get_class($this), $this->getDb());
+    if($query->is_id($this->get_id())->kill()){
+      $this->kill_id();
+      $this->kill_updated();
+      $this->kill_created();
+      $ret_bool = true;
+    }//if
+
     return $ret_bool;
   
   }//method
@@ -701,18 +249,12 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   }//method
   
   /**
-   *  resets the class's internal list   
+   *  resets the class's internal stuff, basically restore class virginity, but keep stuff
+   *  like db and table (stuff that doesn't change)
    */
   public function reset(){
-  
-    $this->current_i = 0;
-    $this->list = array();
-    $this->count = 0;
-    $this->setMulti(false);
-    $this->setMore(false);
-    $this->setTotal(0);
-    $this->setCriteria(null);
-  
+    $this->field_map = array();
+    $this->is_modified = false;
   }//method   
   
   /**
@@ -727,19 +269,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function getField($name,$default_val = null){
   
     // canary...
-    if(!$this->hasCount()){ return $this->isMulti() ? array() : $default_val; }//if
+    if(!$this->hasFields()){ return $default_val; }//if
   
-    $ret_mixed = $this->handleCall('get',$name,array($default_val),array());
-    
-    // format the return value...
-    if(!$this->isMulti()){
-      
-      if(is_array($ret_mixed) && !empty($ret_mixed)){
-        $ret_mixed = $ret_mixed[0];
-      }//if
-      
-    }//if
-  
+    $ret_mixed = $this->handleCall('get', $name, array($default_val), null);
     return $ret_mixed;
   
   }//method
@@ -756,9 +288,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function hasField($name){
   
     // canary...
-    if(!$this->hasCount()){ return false; }//if
+    if(!$this->hasFields()){ return false; }//if
   
-    return $this->handleCall('has',$name,array(),true);
+    return $this->handleCall('has', $name, array(), true);
   
   }//method
   
@@ -774,9 +306,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function existsField($name){
   
     // canary...
-    if(!$this->hasCount()){ return false; }//if
+    if(!$this->hasFields()){ return false; }//if
   
-    return $this->handleCall('exists',$name,array(),true);
+    return $this->handleCall('exists', $name, array(), true);
   
   }//method
   
@@ -793,13 +325,43 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  mixed $val  the value to set $name to                 
    *  @return MingoOrm
    */
-  public function setField($name,$val){
+  public function setField($name, $val){
   
-    // canary...
-    if(empty($this->list)){ $this->attach(array()); }//if
+    return $this->handleCall('set', $name, array($val), $this);
+    $ref_name = '';
+    if($ref_map = &$this->getRef($name, $ref_name, -1)){
+      \out::e($ref_map, $ref_name);
+      $ref_map[$ref_name] = $val;
+    }//if
+
+    \out::e($ref_map, $this->field_map);
+
+    return $this;
   
-    return $this->handleCall('set',$name,array($val),$this);
+  }//method
+
+  protected function &getRef($name, &$ref_name, $count_offset){
+
+    $table = $this->getTable();
+    $field_instance = $table->getField($name);
+    $ref_map = &$this->field_map;
   
+    $field_list = (array)$field_instance->getName();
+    $ref_name = $field_list[0];
+    $last_i = count($field_list) + $count_offset;
+
+    for($i = 0; $i < $last_i; $i++){
+      $ref_name = $field_list[$i];
+      if(isset($ref_map[$ref_name])){
+        $ref_map = &$ref_map[$ref_name];
+      }else{
+        $ret_bool = false;
+        break;
+      }//if/else
+    }//for
+
+    return $ref_map;
+
   }//method
   
   /**
@@ -813,10 +375,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    */
   public function bumpField($name,$count = 1){
   
-    // canary...
-    if(empty($this->list)){ $this->attach(array()); }//if
-  
-    return $this->handleCall('bump',$name,array($count),$this);
+    return $this->handleCall('bump', $name, array($count), $this);
   
   }//method
   
@@ -831,15 +390,13 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  mixed $val,...  one or more values to append
    *  @return MingoOrm   
    */        
-  public function attachField($name,$val){
+  public function attachField($name, $val){
   
-    // canary...
-    if(empty($this->list)){ $this->attach(array()); }//if
     // canary, need more than 1 arg...
     $args = func_get_args();
     $args = array_slice($args,1);
   
-    return $this->handleCall('attach',$name,$args,$this);
+    return $this->handleCall('attach', $name, $args, $this);
   
   }//method
   
@@ -857,11 +414,12 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function clearField($name,$val){
   
     // canary...
-    if(empty($this->list)){ return $this; }//if
+    if(!$this->hasFields()){ return $this; }//if
+
     $args = func_get_args();
     $args = array_slice($args,1);
   
-    return $this->handleCall('clear',$name,$args,$this);
+    return $this->handleCall('clear', $name, $args, $this);
   
   }//method
   
@@ -876,7 +434,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    */
   public function killField($name){
   
-    return $this->handleCall('kill',$name,array(),$this);
+    return $this->handleCall('kill', $name, array(), $this);
   
   }//method
   
@@ -894,9 +452,9 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
   public function isField($name,$val){
   
     // canary...
-    if(!$this->hasCount()){ return false; }//if
+    if(!$this->hasFields()){ return false; }//if
   
-    return $this->handleCall('is',$name,array($val),true);
+    return $this->handleCall('is', $name, array($val), true);
   
   }//method
   
@@ -910,15 +468,16 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  mixed $val,...  one or more values to match against
    *  @return boolean   
    */        
-  public function inField($name,$val){
+  public function inField($name, $val){
   
     // canary...
-    if(!$this->hasCount()){ return false; }//if
+    if(!$this->hasFields()){ return false; }//if
+
     // canary, need more than 1 arg...
     $args = func_get_args();
     $args = array_slice($args,1);
     
-    return $this->handleCall('in',$name,$args,false);
+    return $this->handleCall('in', $name, $args, false);
   
   }//method
   
@@ -936,7 +495,7 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    *  @param  array $args the arguments passed into the __call method
    *  @return mixed depending on the $command, something is returned
    */
-  protected function handleCall($command,$name,$args,$ret_mixed = null){
+  protected function handleCall($command, $name, $args, $ret_mixed = null){
   
     $table = $this->getTable();
     $field_instance = $table->getField($name);
@@ -946,404 +505,309 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
     $ret_found_list = array();
     $field_last_i = count($field_list) - 1;
   
-    for($list_i = 0; $list_i < $this->count ;$list_i++){
-  
-      ///$ret_mixed[$i] = $default_val;
-      ///$ret_found[$i] = false;
-  
-      $field_i = 0;
-      $field_ref = &$this->list[$list_i]['map'];
+    $field_i = 0;
+    $field_ref = &$this->field_map;
 
-      foreach($field_list as $field){
+    foreach($field_list as $field){
+    
+      if($field_i < $field_last_i){
       
-        if($field_i < $field_last_i){
+        // do iterative things because we haven't reached our final destination yet...
+      
+        switch($command){
         
-          // do iterative things because we haven't reached our final destination yet...
-        
-          switch($command){
+          case 'set':
+          case 'bump':
           
-            case 'set':
-            case 'bump':
+            if(isset($field_ref[$field])){
             
-              if(isset($field_ref[$field])){
+              if(!is_array($field_ref[$field])){
               
-                if(!is_array($field_ref[$field])){
-                
-                  throw new DomainException(
-                    sprintf('Burrowing into [%s] failed because %s is not an array',join(',',$field_list),$field)
-                  );
-                
-                }//if
+                throw new DomainException(
+                  sprintf('Burrowing into [%s] failed because %s is not an array',join(',',$field_list),$field)
+                );
               
-              }else{
-              
-                $field_ref[$field] = array();
-              
-              }//if/else
+              }//if
             
+            }else{
+            
+              $field_ref[$field] = array();
+            
+            }//if/else
+          
+            $field_ref = &$field_ref[$field];
+          
+            break;
+          
+          case 'get':
+          case 'kill':
+          case 'has':
+          case 'exists':
+          case 'is':
+          case 'in':
+          case 'attach':
+          case 'clear':
+        
+            if(isset($field_ref[$field])){
               $field_ref = &$field_ref[$field];
-            
-              break;
-            
-            case 'get':
-            case 'kill':
-            case 'has':
-            case 'exists':
-            case 'is':
-            case 'in':
-            case 'attach':
-            case 'clear':
+            }else{
+              // this field doesn't exist, so just move on to the next list map...
+              unset($field_ref);
+              break 2;
+            }//if/else
           
-              if(isset($field_ref[$field])){
-                $field_ref = &$field_ref[$field];
-              }else{
-                // this field doesn't exist, so just move on to the next list map...
-                unset($field_ref);
-                break 2;
-              }//if/else
+            break;
             
-              break;
-              
-          }//switch
+        }//switch
 
-        }else{
+      }else{
+      
+        // we've reached our final destination, so do final things...
+      
+        // break 2 - we are completely done with processing, we've found a final
+        // value
+        // break - we have an answer for this map's field, move onto the next map's field
+      
+        switch($command){
         
-          // we've reached our final destination, so do final things...
+          case 'get':
+          
+            if(isset($field_ref[$field])){
+              $ret_mixed = $field_instance->normalizeInVal($field_ref[$field]);
+            }else{
+              $ret_mixed = $args[0];
+            }//if/else
+          
+            break;
         
-          // break 3 - we are completely done with processing, we've found a final
-          // value
-          // break - we have an answer for this map's field, move onto the next map's field
+          case 'has':
+          
+            if(empty($field_ref[$field])){
+              $ret_mixed = false;
+              break 2; // we're done, no need to go through any more rows
+            }//if
+          
+            break;
         
-          switch($command){
+          case 'set':
           
-            case 'get':
+            $this->is_modified = true;
             
-              if(isset($field_ref[$field])){
-                $ret_mixed[] = $field_instance->normalizeInVal($field_ref[$field]);
-              }else{
-                $ret_mixed[] = $args[0];
-              }//if/else
+            $field_ref[$field] = $field_instance->normalizeInVal($args[0]);
+            $ret_mixed = true;
+            break;
             
-              break;
+          case 'bump':
           
-            case 'has':
+            $this->is_modified = true;
             
-              if(empty($field_ref[$field])){
-                $ret_mixed = false;
-                break 3; // we're done, no need to go through any more rows
-              }//if
+            if(!isset($field_ref[$field])){
+              $field_ref[$field] = 0;
+            }//if
             
-              break;
+            $field_ref[$field] += (int)$args[0];
+            $ret_mixed = true;
+            break;
+            
+          case 'is':
           
-            case 'set':
+            // normalize the arg value for compare...
+            $args[0] = $field_instance->normalizeInVal($args[0]);
             
-              $this->list[$list_i]['modified'] = true;
+            if(empty($field_ref[$field])){
               
-              $field_ref[$field] = $field_instance->normalizeInVal($args[0]);
-              $ret_mixed = true;
-              break;
-              
-            case 'bump':
-            
-              $this->list[$list_i]['modified'] = true;
-              
-              if(!isset($field_ref[$field])){
-                $field_ref[$field] = 0;
-              }//if
-              
-              $field_ref[$field] += (int)$args[0];
-              $ret_mixed = true;
-              break;
-              
-            case 'is':
-            
-              // normalize the arg value for compare...
-              $args[0] = $field_instance->normalizeInVal($args[0]);
-              
-              if(empty($field_ref[$field])){
+              if(!empty($args[0])){
                 
-                if(!empty($args[0])){
-                  
+                $ret_mixed = false;
+              
+              }//if
+            
+            }else{
+            
+              if(empty($args[0])){
+              
+                $ret_mixed = false;
+              
+              }else{
+              
+                if($field_ref[$field] != $args[0]){
+                
                   $ret_mixed = false;
                 
                 }//if
               
-              }else{
-              
-                if(empty($args[0])){
-                
-                  $ret_mixed = false;
-                
-                }else{
-                
-                  if($field_ref[$field] != $args[0]){
-                  
-                    $ret_mixed = false;
-                  
-                  }//if
-                
-                }//if/else
-              
-              
               }//if/else
-              
-              // if we find a false then we can end, if true then continue to next value...
-              if($ret_mixed === false){ break 3; }//if
             
-              break;
-              
-            case 'in':
             
-              if(array_key_exists($field,$field_ref)){
-              
-                if(is_array($field_ref[$field])){
-                
-                  foreach($args as $arg_i => $arg){
-                  
-                    // if arg is an array, we want to check the full value, then a sub-value...
-                    if(is_array($arg)){
-                    
-                      if($arg === $field_ref[$field]){
-                      
-                        unset($args[$arg_i]);
-                      
-                      }//if
-                    
-                    }//if
-                    
-                    // might have matched the full array, so only check each row if still set...
-                    if(isset($args[$arg_i])){
-                      
-                      if(in_array($arg,$field_ref[$field],true)){
-                      
-                        unset($args[$arg_i]);
-                      
-                      }//if
-                      
-                    }//if
-                    
-                  }//foreach
-                
-                }else{
-                
-                  $key = array_search($field_ref[$field],$args,true);
-                  if($key !== false){
-                  
-                    unset($args[$key]);
-                  
-                  }//if
-                  
-                }//if/else
-              
-              }//if
-              
-              if(empty($args)){
-                $ret_mixed = true;
-                break 3;
-              }//if
+            }//if/else
             
-              break;
-              
-            case 'attach':
+            // if we find a false then we can end, if true then continue to next value...
+            if($ret_mixed === false){ break 2; }//if
+          
+            break;
             
-              // the field has to exist...
-              if(!isset($field_ref[$field])){
-                throw new UnexpectedValueException('you can\'t attach to a field that doesn\'t exist');
-              }//if
-              
-              $this->list[$list_i]['modified'] = true;
-              
+          case 'in':
+          
+            if(array_key_exists($field,$field_ref)){
+            
               if(is_array($field_ref[$field])){
               
-                $field_ref[$field] = array_merge($field_ref[$field],$args);
-              
-              }else if(is_string($field_ref[$field])){
-              
-                $field_ref[$field] = sprintf('%s%s',$field_ref[$field],join('',$args));
+                foreach($args as $arg_i => $arg){
                 
-              }else{
-              
-                throw new RuntimeValueException('you can only attach to a string or an array');
-              
-              }//if/else if/else
-              
-              $ret_mixed = true;
-              break;
-              
-            case 'exists':
-            
-              // note would it be better to check if array and do array_key_exists here?
-              // isset() catches everything but null values
-            
-              if(!isset($field_ref[$field])){
-                $ret_mixed = false;
-                break 3; // we're done, no need to go through any more rows
-              }//if
-            
-              break;
-            
-            case 'kill':
-            
-              if(isset($field_ref[$field])){
-                $this->list[$list_i]['modified'] = true;
-                unset($field_ref[$field]);
-              }//if
-            
-              $ret_mixed = true;
-              break;
-              
-            case 'clear':
-            
-              if(isset($field_ref[$field])){
-              
-                if(is_array($field_ref[$field])){
-                
-                  foreach($args as $arg_i => $arg){
+                  // if arg is an array, we want to check the full value, then a sub-value...
+                  if(is_array($arg)){
                   
-                    // if arg is an array, we want to check the full value, then a sub-value...
-                    if(is_array($arg)){
+                    if($arg === $field_ref[$field]){
                     
-                      if($arg === $field_ref[$field]){
-                      
-                        $this->list[$list_i]['modified'] = true;
-                        unset($field_ref[$field]);
-                      
-                      }//if
+                      unset($args[$arg_i]);
                     
                     }//if
-                    
-                    // might have matched the full array, so only check each row if still set...
-                    if(isset($field_ref[$field])){
-                      
-                      // we need all the keys to get rid of them...
-                      $field_keys = array_keys($field_ref[$field],$arg,true);
-                      foreach($field_keys as $field_key){
-                        $this->list[$list_i]['modified'] = true;
-                        unset($field_ref[$field][$field_key]);
-                      }//foreach
-                      
-                    }//if
-                    
-                  }//foreach
-                
-                }else{
-                
-                  if(in_array($field_ref[$field],$args,true)){
-                  
-                    $this->list[$list_i]['modified'] = true;
-                    unset($field_ref[$field]);
                   
                   }//if
                   
-                }//if/else
+                  // might have matched the full array, so only check each row if still set...
+                  if(isset($args[$arg_i])){
+                    
+                    if(in_array($arg,$field_ref[$field],true)){
+                    
+                      unset($args[$arg_i]);
+                    
+                    }//if
+                    
+                  }//if
+                  
+                }//foreach
               
-              }//if
+              }else{
+              
+                $key = array_search($field_ref[$field],$args,true);
+                if($key !== false){
+                
+                  unset($args[$key]);
+                
+                }//if
+                
+              }//if/else
             
+            }//if
+            
+            if(empty($args)){
               $ret_mixed = true;
-              break;
+              break 2;
+            }//if
           
-          }//switch
+            break;
+            
+          case 'attach':
+          
+            // the field has to exist...
+            if(!isset($field_ref[$field])){
+              throw new UnexpectedValueException('you can\'t attach to a field that doesn\'t exist');
+            }//if
+            
+            $this->is_modified = true;
+            
+            if(is_array($field_ref[$field])){
+            
+              $field_ref[$field] = array_merge($field_ref[$field],$args);
+            
+            }else if(is_string($field_ref[$field])){
+            
+              $field_ref[$field] = sprintf('%s%s',$field_ref[$field],join('',$args));
+              
+            }else{
+            
+              throw new RuntimeValueException('you can only attach to a string or an array');
+            
+            }//if/else if/else
+            
+            $ret_mixed = true;
+            break;
+            
+          case 'exists':
+          
+            // note would it be better to check if array and do array_key_exists here?
+            // isset() catches everything but null values
+          
+            if(!isset($field_ref[$field])){
+              $ret_mixed = false;
+              break 2; // we're done, no need to go through any more rows
+            }//if
+          
+            break;
+          
+          case 'kill':
+          
+            if(isset($field_ref[$field])){
+              $this->is_modified = true;
+              unset($field_ref[$field]);
+            }//if
+          
+            $ret_mixed = true;
+            break;
+            
+          case 'clear':
+          
+            if(isset($field_ref[$field])){
+            
+              if(is_array($field_ref[$field])){
+              
+                foreach($args as $arg_i => $arg){
+                
+                  // if arg is an array, we want to check the full value, then a sub-value...
+                  if(is_array($arg)){
+                  
+                    if($arg === $field_ref[$field]){
+                    
+                      $this->is_modified = true;
+                      unset($field_ref[$field]);
+                    
+                    }//if
+                  
+                  }//if
+                  
+                  // might have matched the full array, so only check each row if still set...
+                  if(isset($field_ref[$field])){
+                    
+                    // we need all the keys to get rid of them...
+                    $field_keys = array_keys($field_ref[$field],$arg,true);
+                    foreach($field_keys as $field_key){
+                      $this->is_modified = true;
+                      unset($field_ref[$field][$field_key]);
+                    }//foreach
+                    
+                  }//if
+                  
+                }//foreach
+              
+              }else{
+              
+                if(in_array($field_ref[$field],$args,true)){
+                
+                  $this->is_modified = true;
+                  unset($field_ref[$field]);
+                
+                }//if
+                
+              }//if/else
+            
+            }//if
+          
+            $ret_mixed = true;
+            break;
         
-        }//if/else
-        
-        $field_i++;
-        
-      }//foreach
+        }//switch
       
-    }//for
+      }//if/else
+      
+      $field_i++;
+      
+    }//foreach
     
     return $ret_mixed;
   
   }//method
   
-  /**#@+
-   *  Required method definitions of Iterator interface
-   *  
-   *  @link http://php.net/manual/en/class.iterator.php      
-   */
-  public function rewind(){ $this->current_i = 0; }//method
-  public function current(){ return $this->detach($this->current_i); }//method
-  public function key(){ return $this->current_i; }//method
-  public function next(){ ++$this->current_i; }//method
-  public function valid(){ return isset($this->list[$this->current_i]); }//method
-  /**#@-*/
-  
-  /**
-   *  Set a value given it's key e.g. $A['title'] = 'foo';
-   */
-  public function offsetSet($key,$val){
-    
-    if($key === null){
-      // they are trying to do a $obj[] = $val so let's attach the $val
-      // via: http://www.php.net/manual/en/class.arrayobject.php#93100
-      $this->attach($val);
-    }else{
-      // they specified the key, so this will work on the internal objects...
-      $this->setField($key,$val);
-    }//if/else
-    
-  }//method
-  
-  /**
-   *  attach a new row to this instance
-   *  
-   *  @deprecated
-   *  NOTE: this is going to be made private, use setFields() instead
-   *  
-   *  @param  array|object  either an associative array or instance of this class, to attach to
-   *                        the end of this object
-   *  @param  boolean $is_modified  if true, then the contents of $map will be saved when set() is called
-   *                                if false, then $map won't be settable until a set* function is used   
-   *  @return boolean
-   */
-  public function attach($map,$is_modified = false){
-  
-    // canary...
-    if(isset($this->list[$this->count])){ $this->count = count($this->list); }//if
-  
-    if(is_object($map)){
-    
-      $class_name = get_class($this);
-    
-      if($map instanceof $class_name){
-      
-        // go through each row this class tracks internally...
-        foreach($map->getList() as $m){
-          $this->attach($m['map'],$m['modified']);
-        }//method
-        
-      }else{
-      
-        throw new InvalidArgumentException(
-          sprintf(
-            '$map is not the correct instance. Expected %s, but got %s',
-            $class_name,
-            get_class($map)
-          )
-        );
-      
-      }//if/else
-    
-    }else if(is_array($map)){
-    
-      $this->list[$this->count] = array();
-      $this->list[$this->count]['map'] = $map;
-      $this->list[$this->count]['modified'] = $is_modified;
-      $this->count++;
-      
-      // make sure the orm now knows it represents multiple rows...
-      if($this->count > 1){ $this->setMulti(true); }//if
-    
-    }else{
-    
-      throw new InvalidArgumentException(sprintf('trying to attach an unsupported $map type: %s',gettype($map)));
-    
-    }//if/else if/else
-  
-    return true;
-  
-  }//method
-
   /**
    * I'm slowly moving this to one orm represents one row, sadly, there is still
    * a lot code that needs to be changed/updated, this should be used over attach()
@@ -1352,51 +816,11 @@ abstract class MingoOrm extends MingoMagic implements Iterator,Countable {
    * @since 2013-3-7
    * @param array $map  the fields you want to set into the orm
    */
-  public function setFields(array $map){
+  public function setFields(array $field_map){
     $this->reset();
-    $this->attach($map, true);
+    $this->is_modified = true;
+    parent::setFields($field_map);
+    return $this;
   }//method
   
-  /**
-   *  get a new instance of this object
-   *  
-   *  @since  12-21-11
-   *  @return self
-   */
-  protected function getInstance(){
-  
-    ///$class = get_class($this);
-    ///$ret_map = new $class();
-  
-    $ret_orm = clone $this;
-    $ret_orm->reset();
-    return $ret_orm;
-  
-  }//method
-  
-  /**
-   *  rips out the map found at index $i into its own instance
-   *  
-   *  this class is internal, but you can see it used in {@link current()} and {@link get()}
-   *  
-   *  @param  integer $i  the index to rip out and return
-   *  @return object
-   */
-  protected function detach($i){
-  
-    // canary...
-    if(!isset($this->list[$i])){ return null; }//if
-    
-    $ret_map = $this->getInstance();
-    
-    ///$ret_map = new self(); // returns mingo_orm
-    $ret_map->attach(
-      $this->list[$i]['map'],
-      $this->list[$i]['modified']
-    );
-    
-    return $ret_map;
-  
-  }//method
-
 }//class     

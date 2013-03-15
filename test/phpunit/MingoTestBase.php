@@ -30,19 +30,17 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
   public function getOrm(){
     
     $t = new MingoTestOrm();
-    $t->attach(
+    $t->setFields(
       array(
         'foo' => rand(0,PHP_INT_MAX),
         'bar' => array(
           'baz' => md5(microtime(true))
         )
-      ),
-      false
+      )
     );
     
-    return array(
-      array($t)
-    );
+    return $t;
+
   }//method
   
   protected function getTable($name = ''){
@@ -62,8 +60,6 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
 class MingoTestOrm extends MingoOrm {
 
   protected function populateTable(MingoTable $table){
-  
-    $table->setField(MingoOrm::_ROWID,MingoField::TYPE_INT);
   
     ///$table->setIndex('foo','bar','baz');
   

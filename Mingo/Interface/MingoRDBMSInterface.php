@@ -1,6 +1,6 @@
 <?php
 /**
- *  handle relational db abstraction for mingo    
+ *  handle relational db abstraction for mingo
  *
  *  this interface attempts to treat a relational db (namely MySql and Sqlite) the
  *  way FriendFeed does: http://bret.appspot.com/entry/how-friendfeed-uses-mysql or

@@ -1,6 +1,6 @@
 <?php
 
-require_once('MingoTestBase_class.php');
+require_once('MingoTestBase.php');
 
 class MingoCriteriaTest extends MingoTestBase {
 

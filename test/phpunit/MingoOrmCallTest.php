@@ -1,6 +1,8 @@
 <?php
 
-require_once('MingoTestBase_class.php');
+require_once('MingoTestBase.php');
+
+require_once('/vagrant/out_class.php'); 
 
 class MingoOrmCallTest extends MingoTestBase {
 
@@ -10,10 +12,10 @@ class MingoOrmCallTest extends MingoTestBase {
    *  the fix for this was to add a method_exists() in MingoMagic::__call(), but I'm
    *  not incredibly happy about that as it is now called everytime the __call() method
    *  is called (which is a lot), but I'd rather have it slower and consistent than fast
-   *  and buggy               
+   *  and buggy
    *
-   *  @since  9-12-11   
-   */        
+   *  @since  9-12-11
+   */
   public function testBadMethodName(){
   
     $this->setExpectedException('BadMethodCallException');
@@ -24,34 +26,28 @@ class MingoOrmCallTest extends MingoTestBase {
   
   }//method
 
-  /**
-   * @dataProvider  getSetVal
-   */
-  public function testSimpleSetNotMulti($foo,$bar){
+  public function testSetField(){
   
     // setup...
     $t = new MingoTestOrm();
+    $foo = $this->getSetVal();
     
-    /* try{
-      $t->setFoo();
-      $this->fail('setting a blank value did not throw an exception');
-    }catch(InvalidArgumentException $e){}//try/catch */
-
     $t->setFoo($foo);
 
     // test...
-    $map = $t->getMap(0);
-    $this->assertArrayHasKey('foo',$map);
+    $map = $t->getFields();
+
+    $this->assertArrayHasKey('foo', $map);
     $this->assertEquals($foo,$map['foo']);
     
     // make sure the orm knows it should update itself...
-    $list = $t->getList();
-    $this->assertTrue($list[0]['modified']);
+    $this->assertTrue($t->isModified());
     
     // add one more value and make sure both keys still exist...
+    $bar = $this->getSetVal();
     $t->setBar($bar);
     
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayHasKey('foo',$map);
     $this->assertArrayHasKey('bar',$map);
     $this->assertEquals($foo,$map['foo']);
@@ -59,45 +55,16 @@ class MingoOrmCallTest extends MingoTestBase {
     
   }//method
   
-  /**
-   * @dataProvider  getSetVal
-   */
-  public function testSimpleSetMulti($foo,$bar){
-  
-    // setup...
-    $val = 1;
-    $t = new MingoTestOrm();
-    $t->attach(array());
-    $t->attach(array());
-    
-    $t->setFoo($foo);
-    $t->setBar($bar);
-    
-    $map_list = $t->getMap();
-    $this->assertEquals(count($map_list),2);
-    
-    foreach($map_list as $map){
-    
-      $this->assertArrayHasKey('foo',$map);
-      $this->assertArrayHasKey('bar',$map);
-      $this->assertEquals($foo,$map['foo']);
-      $this->assertEquals($bar,$map['bar']);
-    
-    }//foreach
-    
-  }//method
-  
-  /**
-   * @dataProvider  getSetVal
-   */
-  public function testDepthSet($foo,$bar){
+  public function testDepthSet(){
   
     // setup...
     $t = new MingoTestOrm();
+    $foo = $this->getSetVal();
+    $bar = $this->getSetVal();
     $t->setField(array('foo','baz'),$foo);
     
     // test...
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayHasKey('foo',$map);
     $this->assertArrayHasKey('baz',$map['foo']);
     $this->assertEquals($foo,$map['foo']['baz']);
@@ -107,7 +74,7 @@ class MingoOrmCallTest extends MingoTestBase {
     $t->setField(array('bar','baz'),$bar);
     
     // test...
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayHasKey('bar',$map);
     $this->assertArrayHasKey('baz',$map['bar']);
     $this->assertEquals($bar,$map['bar']['baz']);
@@ -116,7 +83,7 @@ class MingoOrmCallTest extends MingoTestBase {
     $t->setField(array('foo','che'),1);
   
     // test...
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayHasKey('foo',$map);
     $this->assertEquals(2,count($map['foo']));
     $this->assertEquals($foo,$map['foo']['baz']);
@@ -133,7 +100,7 @@ class MingoOrmCallTest extends MingoTestBase {
     $t->bumpField(array('bar','baz'),($val + 1));
   
     // test...
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayHasKey('foo',$map);
     $this->assertEquals($val,$map['foo']);
     
@@ -142,50 +109,43 @@ class MingoOrmCallTest extends MingoTestBase {
     $this->assertEquals(($val + 1),$map['bar']['baz']);
     
     // make sure the orm knows it should update itself...
-    $list = $t->getList();
-    $this->assertTrue($list[0]['modified']);
+    $this->assertTrue($t->isModified());
     
     // now make sure adding works also...
     $t->bumpFoo(1);
     
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertEquals(($val + 1),$map['foo']);
   
   }//method
   
-  /**
-   * @dataProvider  getOrm
-   */
-  public function testKill($t){
+  public function testKill(){
   
     // do some killing...
+    $t = $this->getOrm();
     $t->killFoo();
     
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayNotHasKey('foo',$map);
-    
-    $list = $t->getList();
-    $this->assertTrue($list[0]['modified']);
+    $this->assertTrue($t->isModified());
     
     $t->killField(array('bar','baz'));
     
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayHasKey('bar',$map);
     $this->assertArrayNotHasKey('baz',$map['bar']);
     
     $t->killField('bar');
     
-    $map = $t->getMap(0);
+    $map = $t->getFields();
     $this->assertArrayNotHasKey('bar',$map);
     $this->assertEmpty($map);
   
   }//method
   
-  /**
-   * @dataProvider  getOrm
-   */
-  public function testGet($t){
+  public function testGet(){
   
+    $t = $this->getOrm();
     $foo = $t->getFoo();
     $this->assertNotEmpty($foo);
     
@@ -195,8 +155,8 @@ class MingoOrmCallTest extends MingoTestBase {
     $bar = $t->getField('bar');
     $this->assertTrue(is_array($bar));
     
-    $fake = $t->getField('blah_blah_blah',0);
-    $this->assertSame(0,$fake);
+    $fake = $t->getField('blah_blah_blah', 0);
+    $this->assertSame(0, $fake);
     
     $fake = $t->getField('blah_blah_blah');
     $this->assertNull($fake);
@@ -204,62 +164,37 @@ class MingoOrmCallTest extends MingoTestBase {
     $fake = $t->getField('blah_blah_blah','blah_blah_blah');
     $this->assertSame('blah_blah_blah',$fake);
     
-    $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->attach($t2);
-    
-    $foo = $t->getFoo();
-    $this->assertTrue(is_array($foo));
-    $this->assertEquals(2,count($foo));
-    
-    $t->attach(array());
-    $foo = $t->getFoo('adsfsdf');
-    $this->assertTrue(is_array($foo));
-    $this->assertEquals(3,count($foo));
-    $this->assertSame('adsfsdf',$foo[2]);
+    $table = $t->getTable();
+    $table->setField('kasfjdkkads', MingoField::TYPE_INT);
   
     // make sure if field's have types then those types are returned...
-    $t3 = $this->getOrm(); $t3 = $t3[0][0];
-    $map = $t3->getMap(0);
-    $map[MingoOrm::ROW_ID] = '12345';
-    ///$map['foo'] = (string)$map['foo'];
-    $t3->reset();
-    $t3->attach($map);
-    $row_id = $t3->getRow_id();
-    $this->assertType('int',$row_id);
+    $t->setField('kasfjdkkads', '1003');
+    $row_id = $t->getField('kasfjdkkads');
+    $this->assertType('int', $row_id);
   
   }//method
   
-  /**
-   * @dataProvider  getOrm
-   */
-  public function testHas($t){
+  public function testHas(){
   
+    $t = $this->getOrm();
     $this->assertTrue($t->hasFoo());
     $this->assertTrue($t->hasBar());
     $this->assertTrue($t->hasField(array('bar','baz')));
     
     $this->assertFalse($t->hasField('blah_blah_blah'));
   
-    $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->attach($t2);
-    
     $this->assertTrue($t->hasFoo());
     $this->assertTrue($t->hasBar());
     $this->assertTrue($t->hasField(array('bar','baz')));
     
     $t->setFoo(0);
     $this->assertFalse($t->hasFoo());
-    
-    $t->attach(array());
-    $this->assertFalse($t->hasFoo());
   
   }//method
   
-  /**
-   * @dataProvider  getOrm
-   */
-  public function testExists($t){
+  public function testExists(){
   
+    $t = $this->getOrm();
     $this->assertTrue($t->existsFoo());
     $this->assertTrue($t->existsBar());
     $this->assertTrue($t->existsField(array('bar','baz')));
@@ -269,21 +204,11 @@ class MingoOrmCallTest extends MingoTestBase {
     $t->setFoo(0);
     $this->assertTrue($t->existsFoo());
   
-    $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->attach($t2);
-    
-    $this->assertTrue($t->existsFoo());
-    $this->assertTrue($t->existsBar());
-    $this->assertTrue($t->existsField(array('bar','baz')));
-    
-    $t->attach(array());
-    $this->assertFalse($t->existsFoo());
-  
   }//method
   
   public function testIs(){
   
-    $t = new MingoTestOrm();
+    $t = $this->getOrm();
     $t->setFoo(0);
     
     $this->assertFalse($t->isFoo('blah'),'testing string word against integer 0');
@@ -311,21 +236,11 @@ class MingoOrmCallTest extends MingoTestBase {
     $this->assertTrue($t->isField(array('bar','baz'),3),'testing nested bar.baz with matching value');
     $this->assertFalse($t->isField(array('bar','baz'),2),'testing nested bar.baz with incorrect value');
   
-    $t->attach(array('foo' => 1));
-    $this->assertTrue($t->isFoo(1),'testing multiple field values that equal each other');
-    $this->assertFalse($t->isFoo(2),'testing multiple field values with a value not present');
-    
-    $t->attach(array('foo' => 2));
-    $this->assertFalse($t->isFoo(1));
-    $this->assertFalse($t->isFoo(2));
-    $this->assertFalse($t->isFoo(3));
-  
   }//method
   
   public function testIn(){
   
-    $t = new MingoTestOrm();
-    
+    $t = $this->getOrm();
     $t->setFoo(1);
     
     $this->assertTrue($t->inFoo(1));
@@ -336,19 +251,6 @@ class MingoOrmCallTest extends MingoTestBase {
     $this->assertFalse($t->inField(array('bar','baz'),2));
     $this->assertFalse($t->inField(array('bar','baz'),1,2));
   
-    $t->attach(array('foo' => 4)); // foo: 1,4
-    $this->assertTrue($t->inFoo(1));
-    $this->assertFalse($t->inFoo(2));
-    $this->assertTrue($t->inFoo(1,4));
-    $this->assertFalse($t->inFoo(1,2));
-    
-    $t->attach(array('foo' => 2));  // foo: 1,4,2
-    $this->assertTrue($t->inFoo(1));
-    $this->assertTrue($t->inFoo(2));
-    $this->assertTrue($t->inFoo(1,4,2));
-    $this->assertFalse($t->inFoo(3));
-    $this->assertFalse($t->inFoo(1,4,3));
-    
     // now test searching for in in the array...
     $t = new MingoTestOrm();
     $t->setFoo(array(1,2,3,4)); // foo: array(1,2,3,4)
@@ -357,17 +259,6 @@ class MingoOrmCallTest extends MingoTestBase {
     $this->assertTrue($t->inFoo($t->getFoo()));
     $this->assertFalse($t->inFoo(5));
     $this->assertFalse($t->inFoo(1,5));
-    
-    // attach another value...
-    $t->attach(array('foo' => 5)); // foo: array(1,2,3,4), 5
-    $this->assertTrue($t->inFoo(2));
-    $this->assertTrue($t->inFoo(array(1,2,3,4)));
-    $this->assertFalse($t->inFoo(6));
-    $this->assertFalse($t->inFoo(1,6));
-    
-    // test an array of arrays...
-    $t->attach(array('foo' => array(array(6)))); // foo: array(1,2,3,4), 5, array(array(6))
-    $this->assertTrue($t->inFoo(array(6)));
   
   }//method
   
@@ -385,35 +276,17 @@ class MingoOrmCallTest extends MingoTestBase {
     $t->setBar('foo');
     $t->attachBar('bar');
     $this->assertEquals('foobar',$t->getBar());
-    
-    // make sure the orm knows it should update itself...
-    $list = $t->getList();
-    $this->assertTrue($list[0]['modified']);
+    $this->assertTrue($t->isModified());
   
   }//method
   
   public function testClear(){
   
-    $t = new MingoTestOrm();
+    $t = $this->getOrm();
     $t->setFoo(array(1,2,3,4)); // foo: array(1,2,3,4)
     $t->clearFoo(4);
     $this->assertEquals(array(1,2,3),$t->getFoo());
-  
-     // attach another value...
-    $t->attach(array('foo' => 3)); // foo: array(1,2,3), 3
-    $t->clearFoo(3);
-    $this->assertEquals(array(array(1,2),null),$t->getFoo());
-    
-    $t->attach(array('foo' => 1)); // foo: array(1,2), null, 1
-    $t->attach(array('foo' => 2)); // foo: array(1,2), null, 1, 2
-    $t->clearFoo(1,2);
-    $this->assertEquals(array(array(),null,null,null),$t->getFoo());
-    
-    // make sure the orm knows it should update itself...
-    $list = $t->getList();
-    foreach($list as $map){
-      $this->assertTrue($map['modified']);
-    }//foreach
+    $this->assertTrue($t->isModified());
   
   }//method
   
