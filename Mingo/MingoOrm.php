@@ -328,40 +328,7 @@ abstract class MingoOrm extends MingoMagic {
   public function setField($name, $val){
   
     return $this->handleCall('set', $name, array($val), $this);
-    $ref_name = '';
-    if($ref_map = &$this->getRef($name, $ref_name, -1)){
-      \out::e($ref_map, $ref_name);
-      $ref_map[$ref_name] = $val;
-    }//if
-
-    \out::e($ref_map, $this->field_map);
-
-    return $this;
   
-  }//method
-
-  protected function &getRef($name, &$ref_name, $count_offset){
-
-    $table = $this->getTable();
-    $field_instance = $table->getField($name);
-    $ref_map = &$this->field_map;
-  
-    $field_list = (array)$field_instance->getName();
-    $ref_name = $field_list[0];
-    $last_i = count($field_list) + $count_offset;
-
-    for($i = 0; $i < $last_i; $i++){
-      $ref_name = $field_list[$i];
-      if(isset($ref_map[$ref_name])){
-        $ref_map = &$ref_map[$ref_name];
-      }else{
-        $ret_bool = false;
-        break;
-      }//if/else
-    }//for
-
-    return $ref_map;
-
   }//method
   
   /**
