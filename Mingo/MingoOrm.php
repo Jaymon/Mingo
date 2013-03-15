@@ -78,6 +78,15 @@ abstract class MingoOrm extends MingoMagic {
     return new MingoQuery(get_called_class(), $db);
   
   }//method
+
+  /**
+   * non-static version of this method, everything the same, but passes in this instance's
+   * db instance
+   *
+   * @since 2013-3-14
+   * @see createQuery()
+   */
+  public function getQuery(){ return $this->createQuery($this->getDb()); }//method
   
   /**
    *  get the orm in a state to be serialized
@@ -186,7 +195,7 @@ abstract class MingoOrm extends MingoMagic {
   
     $db = $this->getDb();
     $this->_set();
-    $this->field_map = $db->set($this->getTable(), $orm->getFields());
+    $this->field_map = $db->set($this->getTable(), $this->getFields());
     $this->is_modified = false;
     return true;
   

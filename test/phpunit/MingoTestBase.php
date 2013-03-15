@@ -25,6 +25,24 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
   }//method
 
   /**
+   * get an orm, but one that can write to a SQLite db so we can test db stuff
+   *
+   * returns the same orm as getOrm(), but also has a live db connection
+   *
+   * @since 2013-3-14
+   * @return  MingoOrm
+   */
+  protected function getDbConnectedOrm(){
+  
+    $test_db = new MingoSQLiteInterfaceTest();
+    $db = $test_db->getDb();
+    $t = $this->getOrm();
+    $t->setDb($db);
+    return $t;
+  
+  }//method
+
+  /**
    *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
    */        
   public function getOrm(){

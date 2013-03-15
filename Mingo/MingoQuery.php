@@ -33,7 +33,7 @@
  *  @since 1-12-12
  *  @package mingo 
  ******************************************************************************/
-class MingoQuery extends MingoCriteria implements IteratorAggregate {
+class MingoQuery extends MingoCriteria implements IteratorAggregate, Countable {
 
   /**
    *  the \MingoOrm orm name
@@ -48,14 +48,6 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
    *  @var  \MingoInterface
    */
   protected $db = null;
-
-  /**
-   * holds the count cache if count() is called
-   *
-   * @since 2013-3-14
-   * @var integer
-   */
-  protected $count = null;
 
   /**
    *  build a query
@@ -99,10 +91,14 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
   public function get(){
   
     $has_more = false;
-    $orm = $this->createOrm();
+    $count = 0;
+    $orm = $this->getOrm();
     $db = $this->getDb();
     $limit = $offset = $limit_paginate = 0;
     list($limit, $offset, $limit_paginate) = $this->getBounds();
+    // we change the limit right here to make the request and check if has more results
+    $this->setLimit($limit_paginate);
+    $this->setOffset($offset);
 
     // get stuff from the db...
     $list = $db->get($orm->getTable(), $this);
@@ -112,6 +108,7 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
       
       // set whether more results are available or not...
       $count = count($list);
+      ///\out::e($limit, $offset, $limit_paginate, $count);
       if(!empty($limit_paginate) && ($count == $limit_paginate)){
         
         // cut off the final row since it wasn't part of the original requested rows...
@@ -119,18 +116,12 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
         $has_more = true;
         $count--;
         
-      }else{
-      
-        $has_more = false;
-        $this->count = $count;
-        
-      }//if/else
+      }//if
       
     }//if
     
-    $iterator = $this->createIterator($list);
-    $iterator->setOrm($orm);
-    $iterator->setMore($has_more);
+    $this->setLimit($limit); // reset the limit and no one is the wiser we messed with it
+    $iterator = new MingoIterator($list, $this, $has_more);
 
     return $iterator;
     
@@ -144,17 +135,10 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
   public function getOne(){
   
     $db = $this->getDb();
-    $orm = $this->createOrm();
+    $orm = $this->getOrm();
   
-    $db = $this->getDb();
-    $orm = $this->createOrm();
-    
     // get stuff from the db...
-    $map = $db->getOne(
-      $this->getTable(),
-      $where_criteria
-    );
-    
+    $map = $db->getOne($orm->getTable(), $this);
     if(empty($map)){
 
       $orm = null;
@@ -176,18 +160,16 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
    */
   public function count(){
   
-    if($this->count !== null){ return $this->count; }//if
-
     $db = $this->getDb();
-    $orm = $this->createOrm();
-    $this->count = $db->getCount($orm->getTable(), $this);
+    $orm = $this->getOrm();
+    return $db->getCount($orm->getTable(), $this);
   
   }//method
 
   public function kill(){
 
     $ret_bool = false;
-    $orm = $this->createOrm();
+    $orm = $this->getOrm();
     $db = $this->getDb();
     $ret_bool = $db->kill($orm->getTable(), $this);
   
@@ -201,7 +183,7 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
    *
    *  @return \MingoOrm   
    */
-  protected function createOrm(){
+  public function getOrm(){
   
     $class_name = $this->orm_name;
     $orm = new $class_name();
@@ -210,14 +192,6 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate {
     return $orm;
   
   }//method
-  
-  /**
-   *  create an iterator
-   *
-   *  @return \MingoIterator   
-   */
-  protected function createIterator(){ return new MingoIterator(); }//method
-
   
   /**
    * returns an iterator with the results

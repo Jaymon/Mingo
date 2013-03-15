@@ -1,8 +1,7 @@
 <?php
 
 require_once('MingoTestBase.php');
-
-require_once('/vagrant/out_class.php'); 
+//require_once('/vagrant/out_class.php'); 
 
 class MingoOrmCallTest extends MingoTestBase {
 

@@ -11,18 +11,54 @@
 class MingoIterator implements ArrayAccess, Iterator, Countable {
 
   /**
+   *  holds the pointer to the current map in {@link $list}
+   *  @var  integer
+   */
+  protected $current_i = 0;
+
+  /**
+   *  if {@link load()} could have loaded more results, this will be set to true
+   *  @var  boolean   
+   */
+  protected $has_more = false;
+
+  /**
    *  the \MingoOrm that will be used to iterate
    *
    *  @var  \MingoOrm
    */
   protected $orm = null;
 
-  public function setOrm(MingoOrm $orm){
+  /**
+   * hold the returned results
+   *
+   * @var array
+   */
+  protected $list = array();
+
+  /**
+   * hold the query instance that was used to generate $list
+   *
+   * @var MingoQuery
+   */
+  protected $query = null;
+
+  public function __construct(array $list, MingoQuery $query, $has_more = false){
+
+    if($query){ $this->setQuery($query); }//if
+    $this->list = $list;
+    $this->setMore($has_more);
   
-    $this->orm = $orm;
+  }//method
+
+  public function setQuery(MingoQuery $query){
+  
+    $this->query = $query;
     return $this;
   
   }//method
+
+  public function getQuery(){ return $this->query; }//method
   
   /**
    *  return true if there are actual results in this instance to iterate through
@@ -35,34 +71,28 @@ class MingoIterator implements ArrayAccess, Iterator, Countable {
    *  Required definition for Countable, allows count($this) to work
    *  @link http://www.php.net/manual/en/class.countable.php
    */
-  public function count(){
-    
-    // canary...
-    if(empty($this->orm)){ return 0; }//if
-    
-    return count($this->orm);
-    
-  }//method
+  public function count(){ return count($this->list); }//method
 
-  /**#@+
-   *  Required method definitions of Iterator interface
-   *  
-   *  @link http://php.net/manual/en/class.iterator.php      
-   */
-  public function rewind(){ $this->orm->rewind(); }//method
-  public function current(){ return $this->orm->current(); }//method
-  public function key(){ return $this->orm->key(); }//method
-  public function next(){ $this->orm->next(); }//method
-  public function valid(){
-    
-    // canary
-    if(empty($this->orm)){ return false; }//if
-    
-    return $this->orm->valid();
-    
+  public function rewind(){ $this->current_i = 0; }//method
+  public function current(){
+
+    if(empty($this->orm)){
+
+      $query = $this->getQuery();
+      $this->orm = $query->getOrm();
+
+    }//if
+
+    $orm = clone $this->orm;
+    $orm->reset(); // might not be necessary, but just in case
+    $orm->setFields($this->list[$this->current_i]);
+    return $orm;
+
   }//method
-  /**#@-*/
-  
+  public function key(){ return $this->current_i; }//method
+  public function next(){ ++$this->current_i; }//method
+  public function valid(){ return isset($this->list[$this->current_i]); }//method
+
   /**#@+
    *  Required definition of interface ArrayAccess
    *  @link http://www.php.net/manual/en/class.arrayaccess.php   
@@ -111,18 +141,12 @@ class MingoIterator implements ArrayAccess, Iterator, Countable {
   }//method
   /**#@-*/
   
-  /**
-   *  return true if there is at least another page of results available
+/**
+   *  return true if the last db load could load more, but was limited by $limit 
    *
    *  @return boolean
    */
-  public function hasMore(){
-  
-    // canary
-    if(empty($this->orm)){ return false; }//if
-  
-    return $this->orm->hasMore();
-    
-  }//method alias
+  public function hasMore(){ return !empty($this->has_more); }//method
+  public function setMore($val){ $this->has_more = $val; }//method
 
 }//class     
