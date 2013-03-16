@@ -10,7 +10,11 @@
  *    - I have to generate an _id because you can't search using the document id (bummer), I know
  *    the document ids can change, but I figured it wouldn't be a big deal, but either way, you can't
  *    pull out by those ids, so they can't be used as the _id
+ *    http://khalidadisendjaja.web.id/2010/03/29/zend-lucene-getting-document-id-after-indexing/
  *    - this interface is not fast, it takes 39 seconds to run the tests on my machine
+ *  
+ *  TODO - change this over to use Zend Framework 2, ZendSearch doesn't seem to be in the composer packages though
+ *  https://github.com/zendframework/ZendSearch
  *
  *  @link http://framework.zend.com/manual/en/zend.search.lucene.html 
  *  @link http://wiki.apache.org/lucene-java/LuceneFAQ
