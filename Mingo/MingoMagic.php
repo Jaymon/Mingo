@@ -189,8 +189,7 @@ abstract class MingoMagic implements ArrayAccess {
    *  @since  4-27-11   
    *  @param  string  $name the name of the field
    */
-  public function killField($name)
-  {
+  public function killField($name){
     $name = $this->normalizeField($name)->getNameAsString();
     if(isset($this->field_map[$name])){ unset($this->field_map[$name]); }//if
     return $this;

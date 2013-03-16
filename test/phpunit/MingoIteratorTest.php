@@ -1,6 +1,6 @@
 <?php
 require_once('MingoTestBase.php');
-include('/vagrant/out_class.php');
+///include('/vagrant/out_class.php');
 
 class MingoIteratorTest extends MingoTestBase {
 
@@ -62,6 +62,72 @@ class MingoIteratorTest extends MingoTestBase {
     $this->assertEquals(3, count($iter));
   
   }//method
+
+  public function testFieldMethods(){
+    $t = $this->getOrm();
+    $iter = new MingoIterator(
+      array(
+        array(
+          '_id' => 1,
+          'foo' => 2
+        ),
+        array(
+          '_id' => 2,
+          'foo' => 2
+        ),
+        array(
+          '_id' => 3,
+          'foo' => 2
+        )
+      ),
+      new MingoQuery(get_class($t))
+    );
+
+    $_ids = $iter->getField('_id');
+    $this->assertEquals(3, count($_ids));
+
+    $ret_bool = $iter->isField('foo', 2);
+    $this->assertTrue($ret_bool);
+
+    $ret_bool = $iter->hasField('foo');
+    $this->assertTrue($ret_bool);
+
+    $ret_bool = $iter->existsField('foo');
+    $this->assertTrue($ret_bool);
+
+    $ret_bool = $iter->hasField('bar');
+    $this->assertFalse($ret_bool);
+
+  }//method
+
+  public function testArrayInterface(){
+
+    $t = $this->getOrm();
+    $iter = new MingoIterator(
+      array(
+        array(
+          '_id' => 1,
+          'foo' => 2
+        ),
+        array(
+          '_id' => 2,
+          'foo' => 2
+        ),
+        array(
+          '_id' => 3,
+          'foo' => 2
+        )
+      ),
+      new MingoQuery(get_class($t))
+    );
+
+    $orm = $iter[1];
+    $this->assertInstanceOf(get_class($t), $orm);
+    $this->assertEquals(2, $orm->get_id());
+
+  }//method
+  
+
 
 
 }//class

@@ -1,10 +1,4 @@
 <?php
-/**
- *  @todo currently the load and kill only load/kill one row, so we need to test
- *  loading mulitple rows and killing multiple rows and iterating through, and pagination,
- *  and totals   
- */    
-
 require_once('MingoTestBase.php');
 //include('/vagrant/out_class.php');
 
@@ -40,118 +34,6 @@ class MingoOrmTest extends MingoTestBase {
     $this->assertSame(2,$orm2->getBar());
     $this->assertSame($orm->get_id(),$orm2->get_id());
     
-    return;
-    
-    // there is no automatic creation of the db in getDb(), so the below code probably isn't needed
-    
-    $orm2->bumpBar(1);
-    $this->assertGreaterThan(0,$orm2->set());
-    
-    $orm3 = $this->getDbConnectedOrm();
-    
-    $where_criteria = new MingoCriteria();
-    $where_criteria->is_Id($orm2->get_id());
-    
-    $this->assertTrue($orm3->loadOne($where_criteria));
-  
-    $this->assertSame('one',$orm3->getFoo());
-    $this->assertSame(3,$orm3->getBar());
-    $this->assertSame($orm->get_id(),$orm3->get_id());
-  
-  }//method
-
-  /**
-   *  makes sure the cloning in {@link MingoOrm::detach()} works as expected
-   *  
-   *  basically, I changed the detach method to clone the current instance instead
-   *  of creating a whole new object, this allows the children objects to inherit any
-   *  unknowable values of the parent with minimal fuss, it also means the child doesn't
-   *  have to recreate the table or db objects      
-   *      
-   *  @since  9-19-11
-   */
-  public function testIterate(){
-  
-    $orms = new MingoIterateTestOrm();
-    $orms->attach(array('foo' => 1));
-    $orms->attach(array('foo' => 2));
-    $orms->attach(array('foo' => 3));
-    
-    foreach($orms as $orm){
-    
-      $this->assertEquals(1,$orm->common->count);
-      $this->assertEquals('che',$orm->name);
-    
-    }//foreach
-    
-    $orms->common->count = 2;
-    
-    foreach($orms as $orm){
-    
-      $this->assertEquals(2,$orm->common->count);
-      $this->assertEquals('che',$orm->name);
-    
-    }//foreach
-  
-  }//method
-
-  /**
-   * @dataProvider  getOrm
-   */
-  public function testAttach($t){
-  
-    $this->assertFalse($t->isMulti());
-    $this->assertSame(1,$t->getCount());
-    $this->assertTrue($t->isCount(1));
-  
-    // now test attach and multi support...
-    $t2 = $this->getOrm(); $t2 = $t2[0][0];
-    $t->attach($t2);
-    $t->attach(array('foo' => 1,'bar' => array('baz' => 2)));
-    
-    $list = $t->getList();
-    $this->assertSame(3,count($list));
-    $this->assertTrue($t->isMulti());
-    
-    // make sure the structure of each list row is correct...
-    foreach($list as $map){
-      
-      $this->assertArrayHasKey('modified',$map);
-      $this->assertInternalType('boolean',$map['modified']);
-      
-      $this->assertArrayHasKey('map',$map);
-      $this->assertInternalType('array',$map['map']);
-      
-      // make sure the structure is correct of the map...
-      $this->assertArrayHasKey('foo',$map['map']);
-      $this->assertArrayHasKey('bar',$map['map']);
-      $this->assertArrayHasKey('baz',$map['map']['bar']);
-    
-    }//foreach
-  
-    return $t;
-  
-  }//method
-
-  /**
-   *  this is here to make sure a raw reset map doesn't have a phantom internal
-   *  map that would make the attach have a blank map as the first thing
-   *
-   *  @since  11-3-11
-   */
-  public function testAttach2(){
-  
-    $orm = $this->getOrm();
-    $orm = $orm[0][0];
-
-    $orm->reset();
-
-    $orm2 = $this->getOrm();
-    $orm2 = $orm2[0][0];
-
-    $orm->attach($orm2->getMap(0));
-  
-    $this->assertEquals(1,count($orm->getList()));
   }//method
 
   public function testSet(){
@@ -171,7 +53,15 @@ class MingoOrmTest extends MingoTestBase {
   }//method
 
   public function testKill(){
-    throw new RuntimeException('tbi, test MingoOrm::kill()');
+    $t = $this->getSetOrm();
+    $this->assertTrue($t->has_id());
+
+    $t->kill();
+
+    $this->assertFalse($t->has_id());
+    $this->assertFalse($t->has_created());
+    $this->assertFalse($t->has_updated());
+
   }//method
   
   protected function assertOrmStructure($t){
@@ -184,42 +74,5 @@ class MingoOrmTest extends MingoTestBase {
   
   }//method
   
-  protected function getDbConnectedOrm(){
-  
-    $test_db = new MingoSQLiteInterfaceTest();
-    ///$test_db = new test_mingo_db_mongo();
-  
-    $db = $test_db->getDb();
-    /* $db->connect(
-      $test_db->getDbInterface(),
-      $test_db->getDbName(),
-      $test_db->getDbHost(),
-      $test_db->getDbUsername(),
-      $test_db->getDbPassword()
-    ); */
-    
-    $t = new MingoTestOrm();
-    $t->setDb($db);
-    return $t;
-  
-  }//method
-
 }//class
 
-/**
- *  this is specfic to the {@link MingoOrmTest::testIterate()} method
- */
-class MingoIterateTestOrm extends MingoTestOrm {
-
-  public $common = null;
-  
-  public $name = 'che';
-
-  public function __construct(){
-  
-    $this->common = new StdClass();
-    $this->common->count = 1;
-  
-  }//method
-  
-}//class

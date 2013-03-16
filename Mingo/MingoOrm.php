@@ -219,7 +219,7 @@ abstract class MingoOrm extends MingoMagic {
   public function kill(){
 
     $ret_bool = false;
-    $query = static::createQuery(get_class($this), $this->getDb());
+    $query = static::createQuery($this->getDb());
     if($query->is_id($this->get_id())->kill()){
       $this->kill_id();
       $this->kill_updated();

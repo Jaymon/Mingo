@@ -202,8 +202,6 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate, Countable {
    * @since 2013-3-7
    * @return  Traversable
    */
-  public function getIterator(){
-    return $this->get();
-  }//method
+  public function getIterator(){ return $this->get(); }//method
 
-}//class     
+}//class

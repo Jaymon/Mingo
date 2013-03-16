@@ -43,6 +43,23 @@ abstract class MingoTestBase extends PHPUnit_Framework_TestCase {
   }//method
 
   /**
+   * same as all the other get orm methods, but makes sure the orm has also been
+   * saved into the db before returning it
+   *
+   * @since 2013-3-15
+   * @return  MingoOrm
+   */
+  protected function getSetOrm(){
+  
+    $t = $this->getDbConnectedOrm();
+    $this->assertEmpty($t->get_id());
+    $t->set();
+    $this->assertNotEmpty($t->get_id());
+    return $t;
+  
+  }//method
+
+  /**
    *  http://www.phpunit.de/manual/current/en/writing-tests-for-phpunit.html#writing-tests-for-phpunit.data-providers
    */        
   public function getOrm(){

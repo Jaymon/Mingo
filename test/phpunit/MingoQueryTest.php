@@ -1,6 +1,6 @@
 <?php
 require_once('MingoTestBase.php');
-include('/vagrant/out_class.php');
+///include('/vagrant/out_class.php');
 
 class MingoQueryTest extends MingoTestBase {
 
@@ -79,21 +79,6 @@ class MingoQueryTest extends MingoTestBase {
     $this->assertNull($orm);
 
   }//method
-  
-
-  protected function getSetOrm(){
-  
-    $t = $this->getDbConnectedOrm();
-    $this->assertEmpty($t->get_id());
-    $t->set();
-    $this->assertNotEmpty($t->get_id());
-    return $t;
-  
-  }//method
-
-
-
-
 
 }//class
 

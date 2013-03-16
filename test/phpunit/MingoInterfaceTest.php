@@ -349,18 +349,20 @@ abstract class MingoInterfaceTest extends MingoTestBase {
         $map['foo'] = $foo;
         $map['bar'] = $timestamp;
         $map = $db->set($table,$map);
-      
-        $foo_list[$foo] = $map['_id'];
+
+        $foo_list[$foo][] = $map['_id'];
       
       }//for
       
     }//foreach
-    
+
     foreach($foo_list as $foo => $_id_list){
       
       // kill all the rows with the given foo...
       $where_criteria = new MingoCriteria();
       $where_criteria->isFoo($foo);
+
+      $list = $db->get($table, $where_criteria);
       
       $ret_bool = $db->kill($table,$where_criteria);
       $this->assertTrue($ret_bool);
