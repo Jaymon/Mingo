@@ -121,7 +121,7 @@ class MingoQuery extends MingoCriteria implements IteratorAggregate, Countable {
     }//if
     
     $this->setLimit($limit); // reset the limit and no one is the wiser we messed with it
-    $iterator = new MingoIterator($list, $this, $has_more);
+    $iterator = new MingoIterator($list, clone $this, $has_more);
 
     return $iterator;
     
